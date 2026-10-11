@@ -1,0 +1,241 @@
+import AddonKit
+import SwiftUI
+
+/// Search and browse add-ons (DESIGN.md §7, §8).
+struct BrowseView: View {
+    @Environment(AppModel.self) private var model
+    var state: InstallationModel
+
+    @AppStorage("browseForeverOnly") private var foreverOnly = true
+    @State private var includeLiveGitHub = false
+
+    private struct QueryKey: Hashable {
+        var text: String
+        var foreverOnly: Bool
+        var includeLiveGitHub: Bool
+        var installationID: String
+    }
+
+    private var trimmedQuery: String { model.searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            filterBar
+            Divider()
+            if trimmedQuery.isEmpty {
+                BrowseHomeList(state: state)
+            } else {
+                resultsList
+            }
+        }
+        // `.task(id:)` cancels the previous search whenever the query changes; the sleep is the debounce.
+        .task(id: QueryKey(text: trimmedQuery, foreverOnly: foreverOnly, includeLiveGitHub: includeLiveGitHub,
+                           installationID: state.installation.id)) {
+            let text = trimmedQuery
+            guard !text.isEmpty else {
+                state.clearSearch()
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            await state.search(SearchQuery(text: text, flavor: state.installation.flavor,
+                                           foreverOnly: foreverOnly, includeLiveGitHub: includeLiveGitHub))
+        }
+        .task(id: foreverOnly) {
+            await state.loadBrowseCatalogue(foreverOnly: foreverOnly)
+        }
+        .onChange(of: model.searchText) { includeLiveGitHub = false }
+    }
+
+    private var filterBar: some View {
+        HStack(spacing: 12) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(BrowseCategory.all) { category in
+                        let selected = trimmedQuery.caseInsensitiveCompare(category.query) == .orderedSame
+                        Button {
+                            model.searchText = selected ? "" : category.query
+                        } label: {
+                            Label(category.name, systemImage: category.symbol)
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .tint(selected ? Color.accentColor : nil)
+                        .controlSize(.small)
+                    }
+                }
+            }
+            Toggle("Forever only", isOn: $foreverOnly)
+                .toggleStyle(.checkbox)
+                .help("Hide add-ons verified not to support Forever. Unchecked add-ons are shown dimmed.")
+                .fixedSize()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder private var resultsList: some View {
+        let installed = state.searchResults.filter { $0.installed != nil }
+        let others = state.searchResults.filter { $0.installed == nil }
+        List {
+            if !installed.isEmpty {
+                Section("Installed") {
+                    ForEach(installed) { SearchResultRow(state: state, result: $0) }
+                }
+            }
+            Section {
+                ForEach(others) { SearchResultRow(state: state, result: $0) }
+            } header: {
+                HStack {
+                    Text("Results")
+                    if state.isSearching { ProgressView().controlSize(.mini) }
+                }
+            } footer: {
+                HStack {
+                    Spacer()
+                    Button("Search GitHub for more results", systemImage: "magnifyingglass") {
+                        includeLiveGitHub = true
+                    }
+                    .disabled(includeLiveGitHub)
+                    .help("Runs a live GitHub search. Limited to a few searches per minute without a token.")
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+            }
+        }
+        .overlay {
+            if state.searchResults.isEmpty {
+                if state.isSearching {
+                    ProgressView()
+                } else {
+                    ContentUnavailableView.search(text: trimmedQuery)
+                }
+            }
+        }
+    }
+}
+
+/// Empty-query state: Popular on Forever / Recently updated (DESIGN.md §7.5).
+private struct BrowseHomeList: View {
+    var state: InstallationModel
+
+    var body: some View {
+        let catalogue = state.browseCatalogue
+        let popular = catalogue
+            .filter { if case .supported = $0.support { true } else { false } }
+            .sorted { ($0.stars ?? 0) > ($1.stars ?? 0) }
+            .prefix(6)
+        let recent = catalogue
+            .sorted { ($0.lastUpdated ?? .distantPast) > ($1.lastUpdated ?? .distantPast) }
+            .prefix(6)
+        List {
+            Section("Popular on Forever") {
+                ForEach(Array(popular)) { SearchResultRow(state: state, result: $0) }
+            }
+            Section("Recently updated") {
+                ForEach(Array(recent)) { SearchResultRow(state: state, result: $0) }
+            }
+        }
+        .overlay {
+            if catalogue.isEmpty { ProgressView() }
+        }
+    }
+}
+
+struct SearchResultRow: View {
+    @Environment(AppModel.self) private var model
+    @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
+    var state: InstallationModel
+    var result: SearchResult
+
+    private var id: String { result.id.description }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(result.name).fontWeight(.medium)
+                    Text(result.owner).font(.caption).foregroundStyle(.secondary)
+                    if result.origin.contains(.github) {
+                        Image(systemName: "globe").font(.caption).foregroundStyle(.secondary)
+                            .help("Found by live GitHub search")
+                    }
+                }
+                if let summary = result.summary {
+                    Text(summary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                if let error = state.rowErrors[id] {
+                    RowErrorText(message: error)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .opacity(SupportBadge.isDimmed(result.support) && result.installed == nil ? 0.6 : 1)
+
+            SupportBadge(status: result.support)
+                .frame(width: 100, alignment: .leading)
+
+            if let installed = result.installed {
+                Text(installed.version)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 140, alignment: .leading)
+            } else {
+                Group {
+                    if let stars = result.stars {
+                        Label("\(stars)", systemImage: "star").labelStyle(.titleAndIcon)
+                    } else {
+                        Text("")
+                    }
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(width: 60, alignment: .leading)
+
+                Text(result.lastUpdated?.formatted(.relative(presentation: .named)) ?? "")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 80, alignment: .leading)
+            }
+
+            action
+                .frame(width: 110, alignment: .trailing)
+        }
+        .padding(.vertical, 3)
+        .contextMenu {
+            if let url = result.id.webURL {
+                Link("Open on \(result.id.sourceName)", destination: url)
+            }
+        }
+    }
+
+    @ViewBuilder private var action: some View {
+        if let installed = result.installed {
+            Button("Open") { model.reveal(installed.id) }
+        } else if let activity = state.activity[id] {
+            ActivityIndicator(activity: activity)
+        } else if state.needsOverwrite.contains(result.id) {
+            Button("Overwrite", role: .destructive) {
+                Task { await state.install(result.id, channel: defaultChannel, force: true) }
+            }
+            .help("Replace the existing unmanaged folder")
+        } else {
+            Button("Install") {
+                Task { await state.install(result.id, channel: defaultChannel) }
+            }
+        }
+    }
+}
+
+#Preview("Browse – empty query") {
+    PreviewHost { _, state in
+        BrowseView(state: state)
+    }
+    .frame(width: 800, height: 500)
+}
+
+#Preview("Browse – bags") {
+    PreviewHost(configure: { $0.searchText = "bags"; $0.tab = .browse }) { _, state in
+        BrowseView(state: state)
+    }
+    .frame(width: 800, height: 500)
+}
