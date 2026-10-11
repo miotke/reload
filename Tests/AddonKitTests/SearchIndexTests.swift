@@ -2,11 +2,11 @@ import Foundation
 import Testing
 @testable import AddonKit
 
-func catalogueFixture() throws -> [CatalogueEntry] {
+func searchCatalogueFixture() throws -> [CatalogueEntry] {
     CatalogueCSV.entries(from: try fixtureData("search/addons.csv"))
 }
 
-func entry(_ fullName: String, name: String? = nil, description: String? = nil, updated: TimeInterval? = nil) -> CatalogueEntry {
+func catalogueEntry(_ fullName: String, name: String? = nil, description: String? = nil, updated: TimeInterval? = nil) -> CatalogueEntry {
     CatalogueEntry(
         id: fullName, name: name ?? String(fullName.split(separator: "/").last!), fullName: fullName,
         url: URL(string: "https://github.com/\(fullName)")!, description: description,
@@ -33,7 +33,7 @@ func entry(_ fullName: String, name: String? = nil, description: String? = nil, 
     let index: SearchIndex
 
     init() throws {
-        index = SearchIndex(entries: try catalogueFixture())
+        index = SearchIndex(entries: try searchCatalogueFixture())
     }
 
     private func top(_ text: String, _ n: Int = 3) -> [String] {
@@ -97,28 +97,28 @@ func entry(_ fullName: String, name: String? = nil, description: String? = nil, 
 @Suite struct SearchRankingTests {
     @Test func tiersOrderResults() {
         let index = SearchIndex(entries: [
-            entry("a/DescOnly", name: "Something", description: "a great bag helper", updated: 4),
-            entry("a/AllWords", name: "BetterBag", updated: 3),
-            entry("a/Prefix", name: "Bagnon", updated: 2),
-            entry("a/Exact", name: "Bag", updated: 1),
+            catalogueEntry("a/DescOnly", name: "Something", description: "a great bag helper", updated: 4),
+            catalogueEntry("a/AllWords", name: "BetterBag", updated: 3),
+            catalogueEntry("a/Prefix", name: "Bagnon", updated: 2),
+            catalogueEntry("a/Exact", name: "Bag", updated: 1),
         ])
         #expect(index.search("bag").map(\.fullName) == ["a/Exact", "a/Prefix", "a/AllWords", "a/DescOnly"])
     }
 
     @Test func onlyLastWordIsPrefix() {
-        let index = SearchIndex(entries: [entry("BigWigsMods/BigWigs")])
+        let index = SearchIndex(entries: [catalogueEntry("BigWigsMods/BigWigs")])
         #expect(index.search("big wig").count == 1)
         #expect(index.search("bi wigs").isEmpty)
     }
 
     @Test func pluralTolerance() {
-        let index = SearchIndex(entries: [entry("x/BetterBags", description: "Bag replacement")])
+        let index = SearchIndex(entries: [catalogueEntry("x/BetterBags", description: "Bag replacement")])
         #expect(index.search("bags better").count == 1)
         #expect(index.search("bag better").count == 1)
     }
 
     @Test func diacriticFolding() {
-        let index = SearchIndex(entries: [entry("x/Ätherwind"), entry("y/Cafe", description: "Café helper")])
+        let index = SearchIndex(entries: [catalogueEntry("x/Ätherwind"), catalogueEntry("y/Cafe", description: "Café helper")])
         #expect(index.search("ather").count == 1)
         #expect(index.search("ÄTHER").count == 1)
         #expect(index.search("café").count == 1)
@@ -126,10 +126,10 @@ func entry(_ fullName: String, name: String? = nil, description: String? = nil, 
 
     @Test func supportThenRecencyBreakTies() {
         let index = SearchIndex(entries: [
-            entry("a/BagOld", updated: 1),
-            entry("a/BagNew", updated: 5),
-            entry("a/BagNo", updated: 9),
-            entry("a/BagYes", updated: 0),
+            catalogueEntry("a/BagOld", updated: 1),
+            catalogueEntry("a/BagNew", updated: 5),
+            catalogueEntry("a/BagNo", updated: 9),
+            catalogueEntry("a/BagYes", updated: 0),
         ])
         let statuses: [String: SupportStatus] = [
             "a/BagYes": .supported(version: "1"),
@@ -141,7 +141,7 @@ func entry(_ fullName: String, name: String? = nil, description: String? = nil, 
     }
 
     @Test func fullCatalogueQueriesAreFast() throws {
-        let base = try catalogueFixture()
+        let base = try searchCatalogueFixture()
         var entries: [CatalogueEntry] = []
         for i in 0..<12 {
             entries += base.map { var e = $0; e.fullName = "\(e.fullName)\(i)"; return e }
@@ -159,7 +159,7 @@ func entry(_ fullName: String, name: String? = nil, description: String? = nil, 
     }
 
     @Test func recentlyUpdated() {
-        let index = SearchIndex(entries: [entry("a/A", updated: 1), entry("a/B", updated: 3), entry("a/C")])
+        let index = SearchIndex(entries: [catalogueEntry("a/A", updated: 1), catalogueEntry("a/B", updated: 3), catalogueEntry("a/C")])
         #expect(index.recentlyUpdated(limit: 5).map(\.fullName) == ["a/B", "a/A"])
     }
 }
