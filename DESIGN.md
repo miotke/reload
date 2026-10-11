@@ -85,13 +85,13 @@ None of these values may be hard-coded in more than one place. See §6.1.
 └───────────────────────────▲──────────────────────────────────┘
                             │
 ┌───────────────────────────┴──────────────────────────────────┐
-│ addonctl (Swift package executable) — dev / scripting CLI    │
+│ addonctl (Swift package executable) — package-manager CLI    │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 Rules:
 
-- **All logic lives in `AddonKit`.** The app and the CLI are thin. Anything the UI can do, `addonctl` can do, which makes it easy to test against a real install.
+- **All logic lives in `AddonKit`.** The app and the CLI are thin and equal: two front ends over one core and one store (§9). Anything the UI can do, `addonctl` can do.
 - **Pure code is separated from I/O.** TOC parsing, `release.json` parsing, flavor detection and release selection are plain functions on value types. They get exhaustive unit tests using fixture files.
 - **Swift 6 strict concurrency.** Shared mutable state lives in actors (`AddonManager`, `InstallStore`). Everything that crosses actor boundaries is `Sendable`.
 
@@ -503,22 +503,93 @@ Browse tab:
 
 ## 9. CLI (`addonctl`)
 
-The CLI is used during development before the UI exists, and it stays useful for scripting.
+The CLI is a full package manager, not a debugging tool. Anything you can do in the app, you can do from the terminal, and the reverse.
+
+### 9.1 Principles
+
+- **One core, one state.** The CLI and the app both use `AddonManager` and the same `InstallStore` in Application Support. An add-on installed from the terminal shows up in the app, and the reverse.
+- **Safe to run alongside the app.**
+  - Every write to the store takes an exclusive lock (`flock` on `installations/.lock`), so the CLI and the app never write at the same time.
+  - Read-modify-write sequences, such as recording an install, hold the lock for the whole sequence.
+  - The app watches the store folder for changes (a `DispatchSource` file-system event source) and reloads when the CLI changes something.
+- **Shared credentials.**
+  - The GitHub token lives in the Keychain, under service `com.andrewmiotke.ForeverAddons` and account `github-token`.
+  - `KeychainStore` lives in `AddonKit` so both the app and the CLI can use it.
+  - The `ADDONS_GITHUB_TOKEN` environment variable (falling back to `GITHUB_TOKEN`) overrides the stored token for one run, which is useful in CI.
+- **Works for people and scripts.**
+  - In a terminal: coloured tables, progress bars on stderr, and confirmation prompts.
+  - When piped, or with `--json`: plain stable output on stdout and no prompts. Anything destructive requires `--yes`, otherwise the command fails.
+
+### 9.2 Commands
+
+Most commands mirror package managers people already know (brew, npm, apt), and familiar aliases are accepted.
+
+| Command | Aliases | What it does |
+|---|---|---|
+| `search <query…>` | `s` | Same search as the Browse tab (§7). Waits for Forever verification of the top results before printing. `--github` adds live search, `--all` includes unsupported add-ons, `--limit N` caps results. |
+| `info <ref>` | `show` | Details: description, latest Forever release and why it was chosen, installed version, owned folders, changelog (`--changelog`). |
+| `install <ref…>` | `i`, `add` | Install one or more add-ons. Takes `owner/repo` or a GitHub URL; a plain name is looked up in the catalogue and must match exactly one add-on, otherwise the CLI asks which one. Options: `--prerelease`, `--version <tag>` (installs that tag and pins it), `--force` (overwrite unmanaged folders). |
+| `remove <ref…>` | `rm`, `uninstall` | Uninstalls by moving folders to the Trash. Asks for confirmation unless `--yes`. |
+| `update [<ref…>]` | `upgrade`, `up` | Updates everything (or just the listed add-ons). Skips pinned add-ons. `--dry-run` shows what would change. |
+| `outdated` | | Lists add-ons with updates available. Exits with code 10 if anything is outdated (handy in scripts). |
+| `list` | `ls` | Managed add-ons with version, source, channel and pin state. `--unmanaged` adds unmanaged folders, `--missing` shows only add-ons with missing folders. |
+| `pin <ref…>` / `unpin <ref…>` | | Pin or unpin add-ons so `update` skips them. |
+| `channel <ref> stable\|prerelease` | | Set an add-on's release channel. |
+| `rollback <ref>` | | Reinstall the previous cached version. |
+| `adopt [<folder> <ref>]` | | Start managing an unmanaged folder. With no arguments, walks through every unmanaged folder that has a suggested ref. |
+| `resolve <ref>` | | Dry run: prints the full reasoning for which release and asset would be chosen. For debugging. |
+| `installs` | | Lists detected installations and marks the default. Subcommands: `add <path>`, `remove <id>`, `default <id>`. |
+| `export [--output file]` | | Writes the add-on list as `addons.json` (refs, channel, pinned and version for pinned add-ons) so a setup can be shared or restored. |
+| `import <file>` | | Installs everything in an `addons.json` file. |
+| `config get\|set\|unset <key>` | | Settings: `github-token` (stored in the Keychain; `set` reads from stdin so it isn't saved in shell history), `default-channel`, `default-install`. |
+| `cache clear` / `cache info` | | Manage the download, catalogue and support caches. |
+| `doctor` | | Checks the setup: whether WoW was detected and the Forever install is readable, store integrity (records whose folders are missing, folders claimed by two add-ons), GitHub reachability and rate limit, and whether a token is set. |
+
+**`<ref>` forms:** `owner/repo`, `https://github.com/owner/repo`, `github:owner/repo` (a source prefix that becomes useful when WoWInterface is added), or the name of an add-on that's already installed (`addonctl rm bigwigs`).
+
+### 9.3 Global options
 
 ```
-addonctl installs                              # list detected installations
-addonctl list     [--install <id>]             # managed + unmanaged add-ons
-addonctl search   <query> [--github] [--all]   # --github adds live search; --all shows unsupported results too
-addonctl resolve  <owner/repo> [--prerelease]  # dry run: which asset would be installed and why
-addonctl install  <owner/repo|url> [--force]
-addonctl update   [<ref>…|--all]
-addonctl remove   <ref>
-addonctl adopt    <folder> <owner/repo>
+-I, --install <id|path>   which installation to use (default: config default-install,
+                          or the only Forever install; if there are several, ask)
+    --json                machine-readable output on stdout, no prompts or colour
+-y, --yes                 assume yes for confirmations
+-q, --quiet / -v, --verbose
+    --no-color            also honours NO_COLOR
 ```
 
-`resolve` prints the reasoning trail, such as "release v426.4 → release.json → flavor forever (16001) → BigWigs-v426.4.zip". That trail is the main debugging tool for selection bugs.
+### 9.4 Output
 
----
+```
+$ addonctl search boss
+  NAME                 REPO                              FOREVER   UPDATED
+  BigWigs              BigWigsMods/BigWigs               ✓ v426.4  2 days ago   (installed)
+  DBM - Core           DeadlyBossMods/DeadlyBossMods     ✓ 12.1.12 3 days ago
+  LittleWigs           BigWigsMods/LittleWigs            ? unknown 1 week ago
+
+$ addonctl update
+  BigWigs      v426.3 → v426.4   ━━━━━━━━━━━━━━━━━━━━ done
+  Plater       v611   → v612     ━━━━━━━━━━━━━━━━━━━━ done
+  BugSack      pinned, skipped
+Updated 2 add-ons. WoW is running; type /reload to load them.
+```
+
+- With `--json`, every command prints one JSON document using the model types (`InstalledAddon`, `SearchResult`, `ResolvedRelease`, `UpdateState`), with ISO-8601 dates and a top-level `"schemaVersion": 1`. Errors go to stderr as `{"error": {"code": "...", "message": "..."}}`.
+- **Exit codes:**
+  - `0` success
+  - `1` general error
+  - `2` usage error
+  - `3` partial failure (some add-ons failed during `update` or `install`)
+  - `4` rate limited
+  - `5` conflict or unmanaged folder (retry with `--force`)
+  - `10` outdated (only from `outdated`)
+
+### 9.5 Distribution
+
+- **Bundled with the app.** The CLI binary ships inside the app at `ForeverAddons.app/Contents/Helpers/addonctl`. The app's Settings has an **Install Command-Line Tool…** button that symlinks it into `/usr/local/bin` (asking for an admin password) or `~/.local/bin` (no password).
+- **Standalone.** `swift build -c release` works for development. A Homebrew tap (`brew install andrewmiotke/tap/addonctl`) comes later.
+- **Shell completions.** ArgumentParser generates them: `addonctl --generate-completion-script zsh`. The completions also suggest installed add-on names for `<ref>`.
+- **Name.** `addonctl` is a working name. A shorter name could replace it later; only the product name in `Package.swift` and the Helpers path need to change.
 
 ## 10. Testing
 
@@ -563,10 +634,10 @@ addonctl adopt    <folder> <owner/repo>
 
 1. **M0 – Core parsing:** Package scaffold. `Toc`, `ReleaseJSON`, `BuildInfo` and `FlavorRules`, with tests.
 2. **M1 – Resolve:** `GitHubSource` and `ReleaseSelector`. `addonctl resolve` works for BigWigs and DBM.
-3. **M2 – Install:** `Downloader`, `Installer`, `InstallStore` and `InstallationLocator`. `addonctl install/update/remove/list` work on a copy of the beta folder.
+3. **M2 – Install + CLI:** `Downloader`, `Installer`, `InstallStore` (with locking), `InstallationLocator` and `AddonManager`. The core `addonctl` commands (`search`, `info`, `install`, `remove`, `update`, `outdated`, `list`, `pin`, `resolve`, `installs`) work on a copy of the beta folder, with `--json` and exit codes.
 4. **M3 – App shell:** Xcode project with installations sidebar, Installed list and Update All.
 5. **M4 – Search & adopt:** catalogue and installed search, Forever verification, GitHub live search, Browse tab, adopting unmanaged add-ons, settings and Keychain token. `addonctl search` should be working by M2, so ranking can be tuned early.
-6. **M5 – Polish:** rollback, menu bar extra, notarized build.
+6. **M5 – Polish:** rollback, `export`/`import`, `doctor`, shell completions, bundling the CLI in the app with an install button, menu bar extra, notarized build.
 
 ---
 
