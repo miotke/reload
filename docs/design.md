@@ -101,7 +101,7 @@ Rules:
 
 ```
 addons/
-├── DESIGN.md
+├── design.md
 ├── Package.swift                 # AddonKit + addonctl + tests
 ├── Sources/
 │   ├── AddonKit/

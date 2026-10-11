@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Text normalisation
 
-/// Tokenisation and folding shared by every local search layer (DESIGN.md §7.2).
+/// Tokenisation and folding shared by every local search layer (docs/design.md §7.2).
 enum SearchText {
     static func fold(_ s: some StringProtocol) -> String {
         String(s).folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil).lowercased()
@@ -159,7 +159,7 @@ extension SupportStatus {
 
 // MARK: - Index
 
-/// In-memory catalogue index (DESIGN.md §7.2). Immutable and `Sendable`; build once
+/// In-memory catalogue index (docs/design.md §7.2). Immutable and `Sendable`; build once
 /// per catalogue download. Queries over ~2.4k rows take well under a millisecond or two.
 public struct SearchIndex: Sendable {
     public let entries: [CatalogueEntry]

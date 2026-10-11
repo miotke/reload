@@ -8,7 +8,7 @@ public enum Flavor: String, Codable, Sendable, CaseIterable {
     case classic
 }
 
-/// Every flavor-specific constant lives here (DESIGN.md §6.1).
+/// Every flavor-specific constant lives here (docs/design.md §6.1).
 public struct FlavorRules: Sendable {
     /// Valid `## Interface:` values.
     public var interfaceRange: ClosedRange<Int>

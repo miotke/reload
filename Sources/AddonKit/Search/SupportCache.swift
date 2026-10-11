@@ -1,6 +1,6 @@
 import Foundation
 
-/// Persisted Forever-support verdicts per repo (DESIGN.md §7.3), stored in
+/// Persisted Forever-support verdicts per repo (docs/design.md §7.3), stored in
 /// `forever-support.json` and trusted for 6 hours. `.checking` and `.unknown`
 /// are transient and never stored.
 public actor SupportCache {

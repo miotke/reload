@@ -1,6 +1,6 @@
 import Foundation
 
-/// Downloads and caches `github-wow-addon-catalogue/addons.csv` (DESIGN.md §7.2).
+/// Downloads and caches `github-wow-addon-catalogue/addons.csv` (docs/design.md §7.2).
 ///
 /// The parsed entries are stored as a binary property list next to the ETag and
 /// fetch time. The cache is served for 24 h; after that the file is re-requested

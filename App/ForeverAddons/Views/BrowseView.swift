@@ -1,7 +1,7 @@
 import AddonKit
 import SwiftUI
 
-/// Search and browse add-ons (DESIGN.md §7, §8).
+/// Search and browse add-ons (docs/design.md §7, §8).
 struct BrowseView: View {
     @Environment(AppModel.self) private var model
     var state: InstallationModel
@@ -115,7 +115,7 @@ struct BrowseView: View {
     }
 }
 
-/// Empty-query state: Popular on Forever / Recently updated (DESIGN.md §7.5).
+/// Empty-query state: Popular on Forever / Recently updated (docs/design.md §7.5).
 private struct BrowseHomeList: View {
     var state: InstallationModel
     var foreverOnly: Bool

@@ -1,11 +1,10 @@
-# ForeverAddons (macOS app)
+# App (ForeverAddons.app)
 
-SwiftUI app for the AddonKit package in the repo root (see `DESIGN.md` §8). It bundles the
-`addonctl` command-line tool (§9.5).
+The SwiftUI app in `App/`, built on the AddonKit core ([core.md](core.md); original design in [design.md](design.md) §8). It bundles the `addonctl` command-line tool ([cli.md](cli.md)).
 
 ## Project
 
-`ForeverAddons.xcodeproj` is generated from `project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+`App/ForeverAddons.xcodeproj` is generated from `App/project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 Edit `project.yml`, not the project, then regenerate and commit the result:
 
 ```sh
@@ -13,7 +12,7 @@ brew install xcodegen   # once
 cd App && xcodegen generate
 ```
 
-New files under `App/ForeverAddons/` (and `../Sources/addonctl/`) are picked up on regeneration.
+New files under `App/ForeverAddons/` (and `Sources/addonctl/`) are picked up on regeneration.
 
 Targets:
 
@@ -72,17 +71,17 @@ That needs admin rights, so the link is created by `do shell script … with adm
 shows the status (not installed / installed / points to another copy of the app → Repair) with
 Install and Uninstall. Uninstall only removes a link that points into a `ForeverAddons.app` bundle.
 
-The logic lives in `Support/CLIInstaller.swift` with the privileged runner injectable for tests.
+The logic lives in `App/ForeverAddons/Support/CLIInstaller.swift` with the privileged runner injectable for tests.
 In Debug builds run from Xcode the helper lives in DerivedData, so the link points there.
 
 To reset the first-launch offer: `defaults delete com.andrewmiotke.ForeverAddons didOfferCommandLineTool`.
 
 ## Layout
 
-- `Models/` — `AppModel` (root: manager, installations, selection, banner, store watcher),
+- `App/ForeverAddons/Models/` — `AppModel` (root: manager, installations, selection, banner, store watcher),
   `InstallationModel` (per-installation add-ons, update state, row progress/errors, search, browse) and
   `CommandLineToolModel` (CLI install state).
-- `Views/` — `ContentView` (split view, inspector, empty state), `InstalledView`, `BrowseView`,
+- `App/ForeverAddons/Views/` — `ContentView` (split view, inspector, empty state), `InstalledView`, `BrowseView`,
   `AddonInspectorView`, `AdoptSheet`, `SettingsView`, `CommandLineToolViews`, shared `Components`.
-- `Support/` — `AppEnvironment` (standard or `ADDONS_DATA_DIR` wiring), `DirectoryWatcher`, `CLIInstaller`,
+- `App/ForeverAddons/Support/` — `AppEnvironment` (standard or `ADDONS_DATA_DIR` wiring), `DirectoryWatcher`, `CLIInstaller`,
   small helpers. The Keychain wrapper lives in AddonKit (`KeychainStore`).

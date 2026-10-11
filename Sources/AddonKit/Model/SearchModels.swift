@@ -95,7 +95,7 @@ public protocol SearchProvider: Sendable {
     func search(_ query: SearchQuery) async throws -> [SearchResult]
 }
 
-/// Checks whether an add-on supports a flavor without downloading it (DESIGN.md §7.3).
+/// Checks whether an add-on supports a flavor without downloading it (docs/design.md §7.3).
 /// Implemented by `GitHubSource`; implementations manage their own rate-limit budget
 /// and return `.unknown` rather than spending the reserve kept for installs.
 public protocol SupportChecking: Sendable {

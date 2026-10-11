@@ -53,7 +53,7 @@ public struct InstalledAddon: Codable, Sendable, Identifiable, Hashable {
     public var folders: [String]
     /// Tag name, for display only. Never compared.
     public var version: String
-    /// Update checks compare this plus `publishedAt` (DESIGN.md §5).
+    /// Update checks compare this plus `publishedAt` (docs/design.md §5).
     public var releaseID: Int64
     public var assetName: String
     public var publishedAt: Date
@@ -187,7 +187,7 @@ public enum OperationEvent: Sendable {
     case failed(AddonRef, String)
 }
 
-/// The Browse tab with an empty query (DESIGN.md §7.5).
+/// The Browse tab with an empty query (docs/design.md §7.5).
 public struct BrowseContent: Sendable {
     public var popular: [SearchResult]
     public var recent: [SearchResult]

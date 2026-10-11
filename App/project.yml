@@ -25,7 +25,7 @@ targets:
     dependencies:
       - package: AddonKit
         product: AddonKit
-      # The CLI ships inside the app (DESIGN.md §9.5) and is signed with it.
+      # The CLI ships inside the app (docs/design.md §9.5) and is signed with it.
       - target: addonctl
         link: false
         embed: true

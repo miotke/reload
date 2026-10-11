@@ -1,6 +1,6 @@
 import Foundation
 
-/// The real `AddonManaging` implementation, shared by the app and `addonctl` (DESIGN.md §6.10).
+/// The real `AddonManaging` implementation, shared by the app and `addonctl` (docs/design.md §6.10).
 public actor AddonManager: AddonManaging {
     public nonisolated let directories: AppDirectories
     public nonisolated let store: InstallStore
@@ -56,7 +56,7 @@ public actor AddonManager: AddonManaging {
         )
     }
 
-    /// `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (DESIGN.md §9.1).
+    /// `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (docs/design.md §9.1).
     static func token(environment: [String: String], keychain: KeychainStore) -> String? {
         for key in ["ADDONS_GITHUB_TOKEN", "GITHUB_TOKEN"] {
             if let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {

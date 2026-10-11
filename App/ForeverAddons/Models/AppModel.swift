@@ -103,7 +103,7 @@ final class AppModel {
     }
 
     /// Reloads (debounced) whenever the store folder changes, e.g. when `addonctl` installs
-    /// or updates something while the app is open (DESIGN.md §9.1).
+    /// or updates something while the app is open (docs/design.md §9.1).
     func watchStore() {
         guard storeWatcher == nil, let directory = addonManager?.store.storeDirectory else { return }
         let watcher = DirectoryWatcher(url: directory) { [weak self] in

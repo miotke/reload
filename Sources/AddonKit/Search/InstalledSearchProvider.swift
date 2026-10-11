@@ -1,6 +1,6 @@
 import Foundation
 
-/// Searches the add-ons already in an installation (DESIGN.md §7.1, "Installed" layer)
+/// Searches the add-ons already in an installation (docs/design.md §7.1, "Installed" layer)
 /// with the same matching rules as the catalogue.
 ///
 /// Managed add-ons match on name, folders and `owner/repo`. Unmanaged folders match on

@@ -94,7 +94,7 @@ public struct URLSessionDownloadTransport: DownloadTransport {
 }
 
 /// Downloads release assets into the cache and keeps the newest few per add-on for
-/// offline rollback (DESIGN.md §6.7).
+/// offline rollback (docs/design.md §6.7).
 ///
 /// Layout: `<caches>/downloads/<source>/<identifier>/<releaseID>-<assetName>`, with the
 /// identifier's `/` replaced by `+` and other unsafe characters by `_`.
@@ -111,7 +111,7 @@ public actor Downloader {
     /// - Parameters:
     ///   - cachesDirectory: The app's caches folder (`AppDirectories.caches`).
     ///   - keepPerAddon: Archives kept per add-on after a download (at least 1).
-    ///   - maxConcurrent: Downloads allowed at once (DESIGN.md §6.7 says 4).
+    ///   - maxConcurrent: Downloads allowed at once (docs/design.md §6.7 says 4).
     public init(
         cachesDirectory: URL,
         transport: any DownloadTransport = URLSessionDownloadTransport(),

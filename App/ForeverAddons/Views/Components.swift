@@ -1,7 +1,7 @@
 import AddonKit
 import SwiftUI
 
-/// Forever-support badge for search results (DESIGN.md §7.3).
+/// Forever-support badge for search results (docs/design.md §7.3).
 struct SupportBadge: View {
     var status: SupportStatus
 

@@ -1,7 +1,7 @@
 import AddonKit
 import SwiftUI
 
-/// Managed add-ons with update status, plus unmanaged folders that can be adopted (DESIGN.md §8).
+/// Managed add-ons with update status, plus unmanaged folders that can be adopted (docs/design.md §8).
 struct InstalledView: View {
     @Environment(AppModel.self) private var model
     var state: InstallationModel
