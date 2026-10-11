@@ -1,0 +1,54 @@
+name: ForeverAddons
+options:
+  bundleIdPrefix: com.andrewmiotke
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+packages:
+  AddonKit:
+    path: ..
+targets:
+  ForeverAddons:
+    type: application
+    platform: macOS
+    sources:
+      - path: ForeverAddons
+    dependencies:
+      - package: AddonKit
+        product: AddonKit
+    info:
+      path: ForeverAddons/Info.plist
+      properties:
+        CFBundleDisplayName: ForeverAddons
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        LSApplicationCategoryType: public.app-category.utilities
+        LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
+        NSHumanReadableCopyright: "© 2026 Andrew Miotke"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.ForeverAddons
+        PRODUCT_NAME: ForeverAddons
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_APP_SANDBOX: NO
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        COMBINE_HIDPI_IMAGES: YES
+        ENABLE_PREVIEWS: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+schemes:
+  ForeverAddons:
+    build:
+      targets:
+        ForeverAddons: all
+    run:
+      config: Debug
+    archive:
+      config: Release
