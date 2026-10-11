@@ -102,9 +102,7 @@ enum BatchInstaller {
             } catch {
                 board.update(key: key, status: context.errStyle.red("failed"))
                 outcome.failures.append((request.ref, error))
-                if !context.json {
-                    context.console.err(context.errStyle.red("error: ") + "\(Format.ref(request.ref)): " + ExitStatus.message(for: error))
-                }
+                context.itemError(Format.ref(request.ref), error, batchSize: requests.count)
             }
         }
         board.finish()
@@ -184,7 +182,7 @@ struct RemoveCommand: ContextCommand {
                 context.say("Removed \(addon.name) (\(addon.folders.joined(separator: ", ")))")
             } catch {
                 failures.append((addon.id, error))
-                context.console.err(context.errStyle.red("error: ") + "\(addon.name): " + ExitStatus.message(for: error))
+                context.itemError(addon.name, error, batchSize: targets.count)
             }
         }
         if context.json {
@@ -501,7 +499,7 @@ struct AdoptCommand: ContextCommand {
                 context.say("Adopted \(addon.name) \(addon.version) (\(addon.folders.joined(separator: ", ")))")
             } catch {
                 failures.append((candidate.ref, error))
-                context.console.err(context.errStyle.red("error: ") + "\(Format.ref(candidate.ref)): " + ExitStatus.message(for: error))
+                context.itemError(Format.ref(candidate.ref), error, batchSize: candidates.count)
             }
         }
         if context.json {

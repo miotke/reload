@@ -87,6 +87,13 @@ struct CLIContext: Sendable {
         console.err(errStyle.yellow("warning: ") + text)
     }
 
+    /// Reports one failed item of a batch. A single-item batch skips this: its error is
+    /// rethrown and printed once at exit.
+    func itemError(_ name: String, _ error: any Error, batchSize: Int) {
+        guard !json, batchSize > 1 else { return }
+        console.err(errStyle.red("error: ") + "\(name): " + ExitStatus.message(for: error))
+    }
+
     /// Prints the `--json` document. Call only when `json` is set.
     func emit<Payload: Encodable>(_ payload: Payload) throws {
         console.out(try JSONOutput.document(payload))
