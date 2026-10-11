@@ -1,6 +1,6 @@
 import Foundation
 
-/// The real `AddonManaging` implementation, shared by the app and `addonctl` (DESIGN.md §6.10).
+/// The real `AddonManaging` implementation, shared by the app and `addonctl` (docs/design.md §6.10).
 public actor AddonManager: AddonManaging {
     public nonisolated let directories: AppDirectories
     public nonisolated let store: InstallStore
@@ -18,6 +18,8 @@ public actor AddonManager: AddonManaging {
 
     private var github: GitHubSource
     private var searchCoordinator: SearchCoordinator
+    /// Automatic detection runs at most once per process; later scans are explicit.
+    private var didAutoDetect = false
 
     /// Add-ons checked or updated at once.
     static let maxConcurrentOperations = 4
@@ -54,7 +56,7 @@ public actor AddonManager: AddonManaging {
         )
     }
 
-    /// `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (DESIGN.md §9.1).
+    /// `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (docs/design.md §9.1).
     static func token(environment: [String: String], keychain: KeychainStore) -> String? {
         for key in ["ADDONS_GITHUB_TOKEN", "GITHUB_TOKEN"] {
             if let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
@@ -82,10 +84,11 @@ public actor AddonManager: AddonManaging {
 
     // MARK: - Installations
 
-    /// Stored installations. Runs detection when nothing is stored yet.
+    /// Stored installations. The first call in a process runs detection if nothing is stored yet.
     public func installations() async throws -> [Installation] {
         let stored = try await store.installations()
-        if !stored.isEmpty { return stored }
+        guard stored.isEmpty, !didAutoDetect else { return stored }
+        didAutoDetect = true
         return try await detectInstallations()
     }
 
@@ -160,7 +163,19 @@ public actor AddonManager: AddonManaging {
 
     public func browse(in installation: Installation) async -> BrowseContent {
         let browse = await searchCoordinator.browse(flavor: installation.flavor)
-        return BrowseContent(popular: browse.popular, recent: browse.recent, categories: browse.categories)
+        let installed = Dictionary(
+            ((try? await store.addons(in: installation)) ?? []).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let markInstalled = { (results: [SearchResult]) in
+            results.map { result in
+                var result = result
+                result.installed = installed[result.id]
+                result.origin.formUnion(result.installed == nil ? [] : [.installed])
+                return result
+            }
+        }
+        return BrowseContent(popular: markInstalled(browse.popular), recent: markInstalled(browse.recent), categories: browse.categories)
     }
 
     // MARK: - Resolve & install

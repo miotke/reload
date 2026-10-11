@@ -13,6 +13,9 @@ settings:
 packages:
   AddonKit:
     path: ..
+  swift-argument-parser:
+    url: https://github.com/apple/swift-argument-parser.git
+    exactVersion: 1.5.0
 targets:
   ForeverAddons:
     type: application
@@ -22,6 +25,14 @@ targets:
     dependencies:
       - package: AddonKit
         product: AddonKit
+      # The CLI ships inside the app (docs/design.md §9.5) and is signed with it.
+      - target: addonctl
+        link: false
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
     info:
       path: ForeverAddons/Info.plist
       properties:
@@ -42,14 +53,57 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""
         COMBINE_HIDPI_IMAGES: YES
-        ENABLE_PREVIEWS: YES
         SWIFT_EMIT_LOC_STRINGS: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+  addonctl:
+    type: tool
+    platform: macOS
+    sources:
+      # Globbed: every file in the package's CLI target.
+      - path: ../Sources/addonctl
+    dependencies:
+      - package: AddonKit
+        product: AddonKit
+      - package: swift-argument-parser
+        product: ArgumentParser
+    settings:
+      base:
+        PRODUCT_NAME: addonctl
+        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.ForeverAddons.addonctl
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        SKIP_INSTALL: YES
+        # Matches the package target: nonisolated by default, not MainActor.
+        SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
+        # The entry point is an `@main` type (SwiftPM infers this flag; Xcode doesn't).
+        OTHER_SWIFT_FLAGS: "$(inherited) -parse-as-library"
+  # Not hosted: compiles the testable app sources directly, so tests never launch the app
+  # (which would use the real AddonManager).
+  ForeverAddonsTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: ForeverAddonsTests
+      - path: ForeverAddons/Support/CLIInstaller.swift
+      - path: ForeverAddons/Support/DirectoryWatcher.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.ForeverAddonsTests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
 schemes:
   ForeverAddons:
     build:
       targets:
         ForeverAddons: all
+    test:
+      targets:
+        - ForeverAddonsTests
     run:
       config: Debug
     archive:

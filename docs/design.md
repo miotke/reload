@@ -93,13 +93,15 @@ Rules:
 
 - **All logic lives in `AddonKit`.** The app and the CLI are thin and equal: two front ends over one core and one store (§9). Anything the UI can do, `addonctl` can do.
 - **Pure code is separated from I/O.** TOC parsing, `release.json` parsing, flavor detection and release selection are plain functions on value types. They get exhaustive unit tests using fixture files.
-- **Swift 6 strict concurrency.** Shared mutable state lives in actors (`AddonManager`, `InstallStore`). Everything that crosses actor boundaries is `Sendable`.
+- **Latest platform and language.** The minimum is macOS 27, built with Swift tools 6.4 in Swift 6 language mode with strict concurrency.
+  - The package turns on `NonisolatedNonsendingByDefault` and `InferIsolatedConformances`. The app target also makes code run on the main actor by default.
+  - Shared mutable state lives in actors (`AddonManager`, `InstallStore`). Small shared state uses `Mutex` (from the Synchronization module), not locks or `@unchecked Sendable`.
 
 ### Repository layout
 
 ```
 addons/
-├── DESIGN.md
+├── design.md
 ├── Package.swift                 # AddonKit + addonctl + tests
 ├── Sources/
 │   ├── AddonKit/
@@ -586,7 +588,11 @@ Updated 2 add-ons. WoW is running; type /reload to load them.
 
 ### 9.5 Distribution
 
-- **Bundled with the app.** The CLI binary ships inside the app at `ForeverAddons.app/Contents/Helpers/addonctl`. The app's Settings has an **Install Command-Line Tool…** button that symlinks it into `/usr/local/bin` (asking for an admin password) or `~/.local/bin` (no password).
+- **The app is the main way to install it.** Most people start with the app, so the CLI binary ships inside it at `ForeverAddons.app/Contents/Helpers/addonctl`. It's built as a separate Xcode target from `Sources/addonctl`.
+  - **First launch:** the app asks once: *"Install the `addonctl` command-line tool?"*, with **Install** and **Not Now**.
+  - **Install:** creates a symlink `/usr/local/bin/addonctl` → the binary inside the app, asking for an admin password. `/usr/local/bin` is on the default `PATH`. Because it's a symlink, updating the app also updates the CLI.
+  - **Not Now:** the offer is not repeated.
+  - **Settings ▸ Command-Line Tool** shows the status (not installed, installed, or pointing to another copy of the app) and has Install, Repair and Uninstall buttons. Uninstall only removes a link that points into a ForeverAddons app bundle.
 - **Standalone.** `swift build -c release` works for development. A Homebrew tap (`brew install andrewmiotke/tap/addonctl`) comes later.
 - **Shell completions.** ArgumentParser generates them: `addonctl --generate-completion-script zsh`. The completions also suggest installed add-on names for `<ref>`.
 - **Name.** `addonctl` is a working name. A shorter name could replace it later; only the product name in `Package.swift` and the Helpers path need to change.

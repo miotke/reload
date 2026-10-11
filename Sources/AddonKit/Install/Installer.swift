@@ -1,7 +1,7 @@
 import Foundation
 
 /// Installs and uninstalls add-on archives in an installation's `Interface/AddOns`
-/// folder, transactionally (DESIGN.md §6.8).
+/// folder, transactionally (docs/design.md §6.8).
 ///
 /// The installer only moves folders around; it doesn't persist anything. The caller
 /// writes the returned `InstalledAddon` to the `InstallStore`.

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Live GitHub repository search (DESIGN.md §7.4).
+/// Live GitHub repository search (docs/design.md §7.4).
 ///
 /// Runs `topic:wow-addon` first, then `topic:world-of-warcraft-addon`, then a
 /// topic-less `wow OR warcraft` query while fewer than `minimumResults` repos were

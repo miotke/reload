@@ -4,8 +4,9 @@ import SwiftUI
 
 @main
 struct ForeverAddonsApp: App {
-    // TODO: replace with AddonManager()
-    @State private var model = AppModel(manager: MockAddonManager())
+    private static let environment = AppEnvironment.current()
+    @State private var model = AppModel(
+        manager: environment.manager, offersCommandLineTool: environment.offersCommandLineTool)
 
     @AppStorage(SettingsKey.showMenuBarExtra) private var showMenuBarExtra = false
 
@@ -15,10 +16,11 @@ struct ForeverAddonsApp: App {
                 .environment(model)
                 .frame(minWidth: 820, minHeight: 480)
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-                    // Pick up changes made by addonctl while the app was in the background.
+                    // Belt and braces next to the store watcher: pick up changes made while inactive.
                     Task { await model.reload() }
                 }
         }
+        .defaultSize(width: 1300, height: 880)
         .commands {
             CommandGroup(after: .textEditing) {
                 Button("Find Add-ons") { SearchFieldFocus.focus() }

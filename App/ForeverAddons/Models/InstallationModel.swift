@@ -47,13 +47,10 @@ final class InstallationModel {
     // Browse tab
     private(set) var searchResults: [SearchResult] = []
     private(set) var isSearching = false
-    private(set) var browseCatalogue: [SearchResult] = []
+    /// Popular / recently updated / categories for an empty query; nil until loaded.
+    private(set) var browse: BrowseContent?
     /// Results that need `force` to overwrite an unmanaged folder.
     private(set) var needsOverwrite: Set<AddonRef> = []
-
-    // Inspector
-    private(set) var releases: [AddonRef: ResolvedRelease] = [:]
-    private(set) var releaseErrors: [AddonRef: String] = [:]
 
     init(installation: Installation, manager: any AddonManaging, reportError: @escaping @MainActor (String) -> Void) {
         self.installation = installation
@@ -142,7 +139,6 @@ final class InstallationModel {
             case .done(let addon):
                 activity[addon.id.description] = nil
                 updateStates[addon.id] = .upToDate
-                releases[addon.id] = nil
                 replace(addon)
             case .skipped(let ref, _):
                 activity[ref.description] = nil
@@ -166,7 +162,6 @@ final class InstallationModel {
     func rollback(_ ref: AddonRef) async {
         await perform(ref.description, label: "Rolling back…") {
             try await self.manager.rollback(ref, in: self.installation)
-            self.releases[ref] = nil
             if let states = try? await self.manager.checkForUpdates(in: self.installation) {
                 self.updateStates = states
             }
@@ -183,7 +178,7 @@ final class InstallationModel {
     func setChannel(_ channel: Channel, for ref: AddonRef) async {
         await perform(ref.description, label: nil) {
             try await self.manager.setChannel(channel, for: ref, in: self.installation)
-            self.releases[ref] = nil
+            self.updateStates[ref] = nil
         }
     }
 
@@ -218,24 +213,6 @@ final class InstallationModel {
         }
     }
 
-    // MARK: Inspector
-
-    /// Loads release details (for the changelog) of the release that would be installed next,
-    /// or of the installed version when there's no update.
-    func loadRelease(for addon: InstalledAddon) async {
-        if let available = availableRelease(for: addon.id) {
-            releases[addon.id] = available
-            return
-        }
-        guard releases[addon.id] == nil else { return }
-        releaseErrors[addon.id] = nil
-        do {
-            releases[addon.id] = try await manager.resolve(addon.id, for: installation, channel: addon.channel)
-        } catch {
-            releaseErrors[addon.id] = error.localizedDescription
-        }
-    }
-
     // MARK: Browse
 
     /// Consumes the search stream until it finishes or the calling task is cancelled.
@@ -253,30 +230,48 @@ final class InstallationModel {
         isSearching = false
     }
 
-    /// Empty-query browse lists (§7.5). The protocol has no dedicated call yet, so this runs an
-    /// empty search and the view splits the result into Popular / Recently updated.
-    func loadBrowseCatalogue(foreverOnly: Bool) async {
-        let query = SearchQuery(text: "", flavor: installation.flavor, foreverOnly: foreverOnly)
-        for await results in manager.search(query, in: installation) {
-            guard !Task.isCancelled else { return }
-            browseCatalogue = results
-        }
+    /// Empty-query Browse content (§7.5): popular, recently updated and category chips.
+    func loadBrowse() async {
+        var content = await manager.browse(in: installation)
+        guard !Task.isCancelled else { return }
+        // Browse lists come from the catalogue; mark what's already installed here.
+        for index in content.popular.indices { content.popular[index].installed = addon(for: content.popular[index].id) }
+        for index in content.recent.indices { content.recent[index].installed = addon(for: content.recent[index].id) }
+        browse = content
     }
 
+    /// Installs `ref`, showing download progress on its row, then the installing phase.
     func install(_ ref: AddonRef, channel: Channel, force: Bool = false) async {
         let id = ref.description
         rowErrors[id] = nil
         needsOverwrite.remove(ref)
-        activity[id] = .working("Installing…")
-        defer { activity[id] = nil }
+        activity[id] = .downloading(0)
+        // Progress arrives on arbitrary threads; funnel it through a stream (newest value
+        // wins) so the row is updated on the main actor and nothing lands after we finish.
+        let (progress, continuation) = AsyncStream.makeStream(of: Double.self, bufferingPolicy: .bufferingNewest(1))
+        let progressTask = Task { @MainActor in
+            for await fraction in progress {
+                activity[id] = fraction < 1 ? .downloading(fraction) : .installing
+            }
+        }
+        let result: Result<InstalledAddon, any Error>
         do {
-            let addon = try await manager.install(ref, into: installation, channel: channel, force: force)
+            result = .success(try await manager.install(ref, into: installation, channel: channel, force: force) { fraction in
+                continuation.yield(fraction)
+            })
+        } catch {
+            result = .failure(error)
+        }
+        continuation.finish()
+        await progressTask.value
+        activity[id] = nil
+
+        switch result {
+        case .success(let addon):
             markInstalled(addon)
             await reload()
-        } catch let error as AddonError {
-            if case .unmanagedFolderExists = error { needsOverwrite.insert(ref) }
-            rowErrors[id] = error.localizedDescription
-        } catch {
+        case .failure(let error):
+            if case .unmanagedFolderExists = error as? AddonError { needsOverwrite.insert(ref) }
             rowErrors[id] = error.localizedDescription
         }
     }
@@ -286,8 +281,13 @@ final class InstallationModel {
             searchResults[index].installed = addon
             searchResults[index].origin.insert(.installed)
         }
-        for index in browseCatalogue.indices where browseCatalogue[index].id == addon.id {
-            browseCatalogue[index].installed = addon
+        guard var content = browse else { return }
+        for index in content.popular.indices where content.popular[index].id == addon.id {
+            content.popular[index].installed = addon
         }
+        for index in content.recent.indices where content.recent[index].id == addon.id {
+            content.recent[index].installed = addon
+        }
+        browse = content
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// A Browse-tab category chip that runs a saved keyword search (DESIGN.md §7.5).
+/// A Browse-tab category chip that runs a saved keyword search (docs/design.md §7.5).
 public struct SearchCategory: Sendable, Hashable, Identifiable {
     public var id: String
     public var title: String

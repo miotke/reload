@@ -1,6 +1,6 @@
 import Foundation
 
-/// BigWigs packager `release.json` (DESIGN.md §2).
+/// BigWigs packager `release.json` (docs/design.md §2).
 public struct ReleaseJSON: Codable, Sendable, Hashable {
     public struct Release: Codable, Sendable, Hashable {
         public var name: String?

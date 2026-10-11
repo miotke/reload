@@ -1,9 +1,13 @@
 import Foundation
 
-/// The façade the app and CLI talk to (DESIGN.md §6.10).
+/// The façade the app and CLI talk to (docs/design.md §6.10).
 /// `AddonManager` is the real implementation; the app's previews use a mock.
 public protocol AddonManaging: Sendable {
     func installations() async throws -> [Installation]
+    /// Scans for WoW installs (Spotlight and `/Applications/World of Warcraft`), stores new ones,
+    /// and returns every stored installation.
+    @discardableResult
+    func detectInstallations() async throws -> [Installation]
     func addInstallation(at url: URL) async throws -> Installation
 
     /// Managed and unmanaged add-ons, after reconciling the store with disk.

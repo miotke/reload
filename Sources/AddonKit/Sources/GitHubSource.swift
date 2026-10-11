@@ -1,6 +1,6 @@
 import Foundation
 
-/// Resolves add-ons published as GitHub Releases (DESIGN.md §6.5, §7.3).
+/// Resolves add-ons published as GitHub Releases (docs/design.md §6.5, §7.3).
 ///
 /// - API calls go to `api.github.com` and count against the rate limit; release.json and zip
 ///   downloads use `browser_download_url`, which doesn't.

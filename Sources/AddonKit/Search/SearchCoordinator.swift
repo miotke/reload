@@ -1,6 +1,6 @@
 import Foundation
 
-/// Runs every search layer and merges them into one live result list (DESIGN.md §7).
+/// Runs every search layer and merges them into one live result list (docs/design.md §7).
 ///
 /// `search` emits local results (direct reference, installed, catalogue) at once,
 /// then re-emits as Forever-support checks and GitHub live results land.
@@ -156,7 +156,7 @@ public actor SearchCoordinator {
 
     // MARK: Browse
 
-    /// The Browse tab's content for an empty search box (DESIGN.md §7.5).
+    /// The Browse tab's content for an empty search box (docs/design.md §7.5).
     public func browse(flavor: Flavor = .forever) async -> (popular: [SearchResult], recent: [SearchResult], categories: [SearchCategory]) {
         let statuses = await supportCache.statuses(flavor: flavor)
         let index = try? await catalogue.searchIndex()

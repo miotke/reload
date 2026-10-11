@@ -34,12 +34,17 @@ struct AdoptTarget: Identifiable {
 @Observable @MainActor
 final class AppModel {
     let manager: any AddonManaging
+    /// The concrete manager when running on real data (for detection); nil on mock data.
+    let addonManager: AddonManager?
+    /// Installing the bundled `addonctl` (first-launch offer and Settings).
+    let commandLineTool: CommandLineToolModel
 
     private(set) var installations: [Installation] = []
     var selectedInstallationID: Installation.ID? {
         didSet { selectedAddonID = nil }
     }
     private(set) var isLoadingInstallations = false
+    private(set) var isScanning = false
     /// Created lazily from view bodies, so not observed itself; each model is observable.
     @ObservationIgnored private var models: [Installation.ID: InstallationModel] = [:]
 
@@ -53,9 +58,13 @@ final class AppModel {
     var adoptTarget: AdoptTarget?
 
     private var didInitialLoad = false
+    @ObservationIgnored private var storeWatcher: DirectoryWatcher?
 
-    init(manager: any AddonManaging) {
+    /// `offersCommandLineTool`: whether to show the one-time offer to install `addonctl`.
+    init(manager: any AddonManaging, offersCommandLineTool: Bool = false) {
         self.manager = manager
+        self.addonManager = manager as? AddonManager
+        self.commandLineTool = CommandLineToolModel(mayOffer: offersCommandLineTool)
     }
 
     var selectedInstallation: Installation? {
@@ -87,14 +96,26 @@ final class AppModel {
         guard !didInitialLoad else { return }
         didInitialLoad = true
         await loadInstallations()
+        watchStore()
         guard let current else { return }
         await current.reload()
         if checkForUpdates { await current.checkForUpdates() }
     }
 
+    /// Reloads (debounced) whenever the store folder changes, e.g. when `addonctl` installs
+    /// or updates something while the app is open (docs/design.md §9.1).
+    func watchStore() {
+        guard storeWatcher == nil, let directory = addonManager?.store.storeDirectory else { return }
+        let watcher = DirectoryWatcher(url: directory) { [weak self] in
+            Task { @MainActor in await self?.reload() }
+        }
+        watcher.start()
+        storeWatcher = watcher
+    }
+
     /// Refetches installations and the selected installation's add-ons, so changes made
-    /// outside the app (e.g. by `addonctl`) show up. Called when the app becomes active.
-    // TODO: watch InstallStore.storeDirectory for changes
+    /// outside the app (e.g. by `addonctl`) show up. Called when the store folder changes
+    /// and when the app becomes active.
     func reload() async {
         guard didInitialLoad else { return }
         await loadInstallations()
@@ -111,6 +132,24 @@ final class AppModel {
             installations = try await manager.installations()
             if selectedInstallationID == nil || selectedInstallation == nil {
                 selectedInstallationID = installations.first?.id
+            }
+        } catch {
+            showError(error.localizedDescription)
+        }
+    }
+
+    /// Looks for WoW installs again (Spotlight and `/Applications/World of Warcraft`).
+    func scanAgain() async {
+        guard !isScanning else { return }
+        isScanning = true
+        defer { isScanning = false }
+        do {
+            installations = try await manager.detectInstallations()
+            if selectedInstallation == nil { selectedInstallationID = installations.first?.id }
+            if installations.isEmpty {
+                banner = Banner(message: "No World of Warcraft Forever installation found. Use Add Installation… to choose its folder.", isError: false)
+            } else {
+                await current?.reload()
             }
         } catch {
             showError(error.localizedDescription)
