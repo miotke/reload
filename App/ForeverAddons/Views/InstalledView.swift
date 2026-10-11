@@ -120,7 +120,7 @@ private struct ManagedAddonRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(addon.name).fontWeight(.medium)
+                Text(addon.name).fontWeight(.medium).lineLimit(1)
                 if !missingFolders.isEmpty {
                     Label("Missing \(missingFolders.joined(separator: ", "))", systemImage: "exclamationmark.triangle")
                         .font(.caption)
@@ -130,7 +130,8 @@ private struct ManagedAddonRow: View {
                     RowErrorText(message: error)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // A minimum width keeps a narrow window from wrapping the name a letter per line.
+            .frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
 
             versionText
                 .frame(minWidth: 150, alignment: .leading)
@@ -218,15 +219,15 @@ private struct UnmanagedAddonRow: View {
         if case .unmanaged(let folder, let toc, _) = status {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(folder).fontWeight(.medium)
+                    Text(folder).fontWeight(.medium).lineLimit(1)
                     if let title = toc?.title, title != folder {
-                        Text(title).font(.caption).foregroundStyle(.secondary)
+                        Text(title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }
                     if let error = state.rowErrors[status.id] {
                         RowErrorText(message: error)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
 
                 Text(toc?.version ?? "—")
                     .monospacedDigit()

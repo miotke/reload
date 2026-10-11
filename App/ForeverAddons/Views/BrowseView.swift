@@ -166,60 +166,84 @@ struct SearchResultRow: View {
     private var id: String { result.id.description }
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(result.name).fontWeight(.medium)
-                    Text(result.owner).font(.caption).foregroundStyle(.secondary)
-                    if result.origin.contains(.github) {
-                        Image(systemName: "globe").font(.caption).foregroundStyle(.secondary)
-                            .help("Found by live GitHub search")
-                    }
-                }
-                if let summary = result.summary {
-                    Text(summary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-                if let error = state.rowErrors[id] {
-                    RowErrorText(message: error)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .opacity(SupportBadge.isDimmed(result.support) && result.installed == nil ? 0.6 : 1)
-
-            SupportBadge(status: result.support)
-                .frame(width: 100, alignment: .leading)
-
-            if let installed = result.installed {
-                Text(installed.version)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .frame(width: 140, alignment: .leading)
-            } else {
-                Group {
-                    if let stars = result.stars {
-                        Label("\(stars)", systemImage: "star").labelStyle(.titleAndIcon)
-                    } else {
-                        Text("")
-                    }
-                }
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(width: 60, alignment: .leading)
-
-                Text(result.lastUpdated?.formatted(.relative(presentation: .named)) ?? "")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 80, alignment: .leading)
-            }
-
-            action
-                .frame(width: 110, alignment: .trailing)
+        // Drop the metadata columns, then the badge, as the window narrows, so the name column
+        // never collapses (a squeezed name wraps a letter per line and blows up the row height).
+        ViewThatFits(in: .horizontal) {
+            row(showsBadge: true, showsMetadata: true)
+            row(showsBadge: true, showsMetadata: false)
+            row(showsBadge: false, showsMetadata: false)
         }
         .padding(.vertical, 3)
         .contextMenu {
             if let url = result.id.webURL {
                 Link("Open on \(result.id.sourceName)", destination: url)
             }
+        }
+    }
+
+    private func row(showsBadge: Bool, showsMetadata: Bool) -> some View {
+        HStack(spacing: 12) {
+            details
+                .frame(minWidth: 200, idealWidth: 200, maxWidth: .infinity, alignment: .leading)
+                .opacity(SupportBadge.isDimmed(result.support) && result.installed == nil ? 0.6 : 1)
+
+            if showsBadge {
+                SupportBadge(status: result.support)
+                    .frame(width: 100, alignment: .leading)
+            }
+
+            if showsMetadata {
+                metadata
+            }
+
+            action
+                .frame(width: 110, alignment: .trailing)
+        }
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Text(result.name).fontWeight(.medium).lineLimit(1).layoutPriority(1)
+                Text(result.owner).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if result.origin.contains(.github) {
+                    Image(systemName: "globe").font(.caption).foregroundStyle(.secondary)
+                        .help("Found by live GitHub search")
+                }
+            }
+            if let summary = result.summary {
+                Text(summary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            if let error = state.rowErrors[id] {
+                RowErrorText(message: error)
+            }
+        }
+    }
+
+    @ViewBuilder private var metadata: some View {
+        if let installed = result.installed {
+            Text(installed.version)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(width: 140, alignment: .leading)
+        } else {
+            Group {
+                if let stars = result.stars {
+                    Label("\(stars)", systemImage: "star").labelStyle(.titleAndIcon)
+                } else {
+                    Text("")
+                }
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .frame(width: 60, alignment: .leading)
+
+            Text(result.lastUpdated?.formatted(.relative(presentation: .named)) ?? "")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(width: 90, alignment: .leading)
         }
     }
 
