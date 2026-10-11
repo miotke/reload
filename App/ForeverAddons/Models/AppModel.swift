@@ -36,6 +36,8 @@ final class AppModel {
     let manager: any AddonManaging
     /// The concrete manager when running on real data (for detection); nil on mock data.
     let addonManager: AddonManager?
+    /// Installing the bundled `addonctl` (first-launch offer and Settings).
+    let commandLineTool: CommandLineToolModel
 
     private(set) var installations: [Installation] = []
     var selectedInstallationID: Installation.ID? {
@@ -58,9 +60,11 @@ final class AppModel {
     private var didInitialLoad = false
     @ObservationIgnored private var storeWatcher: DirectoryWatcher?
 
-    init(manager: any AddonManaging) {
+    /// `offersCommandLineTool`: whether to show the one-time offer to install `addonctl`.
+    init(manager: any AddonManaging, offersCommandLineTool: Bool = false) {
         self.manager = manager
         self.addonManager = manager as? AddonManager
+        self.commandLineTool = CommandLineToolModel(mayOffer: offersCommandLineTool)
     }
 
     var selectedInstallation: Installation? {

@@ -24,7 +24,15 @@ struct ContentView: View {
                 AdoptSheet(target: target, state: state)
             }
         }
-        .task { await model.initialLoad(checkForUpdates: checkForUpdatesOnLaunch) }
+        .sheet(isPresented: Bindable(model.commandLineTool).isOfferPresented) {
+            CommandLineToolOfferSheet()
+        }
+        .task {
+            await model.initialLoad(checkForUpdates: checkForUpdatesOnLaunch)
+            // Once the window is up; shown once ever (see `CommandLineToolModel.offerIfNeeded`).
+            try? await Task.sleep(for: .seconds(1))
+            model.commandLineTool.offerIfNeeded()
+        }
     }
 }
 

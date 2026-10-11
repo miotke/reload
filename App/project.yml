@@ -80,11 +80,30 @@ targets:
         SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
         # The entry point is an `@main` type (SwiftPM infers this flag; Xcode doesn't).
         OTHER_SWIFT_FLAGS: "$(inherited) -parse-as-library"
+  # Not hosted: compiles the testable app sources directly, so tests never launch the app
+  # (which would use the real AddonManager).
+  ForeverAddonsTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: ForeverAddonsTests
+      - path: ForeverAddons/Support/CLIInstaller.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.ForeverAddonsTests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
 schemes:
   ForeverAddons:
     build:
       targets:
         ForeverAddons: all
+    test:
+      targets:
+        - ForeverAddonsTests
     run:
       config: Debug
     archive:

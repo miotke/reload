@@ -8,8 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		0232EE7275824D79F8DB1A75 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 931302BDA52421BCF251B343 /* main.swift */; };
+		0FEA61A6A4CEC1DE71FEC0FD /* CommandLineToolViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CF5E2EE6163862C645B6048 /* CommandLineToolViews.swift */; };
 		1CB387FA5391F1C1A20E603A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B03076B8BFF278C464CE260 /* SettingsView.swift */; };
 		1E9F337C22AC646AD9BF294D /* AddonKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0E1170CB0F2152E5159112D3 /* AddonKit */; };
+		407A1D54363D0D680B3AF076 /* CLIInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57F30BD63245FBBBF75F7F81 /* CLIInstaller.swift */; };
 		468EB08E5E039DC38591B52C /* ForeverAddonsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3197DFD368553BB4AD30C9 /* ForeverAddonsApp.swift */; };
 		528E10E27B571BC813AD9E4F /* AddonKit in Frameworks */ = {isa = PBXBuildFile; productRef = D3B24E719F9F70CC8AEF5DD8 /* AddonKit */; };
 		61086430A14A859091B705DB /* AddonInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC55C3999BC6360A945DED0 /* AddonInspectorView.swift */; };
@@ -20,12 +22,15 @@
 		7918B613FB41FE4C8E45CE7D /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EE11DCC66741EC4CAB9D676 /* Components.swift */; };
 		959F5B0152151CE00879D859 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = 8F1F0BA8A5177AF80CFBB37C /* ArgumentParser */; };
 		A1096B8C6728354815459EBF /* DirectoryWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98BB6B2BAF1866F610DA9B74 /* DirectoryWatcher.swift */; };
+		A2C47B7ED9B685CCD40D938B /* CLIInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5680F32D663CF27A82C78A75 /* CLIInstallerTests.swift */; };
+		B4578D9170736C998F0D4745 /* CommandLineToolModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20101C270379BAA42CAAEE14 /* CommandLineToolModel.swift */; };
 		B8C24FF7036BA157B2ECB02D /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DD7FDB7A545154D3D58C296 /* BrowseView.swift */; };
 		C0843F5A7AAA9899375F282D /* MockAddonManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69166C72D2BDA88E579270A9 /* MockAddonManager.swift */; };
 		D025C3598076124C58AB5A47 /* AdoptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F9DC6003D8E999933F5909 /* AdoptSheet.swift */; };
 		D45EC0D7E705B4FCC826130C /* addonctl in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 1BB6A7D9EF3DE4767E81D539 /* addonctl */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D6DA6CFDAC47C65BA2423589 /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842B565CC85DDFE014D991C4 /* AppSupport.swift */; };
 		DB8FD68E04EBE5C1F244CBE6 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 406B1ADA6E2BCC31A844C6A3 /* AppEnvironment.swift */; };
+		F761CB038317CAF710DA0382 /* CLIInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57F30BD63245FBBBF75F7F81 /* CLIInstaller.swift */; };
 		FE94D71F7E2F476303509648 /* PreviewHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6687B1903C3B19758EA299E0 /* PreviewHost.swift */; };
 /* End PBXBuildFile section */
 
@@ -56,11 +61,15 @@
 /* Begin PBXFileReference section */
 		1BB6A7D9EF3DE4767E81D539 /* addonctl */ = {isa = PBXFileReference; includeInIndex = 0; path = addonctl; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DC55C3999BC6360A945DED0 /* AddonInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddonInspectorView.swift; sourceTree = "<group>"; };
+		20101C270379BAA42CAAEE14 /* CommandLineToolModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolModel.swift; sourceTree = "<group>"; };
+		2CF5E2EE6163862C645B6048 /* CommandLineToolViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolViews.swift; sourceTree = "<group>"; };
 		338A8CBE22BAB26E109E92C4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		406B1ADA6E2BCC31A844C6A3 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		49F3D13F7C792860AC5FCE17 /* InstallationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationModel.swift; sourceTree = "<group>"; };
 		4DD23A31203D91149B72D402 /* agent-a9491708c57a7f7ba */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "agent-a9491708c57a7f7ba"; path = ..; sourceTree = SOURCE_ROOT; };
 		4DD7FDB7A545154D3D58C296 /* BrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseView.swift; sourceTree = "<group>"; };
+		5680F32D663CF27A82C78A75 /* CLIInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstallerTests.swift; sourceTree = "<group>"; };
+		57F30BD63245FBBBF75F7F81 /* CLIInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstaller.swift; sourceTree = "<group>"; };
 		6687B1903C3B19758EA299E0 /* PreviewHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewHost.swift; sourceTree = "<group>"; };
 		69166C72D2BDA88E579270A9 /* MockAddonManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAddonManager.swift; sourceTree = "<group>"; };
 		6F3BB0F64238989764264A38 /* InstalledView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstalledView.swift; sourceTree = "<group>"; };
@@ -74,6 +83,7 @@
 		9B03076B8BFF278C464CE260 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A44B3D26ECB608B92042E0C8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B9FB70D86A2CC5920B26CB83 /* ForeverAddons.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ForeverAddons.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C428104BE6CB77EC3BA7B3DB /* ForeverAddonsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ForeverAddonsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -119,6 +129,7 @@
 			children = (
 				1DDEC49BB58FC156DDB2478B /* agent-a9491708c57a7f7ba */,
 				6D09EB9AAB313A85B89A8280 /* ForeverAddons */,
+				AD51F6D3974D0533150828DC /* ForeverAddonsTests */,
 				B959BEC8E8C8BE14531CAD57 /* Packages */,
 				BE966016F4C98B34B2DAE2A8 /* Products */,
 			);
@@ -138,6 +149,7 @@
 			children = (
 				406B1ADA6E2BCC31A844C6A3 /* AppEnvironment.swift */,
 				842B565CC85DDFE014D991C4 /* AppSupport.swift */,
+				57F30BD63245FBBBF75F7F81 /* CLIInstaller.swift */,
 				98BB6B2BAF1866F610DA9B74 /* DirectoryWatcher.swift */,
 			);
 			path = Support;
@@ -170,12 +182,21 @@
 				1DC55C3999BC6360A945DED0 /* AddonInspectorView.swift */,
 				74F9DC6003D8E999933F5909 /* AdoptSheet.swift */,
 				4DD7FDB7A545154D3D58C296 /* BrowseView.swift */,
+				2CF5E2EE6163862C645B6048 /* CommandLineToolViews.swift */,
 				7EE11DCC66741EC4CAB9D676 /* Components.swift */,
 				A44B3D26ECB608B92042E0C8 /* ContentView.swift */,
 				6F3BB0F64238989764264A38 /* InstalledView.swift */,
 				9B03076B8BFF278C464CE260 /* SettingsView.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		AD51F6D3974D0533150828DC /* ForeverAddonsTests */ = {
+			isa = PBXGroup;
+			children = (
+				5680F32D663CF27A82C78A75 /* CLIInstallerTests.swift */,
+			);
+			path = ForeverAddonsTests;
 			sourceTree = "<group>";
 		};
 		B959BEC8E8C8BE14531CAD57 /* Packages */ = {
@@ -191,6 +212,7 @@
 			children = (
 				1BB6A7D9EF3DE4767E81D539 /* addonctl */,
 				B9FB70D86A2CC5920B26CB83 /* ForeverAddons.app */,
+				C428104BE6CB77EC3BA7B3DB /* ForeverAddonsTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -199,6 +221,7 @@
 			isa = PBXGroup;
 			children = (
 				93BC0C2B3B3C6F2D820CCA62 /* AppModel.swift */,
+				20101C270379BAA42CAAEE14 /* CommandLineToolModel.swift */,
 				49F3D13F7C792860AC5FCE17 /* InstallationModel.swift */,
 			);
 			path = Models;
@@ -248,6 +271,23 @@
 			productReference = B9FB70D86A2CC5920B26CB83 /* ForeverAddons.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B89645EE970CD1C965644562 /* ForeverAddonsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5620C360373AB4A4D6DCF6AB /* Build configuration list for PBXNativeTarget "ForeverAddonsTests" */;
+			buildPhases = (
+				6E5ECEC9AF2A6DCAEBC49361 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ForeverAddonsTests;
+			packageProductDependencies = (
+			);
+			productName = ForeverAddonsTests;
+			productReference = C428104BE6CB77EC3BA7B3DB /* ForeverAddonsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -262,6 +302,10 @@
 						ProvisioningStyle = Automatic;
 					};
 					6C07DCCB5A53F46A81725B7C = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					B89645EE970CD1C965644562 = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
@@ -287,11 +331,21 @@
 			targets = (
 				6C07DCCB5A53F46A81725B7C /* ForeverAddons */,
 				2B8299433548B1BD2768550E /* addonctl */,
+				B89645EE970CD1C965644562 /* ForeverAddonsTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
+		6E5ECEC9AF2A6DCAEBC49361 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				407A1D54363D0D680B3AF076 /* CLIInstaller.swift in Sources */,
+				A2C47B7ED9B685CCD40D938B /* CLIInstallerTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C38110004834379AF3E0BEFE /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -310,6 +364,9 @@
 				6F25AD45A50AC806BC68AD47 /* AppModel.swift in Sources */,
 				D6DA6CFDAC47C65BA2423589 /* AppSupport.swift in Sources */,
 				B8C24FF7036BA157B2ECB02D /* BrowseView.swift in Sources */,
+				F761CB038317CAF710DA0382 /* CLIInstaller.swift in Sources */,
+				B4578D9170736C998F0D4745 /* CommandLineToolModel.swift in Sources */,
+				0FEA61A6A4CEC1DE71FEC0FD /* CommandLineToolViews.swift in Sources */,
 				7918B613FB41FE4C8E45CE7D /* Components.swift in Sources */,
 				781401B10DB5D37A57D1F7E4 /* ContentView.swift in Sources */,
 				A1096B8C6728354815459EBF /* DirectoryWatcher.swift in Sources */,
@@ -391,6 +448,26 @@
 			};
 			name = Release;
 		};
+		315377AF287B271A2D1AA018 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.andrewmiotke.ForeverAddonsTests;
+				SDKROOT = macosx;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+			};
+			name = Debug;
+		};
 		4134C2D5BC6B1C34F8D3EC32 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -434,6 +511,26 @@
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+			};
+			name = Release;
+		};
+		A557C38622BEA35362CAC837 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.andrewmiotke.ForeverAddonsTests;
+				SDKROOT = macosx;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 			};
 			name = Release;
 		};
@@ -551,6 +648,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		5620C360373AB4A4D6DCF6AB /* Build configuration list for PBXNativeTarget "ForeverAddonsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				315377AF287B271A2D1AA018 /* Debug */,
+				A557C38622BEA35362CAC837 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		B1FFDDF5C2A8A329BC2A2CD7 /* Build configuration list for PBXProject "ForeverAddons" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -5,7 +5,8 @@ import SwiftUI
 @main
 struct ForeverAddonsApp: App {
     private static let environment = AppEnvironment.current()
-    @State private var model = AppModel(manager: environment.manager)
+    @State private var model = AppModel(
+        manager: environment.manager, offersCommandLineTool: environment.offersCommandLineTool)
 
     @AppStorage(SettingsKey.showMenuBarExtra) private var showMenuBarExtra = false
 
