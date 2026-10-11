@@ -8,23 +8,6 @@ enum SettingsKey {
     static let showMenuBarExtra = "showMenuBarExtra"
 }
 
-/// A saved keyword search shown as a chip on the Browse tab (DESIGN.md §7.5).
-struct BrowseCategory: Decodable, Identifiable, Hashable {
-    var name: String
-    var symbol: String
-    var query: String
-    var id: String { name }
-
-    /// Loaded from the bundled `Categories.json` so chips can change without code changes.
-    static let all: [BrowseCategory] = {
-        guard let url = Bundle.main.url(forResource: "Categories", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let categories = try? JSONDecoder().decode([BrowseCategory].self, from: data)
-        else { return [] }
-        return categories
-    }()
-}
-
 /// Focuses the window's toolbar search field (⌘F from any tab).
 @MainActor
 enum SearchFieldFocus {

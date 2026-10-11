@@ -16,15 +16,16 @@
 		6D41B6B1ED2CA9A5C693153D /* InstalledView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3BB0F64238989764264A38 /* InstalledView.swift */; };
 		6F25AD45A50AC806BC68AD47 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93BC0C2B3B3C6F2D820CCA62 /* AppModel.swift */; };
 		732CA31A29F2918071B64E28 /* InstallationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F3D13F7C792860AC5FCE17 /* InstallationModel.swift */; };
-		755733687511E692D6863F0B /* Categories.json in Resources */ = {isa = PBXBuildFile; fileRef = 02FAC1437EE7BA2E34B5A10A /* Categories.json */; };
 		781401B10DB5D37A57D1F7E4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A44B3D26ECB608B92042E0C8 /* ContentView.swift */; };
 		7918B613FB41FE4C8E45CE7D /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EE11DCC66741EC4CAB9D676 /* Components.swift */; };
 		959F5B0152151CE00879D859 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = 8F1F0BA8A5177AF80CFBB37C /* ArgumentParser */; };
+		A1096B8C6728354815459EBF /* DirectoryWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98BB6B2BAF1866F610DA9B74 /* DirectoryWatcher.swift */; };
 		B8C24FF7036BA157B2ECB02D /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DD7FDB7A545154D3D58C296 /* BrowseView.swift */; };
 		C0843F5A7AAA9899375F282D /* MockAddonManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69166C72D2BDA88E579270A9 /* MockAddonManager.swift */; };
 		D025C3598076124C58AB5A47 /* AdoptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F9DC6003D8E999933F5909 /* AdoptSheet.swift */; };
 		D45EC0D7E705B4FCC826130C /* addonctl in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 1BB6A7D9EF3DE4767E81D539 /* addonctl */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D6DA6CFDAC47C65BA2423589 /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842B565CC85DDFE014D991C4 /* AppSupport.swift */; };
+		DB8FD68E04EBE5C1F244CBE6 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 406B1ADA6E2BCC31A844C6A3 /* AppEnvironment.swift */; };
 		FE94D71F7E2F476303509648 /* PreviewHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6687B1903C3B19758EA299E0 /* PreviewHost.swift */; };
 /* End PBXBuildFile section */
 
@@ -53,10 +54,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		02FAC1437EE7BA2E34B5A10A /* Categories.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Categories.json; sourceTree = "<group>"; };
 		1BB6A7D9EF3DE4767E81D539 /* addonctl */ = {isa = PBXFileReference; includeInIndex = 0; path = addonctl; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DC55C3999BC6360A945DED0 /* AddonInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddonInspectorView.swift; sourceTree = "<group>"; };
 		338A8CBE22BAB26E109E92C4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		406B1ADA6E2BCC31A844C6A3 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		49F3D13F7C792860AC5FCE17 /* InstallationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationModel.swift; sourceTree = "<group>"; };
 		4DD23A31203D91149B72D402 /* agent-a9491708c57a7f7ba */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "agent-a9491708c57a7f7ba"; path = ..; sourceTree = SOURCE_ROOT; };
 		4DD7FDB7A545154D3D58C296 /* BrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseView.swift; sourceTree = "<group>"; };
@@ -69,6 +70,7 @@
 		8F3197DFD368553BB4AD30C9 /* ForeverAddonsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForeverAddonsApp.swift; sourceTree = "<group>"; };
 		931302BDA52421BCF251B343 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		93BC0C2B3B3C6F2D820CCA62 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		98BB6B2BAF1866F610DA9B74 /* DirectoryWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryWatcher.swift; sourceTree = "<group>"; };
 		9B03076B8BFF278C464CE260 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A44B3D26ECB608B92042E0C8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B9FB70D86A2CC5920B26CB83 /* ForeverAddons.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ForeverAddons.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -134,7 +136,9 @@
 		4F4F5A902880A8E4986D31C9 /* Support */ = {
 			isa = PBXGroup;
 			children = (
+				406B1ADA6E2BCC31A844C6A3 /* AppEnvironment.swift */,
 				842B565CC85DDFE014D991C4 /* AppSupport.swift */,
+				98BB6B2BAF1866F610DA9B74 /* DirectoryWatcher.swift */,
 			);
 			path = Support;
 			sourceTree = "<group>";
@@ -146,7 +150,6 @@
 				338A8CBE22BAB26E109E92C4 /* Info.plist */,
 				3C13382B9458E4A9715B19E0 /* Mock */,
 				E8CCAA7601ED877E20B1013B /* Models */,
-				B6A5CC7255D04E5B76CCE8C8 /* Resources */,
 				4F4F5A902880A8E4986D31C9 /* Support */,
 				719AF41CBE9BD7056BB1C689 /* Views */,
 			);
@@ -173,14 +176,6 @@
 				9B03076B8BFF278C464CE260 /* SettingsView.swift */,
 			);
 			path = Views;
-			sourceTree = "<group>";
-		};
-		B6A5CC7255D04E5B76CCE8C8 /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-				02FAC1437EE7BA2E34B5A10A /* Categories.json */,
-			);
-			path = Resources;
 			sourceTree = "<group>";
 		};
 		B959BEC8E8C8BE14531CAD57 /* Packages */ = {
@@ -237,7 +232,6 @@
 			buildConfigurationList = B9E6CFEC663185B3DDA8C5CD /* Build configuration list for PBXNativeTarget "ForeverAddons" */;
 			buildPhases = (
 				FC4ABF4325998FC3F91B1F32 /* Sources */,
-				AAE60F6290BC14317F8B76B6 /* Resources */,
 				AFF2BA6EB497E1FFE53904E4 /* Frameworks */,
 				D2428B51A0D91CE8045F3D43 /* Embed Dependencies */,
 			);
@@ -297,17 +291,6 @@
 		};
 /* End PBXProject section */
 
-/* Begin PBXResourcesBuildPhase section */
-		AAE60F6290BC14317F8B76B6 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				755733687511E692D6863F0B /* Categories.json in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXResourcesBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
 		C38110004834379AF3E0BEFE /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -323,11 +306,13 @@
 			files = (
 				61086430A14A859091B705DB /* AddonInspectorView.swift in Sources */,
 				D025C3598076124C58AB5A47 /* AdoptSheet.swift in Sources */,
+				DB8FD68E04EBE5C1F244CBE6 /* AppEnvironment.swift in Sources */,
 				6F25AD45A50AC806BC68AD47 /* AppModel.swift in Sources */,
 				D6DA6CFDAC47C65BA2423589 /* AppSupport.swift in Sources */,
 				B8C24FF7036BA157B2ECB02D /* BrowseView.swift in Sources */,
 				7918B613FB41FE4C8E45CE7D /* Components.swift in Sources */,
 				781401B10DB5D37A57D1F7E4 /* ContentView.swift in Sources */,
+				A1096B8C6728354815459EBF /* DirectoryWatcher.swift in Sources */,
 				468EB08E5E039DC38591B52C /* ForeverAddonsApp.swift in Sources */,
 				732CA31A29F2918071B64E28 /* InstallationModel.swift in Sources */,
 				6D41B6B1ED2CA9A5C693153D /* InstalledView.swift in Sources */,

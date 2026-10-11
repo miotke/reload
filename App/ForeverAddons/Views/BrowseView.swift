@@ -23,7 +23,7 @@ struct BrowseView: View {
             filterBar
             Divider()
             if trimmedQuery.isEmpty {
-                BrowseHomeList(state: state)
+                BrowseHomeList(state: state, foreverOnly: foreverOnly)
             } else {
                 resultsList
             }
@@ -41,8 +41,8 @@ struct BrowseView: View {
             await state.search(SearchQuery(text: text, flavor: state.installation.flavor,
                                            foreverOnly: foreverOnly, includeLiveGitHub: includeLiveGitHub))
         }
-        .task(id: foreverOnly) {
-            await state.loadBrowseCatalogue(foreverOnly: foreverOnly)
+        .task(id: state.installation.id) {
+            await state.loadBrowse()
         }
         .onChange(of: model.searchText) { includeLiveGitHub = false }
     }
@@ -51,12 +51,12 @@ struct BrowseView: View {
         HStack(spacing: 12) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(BrowseCategory.all) { category in
+                    ForEach(state.browse?.categories ?? SearchAliases.categories) { category in
                         let selected = trimmedQuery.caseInsensitiveCompare(category.query) == .orderedSame
                         Button {
                             model.searchText = selected ? "" : category.query
                         } label: {
-                            Label(category.name, systemImage: category.symbol)
+                            Label(category.title, systemImage: category.symbol)
                         }
                         .buttonStyle(.bordered)
                         .buttonBorderShape(.capsule)
@@ -118,26 +118,41 @@ struct BrowseView: View {
 /// Empty-query state: Popular on Forever / Recently updated (DESIGN.md §7.5).
 private struct BrowseHomeList: View {
     var state: InstallationModel
+    var foreverOnly: Bool
 
     var body: some View {
-        let catalogue = state.browseCatalogue
-        let popular = catalogue
-            .filter { if case .supported = $0.support { true } else { false } }
-            .sorted { ($0.stars ?? 0) > ($1.stars ?? 0) }
-            .prefix(6)
-        let recent = catalogue
-            .sorted { ($0.lastUpdated ?? .distantPast) > ($1.lastUpdated ?? .distantPast) }
-            .prefix(6)
+        let popular = visible(state.browse?.popular ?? [])
+        let recent = visible(state.browse?.recent ?? [])
         List {
-            Section("Popular on Forever") {
-                ForEach(Array(popular)) { SearchResultRow(state: state, result: $0) }
+            if !popular.isEmpty {
+                Section("Popular on Forever") {
+                    ForEach(popular) { SearchResultRow(state: state, result: $0) }
+                }
             }
-            Section("Recently updated") {
-                ForEach(Array(recent)) { SearchResultRow(state: state, result: $0) }
+            if !recent.isEmpty {
+                Section("Recently updated") {
+                    ForEach(recent) { SearchResultRow(state: state, result: $0) }
+                }
             }
         }
         .overlay {
-            if catalogue.isEmpty { ProgressView() }
+            if state.browse == nil {
+                ProgressView()
+            } else if popular.isEmpty && recent.isEmpty {
+                ContentUnavailableView(
+                    "Nothing to Browse Yet", systemImage: "magnifyingglass",
+                    description: Text("Search for an add-on by name, or pick a category above."))
+            }
+        }
+    }
+
+    private func visible(_ results: [SearchResult]) -> [SearchResult] {
+        guard foreverOnly else { return results }
+        return results.filter { result in
+            switch result.support {
+            case .unsupported, .noReleases: false
+            default: true
+            }
         }
     }
 }

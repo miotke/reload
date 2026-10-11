@@ -2,6 +2,7 @@ import AddonKit
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(AppModel.self) private var model
     @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
     @AppStorage(SettingsKey.checkForUpdatesOnLaunch) private var checkForUpdatesOnLaunch = true
     @AppStorage(SettingsKey.showMenuBarExtra) private var showMenuBarExtra = false
@@ -67,6 +68,7 @@ struct SettingsView: View {
             tokenError = nil
             hasStoredToken = true
             tokenMessage = "Token saved in Keychain."
+            Task { await model.manager.tokenDidChange() }
         } catch {
             tokenError = error.localizedDescription
         }
@@ -79,6 +81,7 @@ struct SettingsView: View {
             tokenError = nil
             hasStoredToken = false
             tokenMessage = "Token removed."
+            Task { await model.manager.tokenDidChange() }
         } catch {
             tokenError = error.localizedDescription
         }
@@ -87,4 +90,5 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
+        .environment(AppModel(manager: MockAddonManager(latency: 0)))
 }

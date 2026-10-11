@@ -1,8 +1,8 @@
 import AddonKit
 import Foundation
 
-/// In-memory `AddonManaging` with realistic sample data. Used for SwiftUI previews and,
-/// until the real `AddonManager` lands, for running the app.
+/// In-memory `AddonManaging` with realistic sample data. Used for SwiftUI previews and when
+/// the app is launched with `-UseMockData YES`.
 ///
 /// Behaviour worth knowing when clicking around:
 /// - BigWigs and Details! have updates; Details!'s first update attempt fails (to exercise
@@ -98,11 +98,15 @@ actor MockAddonManager: AddonManaging {
             id: bigWigs, name: "BigWigs",
             folders: ["BigWigs", "BigWigs_Core", "BigWigs_Plugins", "BigWigs_Options"],
             version: "v426.3", releaseID: 426_003, assetName: "BigWigs-v426.3.zip",
-            publishedAt: .daysAgo(9), installedAt: .daysAgo(8)),
+            publishedAt: .daysAgo(9), installedAt: .daysAgo(8),
+            changelog: "## v426.3\n\n- Fixed *Onyxia* deep breath warning on Forever.\n- Updated Russian translations.",
+            previousRelease: ReleaseSnapshot(version: "v426.2", releaseID: 426_002, assetName: "BigWigs-v426.2.zip",
+                                             publishedAt: .daysAgo(20))),
         InstalledAddon(
             id: dbm, name: "DBM - Core", folders: ["DBM-Core", "DBM-GUI", "DBM-StatusBarTimers"],
             version: "12.1.12", releaseID: 121_12, assetName: "DBM-Core-12.1.12.zip",
-            publishedAt: .daysAgo(3), installedAt: .daysAgo(3)),
+            publishedAt: .daysAgo(3), installedAt: .daysAgo(3),
+            changelog: "- Forever: Molten Core timer fixes.\n- `/dbm pull` now respects the countdown voice."),
         InstalledAddon(
             id: bugSack, name: "BugSack", folders: ["BugSack"], version: "v11.2.5", releaseID: 112_5,
             assetName: "BugSack-v11.2.5.zip", publishedAt: .daysAgo(60), installedAt: .daysAgo(40),
@@ -308,7 +312,26 @@ actor MockAddonManager: AddonManaging {
     }
 
     func browse(in installation: Installation) async -> BrowseContent {
-        BrowseContent(categories: SearchAliases.categories)
+        await pause(0.3)
+        let managed = data[installation.id]?.managed ?? [:]
+        func result(_ item: CatalogueItem) -> SearchResult {
+            SearchResult(
+                id: item.ref, name: item.name, summary: item.summary,
+                owner: String(item.ref.identifier.split(separator: "/").first ?? ""), stars: item.stars,
+                lastUpdated: .daysAgo(item.updatedDaysAgo), installed: managed[item.ref],
+                support: supportCache[item.ref] ?? item.support, origin: [item.origin])
+        }
+        let popular = Self.catalogue
+            .filter { if case .supported = $0.support { true } else { false } }
+            .sorted { $0.stars > $1.stars }
+            .prefix(6)
+            .map(result)
+        let recent = Self.catalogue
+            .filter { $0.support != .unsupported }
+            .sorted { $0.updatedDaysAgo < $1.updatedDaysAgo }
+            .prefix(6)
+            .map(result)
+        return BrowseContent(popular: popular, recent: recent, categories: SearchAliases.categories)
     }
 
     func tokenDidChange() async {}
@@ -318,11 +341,16 @@ actor MockAddonManager: AddonManaging {
         _ ref: AddonRef, into installation: Installation, channel: Channel, force: Bool,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> InstalledAddon {
-        var entry = try entry(installation)
-        await pause(1.2)
+        await pause(0.3)
         if let item = Self.item(for: ref), item.support == .unsupported || item.support == .noReleases {
             throw AddonError.noCompatibleRelease(ref, installation.flavor)
         }
+        for step in 0...10 {
+            progress(Double(step) / 10)
+            await pause(0.08)
+        }
+        await pause(0.3)
+        var entry = try entry(installation)
         let item = Self.item(for: ref)
         let repo = String(ref.identifier.split(separator: "/").last ?? "")
         let folders = item?.folders ?? [repo]
@@ -393,6 +421,8 @@ actor MockAddonManager: AddonManaging {
         updated.assetName = release.assetName
         updated.publishedAt = release.publishedAt
         updated.installedAt = .now
+        updated.changelog = release.changelog
+        updated.previousRelease = current.snapshot
         entry.previous[ref] = current
         entry.managed[ref] = updated
         entry.available[ref] = nil
@@ -415,7 +445,8 @@ actor MockAddonManager: AddonManaging {
         guard let current = entry.managed[ref] else { throw AddonError.notInstalled(ref) }
         guard var previous = entry.previous[ref] else { throw AddonError.noRollbackAvailable(ref) }
         previous.installedAt = .now
-        previous.pinned = current.pinned
+        previous.pinned = true
+        previous.previousRelease = nil
         previous.channel = current.channel
         entry.managed[ref] = previous
         entry.previous[ref] = nil
