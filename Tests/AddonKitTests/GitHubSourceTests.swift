@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import AddonKit
 
@@ -17,12 +18,11 @@ private func zipData(_ files: [String: String]) throws -> Data {
     try Data(contentsOf: makeInspectorZip(files))
 }
 
-private final class TestClock: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _date = Date(timeIntervalSince1970: 1_800_000_000)
+private final class TestClock: Sendable {
+    private let mutex = Mutex(Date(timeIntervalSince1970: 1_800_000_000))
     var date: Date {
-        get { lock.withLock { _date } }
-        set { lock.withLock { _date = newValue } }
+        get { mutex.withLock { $0 } }
+        set { mutex.withLock { $0 = newValue } }
     }
 }
 

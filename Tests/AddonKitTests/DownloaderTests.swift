@@ -1,22 +1,31 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import AddonKit
 
 /// Serves canned bodies by URL string and counts requests.
-final class StubDownloadTransport: DownloadTransport, @unchecked Sendable {
-    private let lock = NSLock()
-    private var bodies: [String: Data] = [:]
-    private var _requests: [URL] = []
-    var delay: Duration = .zero
+final class StubDownloadTransport: DownloadTransport, Sendable {
+    private struct State {
+        var bodies: [String: Data] = [:]
+        var requests: [URL] = []
+        var delay: Duration = .zero
+    }
 
-    var requests: [URL] { lock.withLock { _requests } }
+    private let state = Mutex(State())
 
-    func stub(_ url: URL, _ body: Data) { lock.withLock { bodies[url.absoluteString] = body } }
+    var delay: Duration {
+        get { state.withLock { $0.delay } }
+        set { state.withLock { $0.delay = newValue } }
+    }
+
+    var requests: [URL] { state.withLock { $0.requests } }
+
+    func stub(_ url: URL, _ body: Data) { state.withLock { $0.bodies[url.absoluteString] = body } }
 
     func download(from url: URL, to destination: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
-        let body = lock.withLock { () -> Data? in
-            _requests.append(url)
-            return bodies[url.absoluteString]
+        let (body, delay) = state.withLock { state -> (Data?, Duration) in
+            state.requests.append(url)
+            return (state.bodies[url.absoluteString], state.delay)
         }
         if delay > .zero { try await Task.sleep(for: delay) }
         guard let body else { throw AddonError.http(status: 404, url: url) }

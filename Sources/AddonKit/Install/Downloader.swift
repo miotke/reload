@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Moves bytes from a URL to a local file. The default uses `URLSession`; tests inject a stub.
 public protocol DownloadTransport: Sendable {
@@ -53,37 +54,40 @@ public struct URLSessionDownloadTransport: DownloadTransport {
     }
 
     /// Holds the task and its progress observation across the continuation boundary.
-    private final class TaskBox: @unchecked Sendable {
-        private let lock = NSLock()
-        private var task: URLSessionDownloadTask?
-        private var observation: NSKeyValueObservation?
-        private var cancelled = false
+    private final class TaskBox: Sendable {
+        private struct State {
+            var task: URLSessionDownloadTask?
+            var observation: NSKeyValueObservation?
+            var cancelled = false
+        }
+
+        private let state = Mutex(State())
 
         func start(_ task: URLSessionDownloadTask, progress: @escaping @Sendable (Double) -> Void) {
             let observation = task.progress.observe(\.fractionCompleted) { p, _ in
                 progress(min(max(p.fractionCompleted, 0), 1))
             }
-            let cancelled = lock.withLock {
-                self.task = task
-                self.observation = observation
-                return self.cancelled
+            let cancelled = state.withLock { state in
+                state.task = task
+                state.observation = observation
+                return state.cancelled
             }
             task.resume()
             if cancelled { task.cancel() }
         }
 
         func cancel() {
-            let task = lock.withLock {
-                cancelled = true
-                return self.task
+            let task = state.withLock { state in
+                state.cancelled = true
+                return state.task
             }
             task?.cancel()
         }
 
         func invalidate() {
-            lock.withLock {
-                observation?.invalidate()
-                observation = nil
+            state.withLock { state in
+                state.observation?.invalidate()
+                state.observation = nil
             }
         }
     }

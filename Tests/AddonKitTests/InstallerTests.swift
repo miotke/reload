@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import AddonKit
 
@@ -228,12 +229,11 @@ struct InstallerFixture {
 }
 
 /// A tiny thread-safe box for collecting values from `@Sendable` closures.
-final class LockedBox<Value>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _value: Value
-    init(_ value: Value) { _value = value }
-    var value: Value { lock.withLock { _value } }
-    func withValue<R>(_ body: (inout Value) throws -> R) rethrows -> R {
-        try lock.withLock { try body(&_value) }
+final class LockedBox<Value: Sendable>: Sendable {
+    private let mutex: Mutex<Value>
+    init(_ value: Value) { mutex = Mutex(value) }
+    var value: Value { mutex.withLock { $0 } }
+    func withValue<R: Sendable>(_ body: (inout sending Value) throws -> sending R) rethrows -> R {
+        try mutex.withLock { try body(&$0) }
     }
 }

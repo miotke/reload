@@ -11,7 +11,7 @@ import Foundation
 /// - Search emits immediately with `.checking` badges, then resolves support over ~1 s.
 /// - Installing an add-on verified as unsupported throws `noCompatibleRelease`.
 actor MockAddonManager: AddonManaging {
-    struct CatalogueItem: Sendable {
+    nonisolated struct CatalogueItem: Sendable {
         var ref: AddonRef
         var name: String
         var summary: String
@@ -83,17 +83,17 @@ actor MockAddonManager: AddonManaging {
 
     // MARK: Sample data
 
-    static let bigWigs = AddonRef(source: .github, identifier: "BigWigsMods/BigWigs")
-    static let dbm = AddonRef(source: .github, identifier: "DeadlyBossMods/DeadlyBossMods")
-    static let bugSack = AddonRef(source: .github, identifier: "funkydude/BugSack")
-    static let details = AddonRef(source: .github, identifier: "Tercioo/Details-Damage-Meter")
+    nonisolated static let bigWigs = AddonRef(source: .github, identifier: "BigWigsMods/BigWigs")
+    nonisolated static let dbm = AddonRef(source: .github, identifier: "DeadlyBossMods/DeadlyBossMods")
+    nonisolated static let bugSack = AddonRef(source: .github, identifier: "funkydude/BugSack")
+    nonisolated static let details = AddonRef(source: .github, identifier: "Tercioo/Details-Damage-Meter")
 
-    static let foreverBeta = Installation(
+    nonisolated static let foreverBeta = Installation(
         id: "forever-beta",
         root: URL(filePath: "/Applications/World of Warcraft/_classic_beta_", directoryHint: .isDirectory),
         flavor: .forever, productCode: "wow_classic_beta", gameVersion: "1.60.1.70338")
 
-    static let sampleInstalled: [InstalledAddon] = [
+    nonisolated static let sampleInstalled: [InstalledAddon] = [
         InstalledAddon(
             id: bigWigs, name: "BigWigs",
             folders: ["BigWigs", "BigWigs_Core", "BigWigs_Plugins", "BigWigs_Options"],
@@ -113,7 +113,7 @@ actor MockAddonManager: AddonManaging {
             publishedAt: .daysAgo(20), installedAt: .daysAgo(18), channel: .prerelease),
     ]
 
-    static let catalogue: [CatalogueItem] = [
+    nonisolated static let catalogue: [CatalogueItem] = [
         .init(ref: .gh("BigWigsMods/BigWigs"), name: "BigWigs", summary: "Modular, lightweight, non-intrusive approach to boss encounter warnings.",
               stars: 690, updatedDaysAgo: 1, support: .supported(version: "v426.4"), keywords: ["boss", "raid", "timers", "bw"], folders: ["BigWigs"], version: "v426.4"),
         .init(ref: .gh("DeadlyBossMods/DeadlyBossMods"), name: "Deadly Boss Mods", summary: "Raid and dungeon encounter alerts and timers.",
@@ -145,7 +145,7 @@ actor MockAddonManager: AddonManaging {
     ]
 
     /// Extra results that only appear when `includeLiveGitHub` is set.
-    static let liveGitHub: [CatalogueItem] = [
+    nonisolated static let liveGitHub: [CatalogueItem] = [
         .init(ref: .gh("someone/ForeverBagSort"), name: "ForeverBagSort", summary: "Tiny bag sorting add-on made for Forever.",
               stars: 12, updatedDaysAgo: 9, support: .needsDownload, keywords: ["bags", "sort"], folders: ["ForeverBagSort"], version: "0.4.0", origin: .github),
         .init(ref: .gh("raidtools/CamelotTimers"), name: "CamelotTimers", summary: "Boss timers for Forever raids.",
@@ -175,7 +175,7 @@ actor MockAddonManager: AddonManaging {
         return entry
     }
 
-    private static func item(for ref: AddonRef) -> CatalogueItem? {
+    nonisolated private static func item(for ref: AddonRef) -> CatalogueItem? {
         (catalogue + liveGitHub).first { $0.ref == ref }
     }
 
@@ -451,15 +451,15 @@ actor MockAddonManager: AddonManaging {
 
 // MARK: - Small helpers
 
-extension AddonRef {
+nonisolated extension AddonRef {
     fileprivate static func gh(_ identifier: String) -> AddonRef { AddonRef(source: .github, identifier: identifier) }
 }
 
-extension Date {
+nonisolated extension Date {
     fileprivate static func daysAgo(_ days: Double) -> Date { Date.now.addingTimeInterval(-days * 86_400) }
 }
 
-extension Array {
+nonisolated extension Array {
     fileprivate func chunked(into size: Int) -> [[Element]] {
         stride(from: 0, to: count, by: size).map { Array(self[$0..<Swift.min($0 + size, count)]) }
     }

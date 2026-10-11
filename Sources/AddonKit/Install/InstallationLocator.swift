@@ -180,35 +180,34 @@ public struct InstallationLocator: Sendable {
 
     /// Runs `executable` and returns its stdout, or whatever it printed before `timeout`.
     static func runProcess(_ executable: URL, arguments: [String], timeout: TimeInterval) async -> String {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let process = Process()
-                process.executableURL = executable
-                process.arguments = arguments
-                let pipe = Pipe()
-                process.standardOutput = pipe
-                process.standardError = FileHandle.nullDevice
-                do {
-                    try process.run()
-                } catch {
-                    continuation.resume(returning: "")
-                    return
-                }
-                let killer = ProcessBox(process)
-                DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { killer.terminateIfRunning() }
-                // Reads until the process exits (or is terminated), so a full pipe can't stall it.
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
-                continuation.resume(returning: String(decoding: data, as: UTF8.self))
-            }
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            return ""
         }
-    }
 
-    private final class ProcessBox: @unchecked Sendable {
-        let process: Process
-        init(_ process: Process) { self.process = process }
-        func terminateIfRunning() {
-            if process.isRunning { process.terminate() }
+        // Terminating the process closes the pipe, which ends the read loop below.
+        let pid = process.processIdentifier
+        let watchdog = Task {
+            try await Task.sleep(for: .seconds(timeout))
+            kill(pid, SIGTERM)
         }
+        defer { watchdog.cancel() }
+
+        var output = Data()
+        do {
+            for try await byte in pipe.fileHandleForReading.bytes {
+                output.append(byte)
+            }
+        } catch {
+            // Keep whatever arrived before the read failed.
+        }
+        return String(decoding: output, as: UTF8.self)
     }
 }

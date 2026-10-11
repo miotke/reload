@@ -1,9 +1,15 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.4
 import PackageDescription
+
+/// Swift 6.2+ "approachable concurrency" behaviour for every target.
+let modernConcurrency: [SwiftSetting] = [
+    .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+    .enableUpcomingFeature("InferIsolatedConformances"),
+]
 
 let package = Package(
     name: "ForeverAddons",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v27)],
     products: [
         .library(name: "AddonKit", targets: ["AddonKit"]),
         .executable(name: "addonctl", targets: ["addonctl"]),
@@ -15,19 +21,22 @@ let package = Package(
     targets: [
         .target(
             name: "AddonKit",
-            dependencies: [.product(name: "ZIPFoundation", package: "ZIPFoundation")]
+            dependencies: [.product(name: "ZIPFoundation", package: "ZIPFoundation")],
+            swiftSettings: modernConcurrency
         ),
         .executableTarget(
             name: "addonctl",
             dependencies: [
                 "AddonKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            ]
+            ],
+            swiftSettings: modernConcurrency
         ),
         .testTarget(
             name: "AddonKitTests",
             dependencies: ["AddonKit"],
-            resources: [.copy("Fixtures")]
+            resources: [.copy("Fixtures")],
+            swiftSettings: modernConcurrency
         ),
     ]
 )
