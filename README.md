@@ -1,16 +1,68 @@
 # ForeverAddons
 
-A native macOS add-on manager for **World of Warcraft: Forever**, written in Swift. It has a SwiftUI app and a package-manager-style CLI (`addonctl`), both built on the same core library and sharing the same state.
+A native macOS add-on manager for **World of Warcraft: Forever**, written in Swift. It's a SwiftUI app with a package-manager-style command-line tool (`addonctl`) built in. Both share the same core library and the same list of installed add-ons, so changes made in one show up in the other.
 
-> **Status: early development.** The core library is being built now. Not usable yet.
+> **Status: early development.** Expect rough edges, and try it on a copy of your AddOns folder first.
 
-## What it will do
+## Features
 
 - **Search** for add-ons, with each result showing whether it supports Forever.
-- **Install, update, remove, pin and roll back** add-ons, either from the app or from the terminal.
-- **Install safely.** Installs are transactional and restore the previous version if anything fails. Removed add-ons go to the Trash. The app never touches folders it doesn't manage without asking.
+- **Install, update, remove, pin and roll back** add-ons, from the app or the terminal.
+- **Install safely.** Installs are transactional and restore the previous version if anything fails. Removed add-ons go to the Trash. Folders the app doesn't manage are never overwritten without asking.
 - **Adopt** add-ons you installed by hand.
-- **Need no API keys.** Add-ons come from GitHub Releases. You can add your own GitHub token to raise rate limits.
+- **No API keys needed.** Add-ons come from GitHub Releases. You can add your own GitHub token in Settings to raise rate limits.
+
+## Requirements
+
+- macOS 27 or later
+- Xcode 27 or later (Swift 6.4)
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen), only if you change `App/project.yml`
+
+## Build and run the app
+
+1. Clone the repo and open the Xcode project:
+
+   ```sh
+   git clone git@github.com:miotke/swift-addons.git
+   cd swift-addons
+   open App/ForeverAddons.xcodeproj
+   ```
+
+2. In Xcode's toolbar, choose the **ForeverAddons** scheme and **My Mac** as the run destination.
+3. Press **⌘R** (Product ▸ Run).
+
+   Xcode resolves the Swift packages (ZIPFoundation and swift-argument-parser) the first time, which takes a minute. The app is signed for local running ("Sign to Run Locally"), so you don't need an Apple developer account.
+
+### First launch
+
+- **Command-line tool.** The app asks whether to install `addonctl`. Choose **Install** and enter your admin password. This creates a link at `/usr/local/bin/addonctl` pointing to the tool inside the app, so the tool stays up to date when the app does. Choose **Not Now** to skip it; you can install it later from **Settings ▸ Command-Line Tool**.
+- **Finding WoW.** The app looks for World of Warcraft automatically. If it can't find your Forever install, click **Add Installation…** and choose the Forever folder. During the beta that's `World of Warcraft/_classic_beta_`.
+
+### Building outside Xcode
+
+You can also build and launch the app from the terminal:
+
+```sh
+xcodebuild -project App/ForeverAddons.xcodeproj -scheme ForeverAddons \
+  -configuration Debug -destination 'platform=macOS' \
+  -derivedDataPath build/DerivedData build
+open build/DerivedData/Build/Products/Debug/ForeverAddons.app
+```
+
+If `xcode-select -p` points to the Command Line Tools instead of Xcode, either run `sudo xcode-select -s /Applications/Xcode.app` once, or put `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` in front of each command.
+
+### Developer options
+
+| Option | What it does |
+|---|---|
+| `-UseMockData YES` (launch argument) | Runs the app on built-in sample data instead of your real WoW install. In Xcode, add it under Product ▸ Scheme ▸ Edit Scheme ▸ Run ▸ Arguments. |
+| `ADDONS_DATA_DIR=/some/dir` (environment variable) | Keeps all app data (installed add-on list, caches) in that folder and skips automatic WoW detection. Useful for testing against a fake WoW folder. The CLI honours it too. |
+
+See [`App/README.md`](App/README.md) for how the Xcode project is generated.
+
+## Command-line tool
+
+After installing it from the app:
 
 ```console
 $ addonctl search boss
@@ -18,9 +70,17 @@ $ addonctl install BigWigsMods/BigWigs
 $ addonctl outdated
 $ addonctl update
 $ addonctl rm bigwigs
+$ addonctl --help
 ```
 
-See [`DESIGN.md`](DESIGN.md) for the full design and architecture.
+Every command supports `--json` for scripting. See [`DESIGN.md` §9](DESIGN.md#9-cli-addonctl) for every command, option and exit code.
+
+To build the CLI on its own without the app:
+
+```sh
+swift build -c release --product addonctl
+.build/release/addonctl --help
+```
 
 ## How it finds Forever builds
 
@@ -28,38 +88,24 @@ Most popular add-ons are published with the [BigWigs packager](https://github.co
 
 Search draws on the community [github-wow-addon-catalogue](https://github.com/layday/github-wow-addon-catalogue), your installed add-ons, and (on demand) GitHub's search API.
 
-## Project layout
+## Development
 
 ```
 Package.swift            AddonKit library, addonctl CLI, tests
-Sources/AddonKit/        core: models, parsers, GitHub source, installer, store, search
+Sources/AddonKit/        core: models, parsers, GitHub source, installer, store, search, AddonManager
 Sources/addonctl/        command-line tool
-Tests/AddonKitTests/     Swift Testing suites + fixtures
-App/                     SwiftUI macOS app (Xcode project generated by XcodeGen)
+Tests/                   Swift Testing suites + fixtures
+App/                     SwiftUI app (Xcode project generated by XcodeGen from project.yml)
 DESIGN.md                design & architecture
 ```
 
-## Building
-
-Requirements: macOS 14+, Xcode 16 or newer (developed with Xcode 27), Swift 6.
+Run the core and CLI tests:
 
 ```sh
-swift build
 swift test
-swift run addonctl --help
 ```
 
-If `xcode-select -p` points to the Command Line Tools, either run `sudo xcode-select -s /Applications/Xcode.app` or put this before each command:
-
-```sh
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
-```
-
-The macOS app lives in `App/`. See `App/README.md` once the app has been added.
-
-### Live tests
-
-The network tests that hit real GitHub are opt-in:
+The tests that hit real GitHub are opt-in:
 
 ```sh
 ADDONS_LIVE_TESTS=1 swift test
