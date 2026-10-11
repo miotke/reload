@@ -5,8 +5,8 @@ import Foundation
 /// Runs `topic:wow-addon` first, then `topic:world-of-warcraft-addon`, then a
 /// topic-less `wow OR warcraft` query while fewer than `minimumResults` repos were
 /// found. Archived repos and forks are dropped. Results are cached per query text
-/// for 10 minutes. A 403/429 throws `AddonError.rateLimited` unless earlier stages
-/// already produced results, which are then returned.
+/// for 10 minutes. A 403/429 throws `AddonError.rateLimited`; if a fallback stage fails
+/// after earlier stages found repos, those are returned (and not cached).
 public actor GitHubSearchProvider: SearchProvider {
     public static let endpoint = "https://api.github.com/search/repositories"
     public static let cacheTTL: TimeInterval = 10 * 60
@@ -37,8 +37,9 @@ public actor GitHubSearchProvider: SearchProvider {
             let page: [SearchResult]
             do {
                 page = try await fetch(q)
-            } catch let error as AddonError {
-                if case .rateLimited = error, !results.isEmpty { complete = false; break }
+            } catch {
+                // A failed fallback stage keeps what earlier stages found.
+                if !results.isEmpty { complete = false; break }
                 throw error
             }
             for result in page where seen.insert(result.id.identifier.lowercased()).inserted {

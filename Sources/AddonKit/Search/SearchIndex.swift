@@ -164,9 +164,15 @@ extension SupportStatus {
 public struct SearchIndex: Sendable {
     public let entries: [CatalogueEntry]
     private let documents: [SearchDocument]
+    private let positions: [String: Int]
 
     public init(entries: [CatalogueEntry]) {
         self.entries = entries
+        var positions: [String: Int] = [:]
+        for (i, entry) in entries.enumerated() where positions[entry.fullName.lowercased()] == nil {
+            positions[entry.fullName.lowercased()] = i
+        }
+        self.positions = positions
         self.documents = entries.map { entry in
             let parts = entry.fullName.split(separator: "/", maxSplits: 1)
             return SearchDocument(
@@ -212,8 +218,8 @@ public struct SearchIndex: Sendable {
     }
 
     public func entry(for ref: AddonRef) -> CatalogueEntry? {
-        let id = ref.identifier.lowercased()
-        return entries.first { $0.fullName.lowercased() == id }
+        guard ref.source == .github, let i = positions[ref.identifier.lowercased()] else { return nil }
+        return entries[i]
     }
 }
 
