@@ -93,8 +93,6 @@ struct ConfigService: Sendable {
     /// `ghp_abcdef123456` → `ghp_…3456`.
     static func mask(_ token: String) -> String {
         guard token.count > 8 else { return "••••" }
-        let prefix = token.prefix(while: { $0 != "_" })
-        let head = prefix.count < token.count && prefix.count <= 11 ? String(prefix) + "_" : String(token.prefix(4))
-        return head + "…" + token.suffix(4)
+        return token.prefix(4) + "…" + token.suffix(4)
     }
 }

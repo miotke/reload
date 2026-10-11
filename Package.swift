@@ -38,5 +38,10 @@ let package = Package(
             resources: [.copy("Fixtures")],
             swiftSettings: modernConcurrency
         ),
+        .testTarget(
+            name: "addonctlTests",
+            dependencies: ["addonctl", "AddonKit"],
+            swiftSettings: modernConcurrency
+        ),
     ]
 )
