@@ -61,13 +61,18 @@ public struct InstalledAddon: Codable, Sendable, Identifiable, Hashable {
     public var channel: Channel
     /// Never auto-update.
     public var pinned: Bool
-    /// Last ETag from the source's releases endpoint.
+    /// Last ETag from the source's releases endpoint, stored only while up to date.
     public var etag: String?
+    /// Release notes of the installed release (Markdown).
+    public var changelog: String?
+    /// The release installed before this one, for rollback.
+    public var previousRelease: ReleaseSnapshot?
 
     public init(
         id: AddonRef, name: String, folders: [String], version: String, releaseID: Int64,
         assetName: String, publishedAt: Date, installedAt: Date, channel: Channel = .stable,
-        pinned: Bool = false, etag: String? = nil
+        pinned: Bool = false, etag: String? = nil, changelog: String? = nil,
+        previousRelease: ReleaseSnapshot? = nil
     ) {
         self.id = id
         self.name = name
@@ -80,11 +85,35 @@ public struct InstalledAddon: Codable, Sendable, Identifiable, Hashable {
         self.channel = channel
         self.pinned = pinned
         self.etag = etag
+        self.changelog = changelog
+        self.previousRelease = previousRelease
+    }
+
+    /// The installed release, for `previousRelease` of the next install.
+    public var snapshot: ReleaseSnapshot {
+        ReleaseSnapshot(version: version, releaseID: releaseID, assetName: assetName, publishedAt: publishedAt, changelog: changelog)
     }
 
     /// True when `release` should replace this install.
     public func isUpdate(_ release: ResolvedRelease) -> Bool {
         release.releaseID != releaseID && release.publishedAt > publishedAt
+    }
+}
+
+/// Enough of a past release to reinstall it from the download cache.
+public struct ReleaseSnapshot: Codable, Sendable, Hashable {
+    public var version: String
+    public var releaseID: Int64
+    public var assetName: String
+    public var publishedAt: Date
+    public var changelog: String?
+
+    public init(version: String, releaseID: Int64, assetName: String, publishedAt: Date, changelog: String? = nil) {
+        self.version = version
+        self.releaseID = releaseID
+        self.assetName = assetName
+        self.publishedAt = publishedAt
+        self.changelog = changelog
     }
 }
 
@@ -153,5 +182,20 @@ public enum OperationEvent: Sendable {
     case downloading(AddonRef, progress: Double)
     case installing(AddonRef)
     case done(InstalledAddon)
+    /// Nothing to do, e.g. already up to date or pinned.
+    case skipped(AddonRef, reason: String)
     case failed(AddonRef, String)
+}
+
+/// The Browse tab with an empty query (DESIGN.md §7.5).
+public struct BrowseContent: Sendable {
+    public var popular: [SearchResult]
+    public var recent: [SearchResult]
+    public var categories: [SearchCategory]
+
+    public init(popular: [SearchResult] = [], recent: [SearchResult] = [], categories: [SearchCategory] = []) {
+        self.popular = popular
+        self.recent = recent
+        self.categories = categories
+    }
 }

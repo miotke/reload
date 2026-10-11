@@ -144,6 +144,8 @@ final class InstallationModel {
                 updateStates[addon.id] = .upToDate
                 releases[addon.id] = nil
                 replace(addon)
+            case .skipped(let ref, _):
+                activity[ref.description] = nil
             case .failed(let ref, let message):
                 activity[ref.description] = nil
                 rowErrors[ref.description] = message

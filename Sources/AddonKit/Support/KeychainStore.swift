@@ -3,8 +3,7 @@ import Security
 
 /// Stores the user's GitHub token as a generic password in the login Keychain.
 ///
-/// Standalone (Foundation + Security only) so it can move into AddonKit unchanged and be
-/// shared with `addonctl`.
+/// Shared by the app and `addonctl` (DESIGN.md §9.1).
 public struct KeychainStore: Sendable {
     public struct KeychainError: Error, LocalizedError, Sendable {
         public var status: OSStatus
@@ -16,7 +15,7 @@ public struct KeychainStore: Sendable {
     public var service: String
     public var account: String
 
-    public init(service: String = "com.andrewmiotke.ForeverAddons", account: String = "github-token") {
+    public init(service: String = AppInfo.bundleID, account: String = "github-token") {
         self.service = service
         self.account = account
     }

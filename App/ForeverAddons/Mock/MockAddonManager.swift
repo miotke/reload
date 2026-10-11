@@ -307,8 +307,17 @@ actor MockAddonManager: AddonManaging {
         }
     }
 
+    func browse(in installation: Installation) async -> BrowseContent {
+        BrowseContent(categories: SearchAliases.categories)
+    }
+
+    func tokenDidChange() async {}
+
     @discardableResult
-    func install(_ ref: AddonRef, into installation: Installation, channel: Channel, force: Bool) async throws -> InstalledAddon {
+    func install(
+        _ ref: AddonRef, into installation: Installation, channel: Channel, force: Bool,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> InstalledAddon {
         var entry = try entry(installation)
         await pause(1.2)
         if let item = Self.item(for: ref), item.support == .unsupported || item.support == .noReleases {
