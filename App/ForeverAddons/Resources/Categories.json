@@ -1,9 +1,0 @@
-[
-  { "name": "Boss mods", "symbol": "shield.lefthalf.filled", "query": "boss" },
-  { "name": "Bags", "symbol": "bag", "query": "bags" },
-  { "name": "UI", "symbol": "rectangle.3.group", "query": "ui" },
-  { "name": "Quests", "symbol": "scroll", "query": "quests" },
-  { "name": "Maps", "symbol": "map", "query": "maps" },
-  { "name": "Auction", "symbol": "dollarsign.circle", "query": "auction" },
-  { "name": "Combat", "symbol": "flame", "query": "combat" }
-]

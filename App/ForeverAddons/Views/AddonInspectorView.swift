@@ -44,9 +44,6 @@ private struct ManagedInspector: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .task(id: "\(addon.id)#\(addon.releaseID)#\(addon.channel.rawValue)") {
-            await state.loadRelease(for: addon)
-        }
     }
 
     private var header: some View {
@@ -126,19 +123,23 @@ private struct ManagedInspector: View {
         }
     }
 
+    /// Release notes from the store (installed release) and, when there's an update, the
+    /// update check's release. No network request is needed.
     @ViewBuilder private var changelog: some View {
+        if let release = state.availableRelease(for: addon.id) {
+            notes(title: "What's New in \(release.version)", markdown: release.changelog, version: release.version)
+        }
+        notes(title: state.availableRelease(for: addon.id) == nil ? "Changelog" : "Installed (\(addon.version))",
+              markdown: addon.changelog, version: addon.version)
+    }
+
+    private func notes(title: String, markdown: String?, version: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Changelog").font(.headline)
-            if let release = state.releases[addon.id] {
-                if let notes = release.changelog, !notes.isEmpty {
-                    MarkdownText(markdown: notes).font(.callout)
-                } else {
-                    Text("No release notes for \(release.version).").foregroundStyle(.secondary).font(.callout)
-                }
-            } else if let error = state.releaseErrors[addon.id] {
-                RowErrorText(message: error)
+            Text(title).font(.headline)
+            if let markdown, !markdown.isEmpty {
+                MarkdownText(markdown: markdown).font(.callout)
             } else {
-                ProgressView().controlSize(.small)
+                Text("No release notes for \(version).").foregroundStyle(.secondary).font(.callout)
             }
         }
     }
@@ -150,13 +151,19 @@ private struct ManagedInspector: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(state.activity[id] != nil)
             }
-            Button("Rollback…") { confirmRollback = true }
-                .disabled(state.activity[id] != nil)
-                .confirmationDialog("Roll back \(addon.name)?", isPresented: $confirmRollback) {
-                    Button("Roll Back") { Task { await state.rollback(addon.id) } }
-                } message: {
-                    Text("Reinstalls the previously installed version from the local cache.")
-                }
+            if let previous = addon.previousRelease {
+                Button("Roll Back to \(previous.version)…") { confirmRollback = true }
+                    .disabled(state.activity[id] != nil)
+                    .confirmationDialog("Roll back \(addon.name) to \(previous.version)?", isPresented: $confirmRollback) {
+                        Button("Roll Back") { Task { await state.rollback(addon.id) } }
+                    } message: {
+                        Text("Reinstalls \(previous.version) from the local download cache and pins \(addon.name) so it isn't updated again automatically.")
+                    }
+            } else {
+                Button("Roll Back…") {}
+                    .disabled(true)
+                    .help("No earlier version is cached. Rollback becomes available after an update.")
+            }
             Spacer()
             Button("Uninstall…", role: .destructive) { confirmUninstall = true }
                 .disabled(state.activity[id] != nil)

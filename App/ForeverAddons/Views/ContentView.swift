@@ -16,13 +16,7 @@ struct ContentView: View {
             } else if model.isLoadingInstallations {
                 ProgressView()
             } else {
-                ContentUnavailableView {
-                    Label("No Installation", systemImage: "folder.badge.questionmark")
-                } description: {
-                    Text("Add your World of Warcraft Forever folder, such as “_classic_beta_”, to manage its add-ons.")
-                } actions: {
-                    Button("Add Installation…") { model.addInstallationWithPanel() }
-                }
+                NoInstallationView()
             }
         }
         .sheet(item: $model.adoptTarget) { target in
@@ -30,7 +24,50 @@ struct ContentView: View {
                 AdoptSheet(target: target, state: state)
             }
         }
-        .task { await model.initialLoad(checkForUpdates: checkForUpdatesOnLaunch) }
+        .sheet(isPresented: Bindable(model.commandLineTool).isOfferPresented) {
+            CommandLineToolOfferSheet()
+        }
+        .task {
+            await model.initialLoad(checkForUpdates: checkForUpdatesOnLaunch)
+            // Once the window is up; shown once ever (see `CommandLineToolModel.offerIfNeeded`).
+            try? await Task.sleep(for: .seconds(1))
+            model.commandLineTool.offerIfNeeded()
+        }
+    }
+}
+
+/// First launch, or nothing detected: explain how to point the app at the game folder.
+private struct NoInstallationView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("No Installation Found", systemImage: "folder.badge.questionmark")
+        } description: {
+            Text("""
+                ForeverAddons couldn't find World of Warcraft Forever. Choose its game folder, \
+                usually “/Applications/World of Warcraft/_classic_beta_”, to manage its add-ons. \
+                If you've just installed the game, scan again.
+                """)
+        } actions: {
+            Button("Add Installation…") { model.addInstallationWithPanel() }
+                .buttonStyle(.borderedProminent)
+            Button {
+                Task { await model.scanAgain() }
+            } label: {
+                if model.isScanning {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text("Scan Again")
+                }
+            }
+            .disabled(model.isScanning)
+        }
+        .overlay(alignment: .top) {
+            if let banner = model.banner {
+                BannerView(banner: banner) { model.banner = nil }
+            }
+        }
     }
 }
 
