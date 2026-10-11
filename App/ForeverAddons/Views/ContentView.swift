@@ -165,9 +165,3 @@ private struct DetailView: View {
         }
     }
 }
-
-#Preview {
-    ContentView()
-        .environment(AppModel(manager: MockAddonManager(latency: 0.3)))
-        .frame(width: 1100, height: 600)
-}

@@ -228,10 +228,3 @@ private struct UnmanagedInspector: View {
         }
     }
 }
-
-#Preview {
-    PreviewHost(configure: { $0.selectedAddonID = "github:BigWigsMods/BigWigs" }) { model, state in
-        AddonInspectorView(state: state, statusID: model.selectedAddonID)
-    }
-    .frame(width: 320, height: 640)
-}

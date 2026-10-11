@@ -159,16 +159,3 @@ struct MarkdownText: View {
         return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 }
-
-#Preview("Badges") {
-    VStack(alignment: .leading) {
-        SupportBadge(status: .supported(version: "v426.4"))
-        SupportBadge(status: .checking)
-        SupportBadge(status: .unknown)
-        SupportBadge(status: .unsupported)
-        ActivityIndicator(activity: .downloading(0.4))
-        RowErrorText(message: "HTTP 502 from github.com.")
-        MarkdownText(markdown: "## v1.0\n\n- **Bold** fix\n- `code` change\n\nSee [link](https://example.com).")
-    }
-    .padding()
-}

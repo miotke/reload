@@ -55,8 +55,7 @@ If `xcode-select -p` points to the Command Line Tools instead of Xcode, either r
 
 | Option | What it does |
 |---|---|
-| `-UseMockData YES` (launch argument) | Runs the app on built-in sample data instead of your real WoW install. In Xcode, add it under Product ▸ Scheme ▸ Edit Scheme ▸ Run ▸ Arguments. |
-| `ADDONS_DATA_DIR=/some/dir` (environment variable) | Keeps all app data (installed add-on list, caches) in that folder and skips automatic WoW detection. Useful for testing against a fake WoW folder. The CLI honours it too. |
+| `ADDONS_DATA_DIR=/some/dir` (environment variable) | Keeps all app data (installed add-on list, caches) in that folder and skips automatic WoW detection. Useful for testing against a fake WoW folder. In Xcode, set it under Product ▸ Scheme ▸ Edit Scheme ▸ Run ▸ Arguments. The CLI honours it too. |
 
 See [`App/README.md`](App/README.md) for how the Xcode project is generated.
 

@@ -251,10 +251,3 @@ private struct UnmanagedAddonRow: View {
         }
     }
 }
-
-#Preview {
-    PreviewHost { _, state in
-        InstalledView(state: state)
-    }
-    .frame(width: 800, height: 400)
-}

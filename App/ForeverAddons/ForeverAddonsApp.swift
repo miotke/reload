@@ -20,6 +20,7 @@ struct ForeverAddonsApp: App {
                     Task { await model.reload() }
                 }
         }
+        .defaultSize(width: 1300, height: 880)
         .commands {
             CommandGroup(after: .textEditing) {
                 Button("Find Add-ons") { SearchFieldFocus.focus() }

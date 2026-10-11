@@ -89,8 +89,3 @@ struct SettingsView: View {
         }
     }
 }
-
-#Preview {
-    SettingsView()
-        .environment(AppModel(manager: MockAddonManager(latency: 0)))
-}

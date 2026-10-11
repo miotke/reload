@@ -138,8 +138,3 @@ struct CommandLineToolSection: View {
         }
     }
 }
-
-#Preview("Offer") {
-    CommandLineToolOfferSheet()
-        .environment(AppModel(manager: MockAddonManager(latency: 0)))
-}

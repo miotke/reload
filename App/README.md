@@ -46,8 +46,6 @@ build/DerivedData/Build/Products/Debug/ForeverAddons.app/Contents/Helpers/addonc
 By default the app uses the real `AddonManager`: your WoW installations and the shared store in
 `~/Library/Application Support/com.andrewmiotke.ForeverAddons` (the same one `addonctl` uses).
 
-- **Mock data:** launch with `-UseMockData YES` (in Xcode: scheme → Run → Arguments) to run on
-  `MockAddonManager` (`ForeverAddons/Mock/`). SwiftUI previews always use the mock.
 - **Sandboxed data:** set `ADDONS_DATA_DIR=<dir>`, as for `addonctl`. The store and caches live under
   `<dir>` and installation auto-detection is off, so only folders you add are touched. `open` doesn't
   pass environment variables; run the binary directly:
@@ -86,5 +84,5 @@ To reset the first-launch offer: `defaults delete com.andrewmiotke.ForeverAddons
   `CommandLineToolModel` (CLI install state).
 - `Views/` — `ContentView` (split view, inspector, empty state), `InstalledView`, `BrowseView`,
   `AddonInspectorView`, `AdoptSheet`, `SettingsView`, `CommandLineToolViews`, shared `Components`.
-- `Support/` — `AppEnvironment` (real / sandboxed / mock wiring), `DirectoryWatcher`, `CLIInstaller`,
+- `Support/` — `AppEnvironment` (standard or `ADDONS_DATA_DIR` wiring), `DirectoryWatcher`, `CLIInstaller`,
   small helpers. The Keychain wrapper lives in AddonKit (`KeychainStore`).

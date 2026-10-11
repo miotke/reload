@@ -42,9 +42,9 @@ nonisolated struct CLIInstaller {
     var linkPath: String
     var helperPath: String
     /// Runs a `/bin/sh` command line with administrator privileges.
-    var runPrivileged: (String) throws -> Void
+    var runPrivileged: @Sendable (String) throws -> Void
 
-    init(linkPath: String = CLIInstaller.defaultLinkPath, helperPath: String, runPrivileged: @escaping (String) throws -> Void) {
+    init(linkPath: String = CLIInstaller.defaultLinkPath, helperPath: String, runPrivileged: @escaping @Sendable (String) throws -> Void) {
         self.linkPath = linkPath
         self.helperPath = helperPath
         self.runPrivileged = runPrivileged
@@ -134,24 +134,35 @@ nonisolated struct CLIInstaller {
 }
 
 /// Runs shell commands as root through `do shell script … with administrator privileges`,
-/// which shows the standard macOS password prompt. Blocks until the prompt is answered.
+/// which shows the standard macOS password prompt. Uses `/usr/bin/osascript` rather than
+/// `NSAppleScript` so it can run off the main thread; blocks the calling thread until the
+/// prompt is answered.
 nonisolated enum AdministratorScript {
     /// AppleScript's "User canceled." error.
     static let userCancelledCode = -128
 
     static func run(_ command: String) throws {
         let source = "do shell script \"\(appleScriptEscape(command))\" with administrator privileges"
-        guard let script = NSAppleScript(source: source) else {
-            throw CLIInstaller.Failure.failed("Couldn't prepare the installer script.")
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/osascript")
+        process.arguments = ["-e", source]
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+        process.standardOutput = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            throw CLIInstaller.Failure.failed("Couldn't run the installer script: \(error.localizedDescription)")
         }
-        var error: NSDictionary?
-        script.executeAndReturnError(&error)
-        guard let error else { return }
-        if (error[NSAppleScript.errorNumber] as? Int) == userCancelledCode {
+        let errorOutput = String(decoding: errorPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        process.waitUntilExit()
+        guard process.terminationStatus != 0 else { return }
+        // osascript reports e.g. "0:47: execution error: User canceled. (-128)".
+        if errorOutput.contains("(\(userCancelledCode))") {
             throw CLIInstaller.Failure.cancelled
         }
-        let message = error[NSAppleScript.errorMessage] as? String ?? "The installer script failed."
-        throw CLIInstaller.Failure.failed(message)
+        let message = errorOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+        throw CLIInstaller.Failure.failed(message.isEmpty ? "The installer script failed." : message)
     }
 
     /// Escapes `value` for use inside an AppleScript string literal.

@@ -70,13 +70,3 @@ struct AdoptSheet: View {
         return AddonRef(source: .github, identifier: "\(parts[0])/\(parts[1])")
     }
 }
-
-#Preview {
-    PreviewHost { _, state in
-        if let status = state.unmanaged.first, let target = AdoptTarget(status) {
-            AdoptSheet(target: target, state: state)
-        } else {
-            ProgressView()
-        }
-    }
-}

@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 
 /// `CLIInstaller` against a temp folder, with the privileged runner replaced by a plain,
@@ -24,10 +25,12 @@ import Testing
     }
 
     /// Runs the command unprivileged and records it.
-    final class Shell {
-        var commands: [String] = []
-        func run(_ command: String) throws {
-            commands.append(command)
+    nonisolated final class Shell: Sendable {
+        private let recorded = Mutex<[String]>([])
+        var commands: [String] { recorded.withLock { $0 } }
+
+        @Sendable func run(_ command: String) throws {
+            recorded.withLock { $0.append(command) }
             let process = Process()
             process.executableURL = URL(filePath: "/bin/sh")
             process.arguments = ["-c", command]

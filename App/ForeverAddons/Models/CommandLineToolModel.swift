@@ -47,6 +47,7 @@ final class CommandLineToolModel {
     /// (`CLIInstaller.Failure.cancelled` when the prompt was dismissed).
     @discardableResult
     func install() async -> (any Error)? {
+        let installer = self.installer
         let error = await run { try installer.install() }
         if error == nil {
             message = "Installed at \(linkPath)."
@@ -56,24 +57,23 @@ final class CommandLineToolModel {
     }
 
     func uninstall() async {
+        let installer = self.installer
         if await run({ try installer.uninstall() }) == nil {
             message = "Removed \(linkPath)."
             messageIsError = false
         }
     }
 
-    private func run(_ body: () throws -> Void) async -> (any Error)? {
+    private func run(_ body: @escaping @Sendable () throws -> Void) async -> (any Error)? {
         isWorking = true
         defer {
             isWorking = false
             refresh()
         }
         message = nil
-        // The AppleScript prompt blocks the main thread (NSAppleScript is main-thread only);
-        // let the spinner render first.
-        try? await Task.sleep(for: .milliseconds(50))
         do {
-            try body()
+            // The password prompt blocks its thread, so keep it off the main actor.
+            try await Task.detached(priority: .userInitiated) { try body() }.value
             return nil
         } catch CLIInstaller.Failure.cancelled {
             message = "The password prompt was cancelled; nothing was changed."

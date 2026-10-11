@@ -144,11 +144,7 @@ final class AppModel {
         isScanning = true
         defer { isScanning = false }
         do {
-            if let addonManager {
-                installations = try await addonManager.detectInstallations()
-            } else {
-                installations = try await manager.installations()
-            }
+            installations = try await manager.detectInstallations()
             if selectedInstallation == nil { selectedInstallationID = installations.first?.id }
             if installations.isEmpty {
                 banner = Banner(message: "No World of Warcraft Forever installation found. Use Add Installation… to choose its folder.", isError: false)

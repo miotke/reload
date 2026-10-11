@@ -240,17 +240,3 @@ struct SearchResultRow: View {
         }
     }
 }
-
-#Preview("Browse – empty query") {
-    PreviewHost { _, state in
-        BrowseView(state: state)
-    }
-    .frame(width: 800, height: 500)
-}
-
-#Preview("Browse – bags") {
-    PreviewHost(configure: { $0.searchText = "bags"; $0.tab = .browse }) { _, state in
-        BrowseView(state: state)
-    }
-    .frame(width: 800, height: 500)
-}
