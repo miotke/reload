@@ -21,7 +21,7 @@ New files under `App/ForeverAddons/` (and `Sources/addonctl/`) are picked up on 
 |---|---|
 | `ForeverAddons` | The app. Depends on the `AddonKit` package product and embeds `addonctl`. Default actor isolation `MainActor` |
 | `addonctl` | The CLI, compiled from `../Sources/addonctl` (the whole folder) against `AddonKit` and `ArgumentParser` (swift-argument-parser, pinned to 1.5.0 like `Package.swift`). Built with `-parse-as-library` because the entry point is an `@main` type. Default isolation `nonisolated`, matching the package |
-| `ForeverAddonsTests` | Unit tests for app helpers (`CLIInstaller`, `DirectoryWatcher`, `DayLabel`, table rows and sorting, `MarkdownParser`, `ScreenshotLoader` over a stub `URLProtocol`, the installation's models over a temp-folder `AddonManager`), `EnvironmentUsageTests` for [decision 0015](../decisions/0015-environment-only-at-scene-roots.md), and `ArchitectureTests` for the core/UI boundary. Links `AddonKit`. Not hosted: every app source but `ForeverAddonsApp.swift` is compiled into the test bundle, so tests never launch the app |
+| `ForeverAddonsTests` | Unit tests for app helpers (`CLIInstaller`, `DirectoryWatcher`, `DayLabel`, table rows and sorting, `MarkdownParser`, `ScreenshotLoader` over a stub `URLProtocol`, the installation's models over a temp-folder `AddonManager`), `EnvironmentUsageTests` for [decision 0015](../decisions/0015-environment-only-at-scene-roots.md), `ArchitectureTests` for the core/UI boundary, and `SnapshotTests` ([development.md](../development.md#snapshots)). Links `AddonKit`. Not hosted: every app source but `ForeverAddonsApp.swift` is compiled into the test bundle, so tests never launch the app |
 
 The app is signed "Sign to Run Locally", so no Apple developer account is needed.
 
@@ -94,6 +94,7 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | Markdown parsing into blocks (off the main actor) | `App/ForeverAddons/Support/MarkdownBlocks.swift` |
 | Screenshot download, disk cache and thumbnail decoding | `App/ForeverAddons/Support/ScreenshotLoader.swift` |
 | App unit and architecture tests | `App/ForeverAddonsTests/` |
+| UI snapshots: fixtures, test-only manager, renderer | `App/ForeverAddonsTests/Snapshots/` |
 
 The Keychain wrapper lives in AddonKit (`KeychainStore`), shared with the CLI.
 

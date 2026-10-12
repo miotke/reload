@@ -16,7 +16,9 @@ struct InspectorPane: View {
                     AddonDetailView(state: state, ref: addon.id, missingFolders: missing)
                         .id(addon.id)
                 case .unmanaged(let unmanaged):
-                    UnmanagedInspector(model: model, queue: state.queue, inspector: state.inspector, unmanaged: unmanaged)
+                    UnmanagedInspector(queue: state.queue, inspector: state.inspector, unmanaged: unmanaged,
+                                       adopt: { model.adoptTarget = AdoptTarget(unmanaged) },
+                                       moveToTrash: { model.pendingRemoval = .unmanaged(unmanaged) })
                         .id(unmanaged.folder)
                 case nil:
                     noSelection("Select an add-on to see its details.")

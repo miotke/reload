@@ -6,10 +6,12 @@ import SwiftUI
 /// repository and why, Adopt and Move to Trash, and the suggestion's catalogue details
 /// (`details(for:in:)`, no API quota) (docs/app/layout.md).
 struct UnmanagedInspector: View {
-    var model: AppModel
     var queue: UpdateQueue
     var inspector: InspectorModel
     var unmanaged: UnmanagedFolder
+    /// Open the Adopt sheet and the Move to Trash confirmation, both hosted by the window.
+    var adopt: () -> Void
+    var moveToTrash: () -> Void
 
     private var flavor: Flavor { inspector.installation.flavor }
     private var toc: Toc? { unmanaged.toc }
@@ -26,10 +28,10 @@ struct UnmanagedInspector: View {
                 }
                 RowProgress(rowState: rowState)
                 HStack {
-                    Button("Adopt…") { model.adoptTarget = AdoptTarget(unmanaged) }
+                    Button("Adopt…", action: adopt)
                         .buttonStyle(.borderedProminent)
                     Spacer()
-                    Button("Move to Trash…", role: .destructive) { model.pendingRemoval = .unmanaged(unmanaged) }
+                    Button("Move to Trash…", role: .destructive, action: moveToTrash)
                 }
                 .disabled(rowState.activity != nil)
 
@@ -93,7 +95,7 @@ struct UnmanagedInspector: View {
                 Text("Nothing in the TOC files or the catalogue points to a repository. Adopt lets you enter one or search GitHub.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-            Text("ForeverAddons didn't install \(unmanaged.isGroup ? "these folders" : "this folder"), so it won't update \(unmanaged.isGroup ? "them" : "it"). Adopt to manage it from its GitHub repository.")
+            Text("ForeverAddons didn't install \(unmanaged.isGroup ? "these folders" : "this folder"), so it won't update \(unmanaged.isGroup ? "them" : "it"). Adopt to manage \(unmanaged.isGroup ? "them" : "it") from its GitHub repository.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }

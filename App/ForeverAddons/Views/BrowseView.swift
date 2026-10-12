@@ -279,9 +279,10 @@ struct BrowseNameCell: View {
                         .help("Found by live GitHub search")
                 }
             }
+            // A dimmed row is already faint, so its placeholder stays secondary to remain readable.
             Text(row.summary ?? "No description")
                 .font(.caption)
-                .foregroundStyle(row.summary == nil ? .tertiary : .secondary)
+                .foregroundStyle(row.summary == nil && !row.isDimmed ? .tertiary : .secondary)
                 .lineLimit(1)
         }
         .opacity(row.isDimmed && !row.isInstalled ? 0.6 : 1)

@@ -41,6 +41,8 @@ struct AdoptSheet: View {
                 releaseSection
             }
             .formStyle(.grouped)
+            // A grouped form scrolls inside its ideal height, which clipped the Why and Release rows.
+            .fixedSize(horizontal: false, vertical: true)
 
             if let searchResults { searchList(searchResults) }
 

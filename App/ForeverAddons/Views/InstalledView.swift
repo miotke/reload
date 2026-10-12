@@ -56,7 +56,8 @@ struct InstalledView: View {
             TableColumn("Status", sortUsing: ColumnSort(InstalledColumn.status)) { row in
                 StatusCell(row: row, flavor: installed.installation.flavor)
             }
-            .width(min: 90, ideal: 130, max: 180)
+            // Wide enough for "Not loaded by Forever" and the classics' longer names.
+            .width(min: 90, ideal: 160, max: 220)
             .customizationID("status")
 
             TableColumn("Installed", sortUsing: ColumnSort(InstalledColumn.installed, order: .reverse)) { row in

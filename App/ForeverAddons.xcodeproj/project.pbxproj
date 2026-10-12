@@ -20,6 +20,7 @@
 		1CB387FA5391F1C1A20E603A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B03076B8BFF278C464CE260 /* SettingsView.swift */; };
 		1E9F337C22AC646AD9BF294D /* AddonKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0E1170CB0F2152E5159112D3 /* AddonKit */; };
 		20AE6B99443EC140D7E1A08A /* InstallCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F9A5FB625C3C104BEA9AE2 /* InstallCommands.swift */; };
+		276C40D889FCF3158E865FE4 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD2813C059E8AB9A65594BE7 /* SnapshotTests.swift */; };
 		27C14B8EF0FF31751CC6F97E /* RefreshCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BD586C5CB5508565D39D871 /* RefreshCommand.swift */; };
 		2818FAF9B13A84250AC99D3F /* BrowseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55A346A76BEB56F4BCAE97B /* BrowseModel.swift */; };
 		2D8B00B050E0D79211554A3B /* ScreenshotViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 484AEBB6D52F7A4EC94799C7 /* ScreenshotViews.swift */; };
@@ -31,6 +32,7 @@
 		4583BC535CAC67BC15B0750C /* ScreenshotLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B3B4AB67A957DAC73FEF361 /* ScreenshotLoader.swift */; };
 		468EB08E5E039DC38591B52C /* ForeverAddonsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3197DFD368553BB4AD30C9 /* ForeverAddonsApp.swift */; };
 		47DB261E9E64F5287DF07D94 /* AddonWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE9C55A61668780169C1CB86 /* AddonWindow.swift */; };
+		4F9023DDF69D8FAA13E92608 /* SnapshotFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43C18C69422A79EDD2EF673 /* SnapshotFixtures.swift */; };
 		5094B068304EFB80E2C0153B /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 406B1ADA6E2BCC31A844C6A3 /* AppEnvironment.swift */; };
 		528E10E27B571BC813AD9E4F /* AddonKit in Frameworks */ = {isa = PBXBuildFile; productRef = D3B24E719F9F70CC8AEF5DD8 /* AddonKit */; };
 		5A3C2B4E3341CAABADFC981C /* MarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E0D9B368AAD6BB7E51053D /* MarkdownView.swift */; };
@@ -185,6 +187,7 @@
 		B1F0E566C97D25B259F9FBB7 /* Context.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Context.swift; sourceTree = "<group>"; };
 		B9FB70D86A2CC5920B26CB83 /* ForeverAddons.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ForeverAddons.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BCCD8D6371F8EF7012809BD0 /* Errors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Errors.swift; sourceTree = "<group>"; };
+		BD2813C059E8AB9A65594BE7 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotTests.swift; sourceTree = "<group>"; };
 		C428104BE6CB77EC3BA7B3DB /* ForeverAddonsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ForeverAddonsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C4B8D4AC4FC3FAAEFCD998EA /* ArchitectureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchitectureTests.swift; sourceTree = "<group>"; };
 		C55A346A76BEB56F4BCAE97B /* BrowseModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseModel.swift; sourceTree = "<group>"; };
@@ -193,6 +196,7 @@
 		C8812AFA94AD20EACDC0886B /* InfoCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoCommands.swift; sourceTree = "<group>"; };
 		DED591FF62EC3227BFC9EF59 /* ListCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListCommands.swift; sourceTree = "<group>"; };
 		E3F212A399CCE2D99EF29211 /* TableRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableRows.swift; sourceTree = "<group>"; };
+		E43C18C69422A79EDD2EF673 /* SnapshotFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotFixtures.swift; sourceTree = "<group>"; };
 		E908C270934BC35839EB982D /* AppHelpersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppHelpersTests.swift; sourceTree = "<group>"; };
 		EC8CF25620C09B220BB591C2 /* InstalledModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstalledModel.swift; sourceTree = "<group>"; };
 		EE9C55A61668780169C1CB86 /* AddonWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddonWindow.swift; sourceTree = "<group>"; };
@@ -336,6 +340,7 @@
 				9E44C3BE18685DF2B638BD34 /* EnvironmentUsageTests.swift */,
 				AFB3EC0DBDF2716DE7188ACC /* PerformanceFixTests.swift */,
 				2DF65987AA8B69BE2B953E49 /* UnmanagedAndActionTests.swift */,
+				BEFE7BF4A5A6707EE74024AE /* Snapshots */,
 			);
 			path = ForeverAddonsTests;
 			sourceTree = "<group>";
@@ -356,6 +361,15 @@
 				C428104BE6CB77EC3BA7B3DB /* ForeverAddonsTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		BEFE7BF4A5A6707EE74024AE /* Snapshots */ = {
+			isa = PBXGroup;
+			children = (
+				E43C18C69422A79EDD2EF673 /* SnapshotFixtures.swift */,
+				BD2813C059E8AB9A65594BE7 /* SnapshotTests.swift */,
+			);
+			path = Snapshots;
 			sourceTree = "<group>";
 		};
 		E8CCAA7601ED877E20B1013B /* Models */ = {
@@ -554,6 +568,8 @@
 				2D8B00B050E0D79211554A3B /* ScreenshotViews.swift in Sources */,
 				CFD29C7EEBDE53C12A9D3734 /* SeedingSheet.swift in Sources */,
 				3DB4E7BFFD76A8EA6958B381 /* SettingsView.swift in Sources */,
+				4F9023DDF69D8FAA13E92608 /* SnapshotFixtures.swift in Sources */,
+				276C40D889FCF3158E865FE4 /* SnapshotTests.swift in Sources */,
 				B67059544C134BCD3F7907EC /* TableRows.swift in Sources */,
 				99C8ADB4D3D44B5B559106ED /* TableSorting.swift in Sources */,
 				BC0D7B1D61B631D4513C35DB /* UnmanagedAndActionTests.swift in Sources */,
