@@ -13,12 +13,16 @@ public struct CatalogueEntry: Codable, Sendable, Hashable, Identifiable {
     public var wagoID: String?
     public var wowiID: Int?
     public var hasReleaseJSON: Bool
+    /// Found by a live GitHub search rather than listed in the catalogue, so
+    /// `hasReleaseJSON` says nothing about it.
+    public var fromLiveSearch: Bool = false
 
     public init(
         id: String, name: String, fullName: String, url: URL, description: String? = nil,
         lastUpdated: Date? = nil, flavors: [String] = [], curseID: Int? = nil, wagoID: String? = nil,
-        wowiID: Int? = nil, hasReleaseJSON: Bool = false
+        wowiID: Int? = nil, hasReleaseJSON: Bool = false, fromLiveSearch: Bool = false
     ) {
+        self.fromLiveSearch = fromLiveSearch
         self.id = id
         self.name = name
         self.fullName = fullName
@@ -88,6 +92,21 @@ public struct SearchResult: Sendable, Identifiable, Hashable {
         self.installed = installed
         self.support = support
         self.origin = origin
+    }
+}
+
+/// One emission of `searchUpdates`: the merged results plus what's still running.
+public struct SearchUpdate: Sendable, Hashable {
+    public var results: [SearchResult]
+    /// True while a GitHub live search is in flight (show "Searching GitHub…").
+    public var isSearchingGitHub: Bool
+    /// True on the last emission.
+    public var isComplete: Bool
+
+    public init(results: [SearchResult], isSearchingGitHub: Bool = false, isComplete: Bool = false) {
+        self.results = results
+        self.isSearchingGitHub = isSearchingGitHub
+        self.isComplete = isComplete
     }
 }
 

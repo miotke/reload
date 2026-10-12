@@ -11,7 +11,8 @@ Code: `Sources/AddonKit/Install/` and `Sources/AddonKit/Store/`.
 | Installed add-on records | `~/Library/Application Support/com.andrewmiotke.ForeverAddons/installations/<installation id>.json` |
 | Store lock | `…/installations/.lock` |
 | Downloaded zips | `~/Library/Caches/com.andrewmiotke.ForeverAddons/downloads/<source>/<owner+repo>/<releaseID>-<asset>` |
-| Catalogue and support caches | `~/Library/Caches/com.andrewmiotke.ForeverAddons/` |
+| Metadata database (catalogue, support verdicts, details, refresh and rate-limit state) | `~/Library/Application Support/com.andrewmiotke.ForeverAddons/metadata.sqlite` (+ `-wal`, `-shm`) |
+| Downloaded `release.json` files | `~/Library/Caches/com.andrewmiotke.ForeverAddons/github/release-json/` |
 | Add-ons | `<WoW>/_classic_beta_/Interface/AddOns/` |
 
 `AppDirectories` resolves these. `AppDirectories(root:)` puts everything under one folder, which is what tests and `ADDONS_DATA_DIR` use. Nothing is ever written into the game folder except the add-on folders themselves.
@@ -68,7 +69,8 @@ Folder names are compared case-insensitively.
 
 ## InstallStore
 
-- Each installation has one JSON file: `{schemaVersion: 1, installation, addons: [InstalledAddon]}`. Dates are ISO-8601 with milliseconds.
+- Each installation has one JSON file: `{schemaVersion: 1, installation, addons: [InstalledAddon]}`. Dates are ISO-8601 with milliseconds. The JSON is compact (not pretty-printed), and listing installations decodes only the header.
+- **No-op writes are skipped.** `modify` and `save` leave the file alone when nothing changed, because the app reloads on every write to `storeDirectory`. Update checks collect ETag changes and write once at the end, only if one differs.
 - **Shared with the CLI:**
   - Every write takes an exclusive `flock` on `installations/.lock`, re-reads the file inside the lock, and writes atomically.
   - `withLock` and `modify` hold the lock across a whole read-modify-write. The lock is reentrant within one store.
@@ -81,7 +83,7 @@ Folder names are compared case-insensitively.
 ## Downloader
 
 - Downloads with `URLSession` and reports progress from 0 to 1.
-- Reuses a cached zip when one exists. Concurrent requests for the same release share one download.
+- Reuses a cached zip when one exists. Concurrent requests for the same release share one download. Zips inspected during a resolve are stored at the same paths, so the install reuses them.
 - Runs up to 4 downloads at once.
 - Keeps the newest **2** zips per add-on, which is what rollback uses.
 - The transport is a protocol (`DownloadTransport`), so tests serve zips without the network.

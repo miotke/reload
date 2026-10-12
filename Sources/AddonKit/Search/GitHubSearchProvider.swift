@@ -13,27 +13,61 @@ public actor GitHubSearchProvider: SearchProvider {
     public static let minimumResults = 5
 
     private let http: any HTTPClient
-    private let token: String?
+    private var token: String?
+    private let database: MetadataDatabase?
     private let now: @Sendable () -> Date
     private var cache: [String: (fetchedAt: Date, results: [SearchResult])] = [:]
 
-    public init(http: any HTTPClient, token: String? = nil, now: @escaping @Sendable () -> Date = Date.init) {
+    /// `database` shares the search rate-limit state (10/min without a token, 30/min with
+    /// one) with other processes, so a limit hit by the CLI also pauses the app.
+    /// `tokenProvider` is read on first use when `token` is nil.
+    public init(
+        http: any HTTPClient, token: String? = nil, database: MetadataDatabase? = nil,
+        tokenProvider: (@Sendable () -> String?)? = nil, now: @escaping @Sendable () -> Date = Date.init
+    ) {
         self.http = http
         self.token = token
+        self.tokenProvider = token == nil ? tokenProvider : nil
+        self.database = database
         self.now = now
     }
 
+    private var tokenProvider: (@Sendable () -> String?)?
+
+    public func setToken(_ token: String?) {
+        self.token = token
+        tokenProvider = nil
+        cache = [:]
+    }
+
+    private func currentToken() -> String? {
+        if let tokenProvider {
+            token = tokenProvider()
+            self.tokenProvider = nil
+        }
+        return token
+    }
+
     public func search(_ query: SearchQuery) async throws -> [SearchResult] {
+        try await search(query, stages: nil)
+    }
+
+    /// Like `search(_:)`, but tries at most `stages` of the fallback queries (nil: all).
+    public func search(_ query: SearchQuery, stages: Int?) async throws -> [SearchResult] {
         let terms = Self.terms(query.text)
         guard !terms.isEmpty else { return [] }
-        if let hit = cache[terms], now().timeIntervalSince(hit.fetchedAt) < Self.cacheTTL {
+        let cacheKey = "\(stages ?? 0)#\(terms)"
+        if let hit = cache[cacheKey], now().timeIntervalSince(hit.fetchedAt) < Self.cacheTTL {
             return hit.results
+        }
+        if let state = await database?.rateLimit("search"), state.isExhausted(at: now()) {
+            throw AddonError.rateLimited(resetAt: state.resetAt)
         }
 
         var results: [SearchResult] = []
         var seen = Set<String>()
         var complete = true
-        for q in Self.queries(for: terms) {
+        for q in Self.queries(for: terms).prefix(stages ?? Int.max) {
             let page: [SearchResult]
             do {
                 page = try await fetch(q)
@@ -47,7 +81,7 @@ public actor GitHubSearchProvider: SearchProvider {
             }
             if results.count >= Self.minimumResults { break }
         }
-        if complete { cache[terms] = (now(), results) }
+        if complete { cache[cacheKey] = (now(), results) }
         return results
     }
 
@@ -108,15 +142,21 @@ public actor GitHubSearchProvider: SearchProvider {
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
-        if let token, !token.isEmpty {
+        if let token = currentToken(), !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         let (data, response) = try await http.data(for: request)
+        let remaining = response.value(forHTTPHeaderField: "X-RateLimit-Remaining").flatMap { Int($0.trimmingCharacters(in: .whitespaces)) }
         switch response.statusCode {
         case 200:
-            break
+            if let remaining {
+                await database?.setRateLimit("search", RateLimitState(remaining: remaining, resetAt: Self.resetDate(response, now: now())), at: now())
+            }
         case 403, 429:
-            throw AddonError.rateLimited(resetAt: Self.resetDate(response, now: now()))
+            // A secondary limit may carry neither header; wait at least a minute then.
+            let reset = Self.resetDate(response, now: now()) ?? now().addingTimeInterval(60)
+            await database?.setRateLimit("search", RateLimitState(remaining: 0, resetAt: reset), at: now())
+            throw AddonError.rateLimited(resetAt: reset)
         default:
             throw AddonError.http(status: response.statusCode, url: url)
         }

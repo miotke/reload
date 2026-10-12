@@ -96,7 +96,10 @@ public struct InstalledAddon: Codable, Sendable, Identifiable, Hashable {
 
     /// True when `release` should replace this install.
     public func isUpdate(_ release: ResolvedRelease) -> Bool {
-        release.releaseID != releaseID && release.publishedAt > publishedAt
+        // Releases resolved without the API carry a synthetic (negative) ID and no real
+        // date, so only their tags can be compared.
+        if release.releaseID < 0 || releaseID < 0 { return release.version != version }
+        return release.releaseID != releaseID && release.publishedAt > publishedAt
     }
 }
 

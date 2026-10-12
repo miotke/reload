@@ -16,6 +16,13 @@ public protocol AddonManaging: Sendable {
     /// Emits local results immediately, then again as live results and support checks land.
     func search(_ query: SearchQuery, in installation: Installation) -> AsyncStream<[SearchResult]>
 
+    /// Search with the caller's add-on list (no reconcile per query). Has a default.
+    func search(_ query: SearchQuery, in installation: Installation, installed: [AddonStatus]) -> AsyncStream<[SearchResult]>
+
+    /// Results plus whether the GitHub fallback is running and whether this is the last
+    /// emission. Has a default.
+    func searchUpdates(_ query: SearchQuery, in installation: Installation, installed: [AddonStatus]) -> AsyncStream<SearchUpdate>
+
     /// Popular, recently updated and category suggestions for an empty Browse tab.
     func browse(in installation: Installation) async -> BrowseContent
 
@@ -55,6 +62,30 @@ public protocol AddonManaging: Sendable {
 }
 
 extension AddonManaging {
+    /// Search with an add-on list the caller already has. The default ignores `installed`
+    /// and reconciles; `AddonManager` uses it as given.
+    public func search(_ query: SearchQuery, in installation: Installation, installed: [AddonStatus]) -> AsyncStream<[SearchResult]> {
+        search(query, in: installation)
+    }
+
+    /// Search results plus whether a GitHub live search is running. The default wraps
+    /// `search(_:in:installed:)` and never reports one.
+    public func searchUpdates(_ query: SearchQuery, in installation: Installation, installed: [AddonStatus]) -> AsyncStream<SearchUpdate> {
+        let results = search(query, in: installation, installed: installed)
+        return AsyncStream { continuation in
+            let task = Task {
+                var last: [SearchResult] = []
+                for await batch in results {
+                    last = batch
+                    continuation.yield(SearchUpdate(results: batch))
+                }
+                continuation.yield(SearchUpdate(results: last, isComplete: true))
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
     @discardableResult
     public func install(_ ref: AddonRef, into installation: Installation, channel: Channel = .stable, force: Bool = false) async throws -> InstalledAddon {
         try await install(ref, into: installation, channel: channel, force: force, progress: { _ in })
