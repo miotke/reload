@@ -94,6 +94,12 @@ func pngData(width: Int, height: Int) throws -> Data {
         #expect(StubImageProtocol.hitCount(url) == 1)
         #expect(first.cache.cachedResponse(for: URLRequest(url: url)) != nil)
 
+        // URLCache writes to disk in the background; a real relaunch comes long after that.
+        let deadline = ContinuousClock.now + .seconds(5)
+        while URLCache(memoryCapacity: 0, diskCapacity: 200 * 1024 * 1024, directory: directory)
+            .cachedResponse(for: URLRequest(url: url)) == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         let relaunched = loader(directory)
         _ = try await relaunched.image(at: url, maxPixelSize: 150)
         #expect(StubImageProtocol.hitCount(url) == 1, "served from the disk cache")

@@ -34,7 +34,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 /// Only `NSApp.applicationIconImage` changes: Finder reads the bundle's icon, and rewriting
 /// the bundle (or `NSWorkspace.setIcon`) would break the code signature (decision 0022).
 enum AppIconChoice: String, CaseIterable, Identifiable {
-    case classic, rune, scroll, shield, midnight, gilded
+    case classic, rune, scroll, gilded
 
     var id: Self { self }
 
@@ -43,8 +43,6 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
         case .classic: "AltIcon-Classic"
         case .rune: "AltIcon-Rune"
         case .scroll: "AltIcon-Scroll"
-        case .shield: "AltIcon-Shield"
-        case .midnight: "AltIcon-Midnight"
         case .gilded: "AltIcon-Gilded"
         }
     }
@@ -54,8 +52,6 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
         case .classic: "Classic"
         case .rune: "Rune"
         case .scroll: "Scroll"
-        case .shield: "Shield"
-        case .midnight: "Midnight"
         case .gilded: "Gilded"
         }
     }

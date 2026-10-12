@@ -31,7 +31,7 @@ import Testing
 
     @Test func assetNamesMatchTheArtworkContract() {
         #expect(AppIconChoice.allCases.map(\.assetName) == [
-            "AltIcon-Classic", "AltIcon-Rune", "AltIcon-Scroll", "AltIcon-Shield", "AltIcon-Midnight", "AltIcon-Gilded",
+            "AltIcon-Classic", "AltIcon-Rune", "AltIcon-Scroll", "AltIcon-Gilded",
         ])
         #expect(Set(AppIconChoice.allCases.map(\.title)).count == AppIconChoice.allCases.count)
     }

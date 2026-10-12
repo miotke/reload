@@ -65,15 +65,13 @@ From `AddonManaging.gitHubStatus()`, which reads stored state only (no requests)
 
 ## App icon
 
-Six choices, `AppIconChoice`, each an imageset in `Assets.xcassets`:
+Four choices, `AppIconChoice`, each an imageset in `Assets.xcassets`:
 
 | Choice | Asset |
 |---|---|
 | Classic (default) | `AltIcon-Classic` |
 | Rune | `AltIcon-Rune` |
 | Scroll | `AltIcon-Scroll` |
-| Shield | `AltIcon-Shield` |
-| Midnight | `AltIcon-Midnight` |
 | Gilded | `AltIcon-Gilded` |
 
 - At launch (the main window's `onChange(initial:)`) and on every change (also from the Settings root), `apply()` sets `NSApp.applicationIconImage`.

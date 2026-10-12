@@ -200,8 +200,6 @@ private struct AppIconThumbnail: View {
         case .classic: .blue
         case .rune: .teal
         case .scroll: .brown
-        case .shield: .red
-        case .midnight: .indigo
         case .gilded: .orange
         }
     }

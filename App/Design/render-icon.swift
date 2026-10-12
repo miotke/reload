@@ -10,7 +10,7 @@
 //   App/ForeverAddons/Assets.xcassets/AppIcon.appiconset/ every macOS size + Contents.json
 //   App/ForeverAddons/Assets.xcassets/AltIcon-*.imageset/ one 1024 px PNG each (universal 1x)
 //   App/Design/alt-previews/AltIcon-*.png                256 px previews
-//   App/Design/alt-icons-sheet.png                       all six alternates side by side
+//   App/Design/alt-icons-sheet.png                       all alternates side by side
 //
 // Main icon: a gold puzzle piece (an add-on) engraved with an infinity loop
 // ("forever"), on a deep night-blue/purple squircle, trimmed in old-UI gold.
@@ -25,10 +25,6 @@
 //                     infinity glows arcane blue in its centre
 //   AltIcon-Scroll    parchment quest scroll on crimson, closed by a red wax
 //                     seal embossed with the infinity mark, ribbon tails below
-//   AltIcon-Shield    silver-rimmed heater shield with a green field and a
-//                     silver puzzle-piece charge, on deep green
-//   AltIcon-Midnight  the puzzle and loop as a pale monochrome silhouette on
-//                     near-black, with a faint top-lit gradient
 //   AltIcon-Gilded    the gold puzzle on ivory with a deep bronze loop, the
 //                     light variant
 // The alternates are only shipped at 1024 px (the system downsamples), so
@@ -236,7 +232,7 @@ func drawTile(_ ctx: CGContext, _ style: TileStyle, scale: CGFloat, weight: CGFl
     }
 }
 
-/// How a raised solid (puzzle piece, stone, seal, shield) is lit.
+/// How a raised solid (puzzle piece, stone, seal) is lit.
 struct Material {
     var shadow: CGColor
     var shadowDrop: CGFloat = 18
@@ -364,7 +360,6 @@ func glow(_ ctx: CGContext, _ path: CGPath, width: CGFloat, color: CGColor, core
 // MARK: - Shared palettes
 
 let goldTrim: [(CGFloat, CGColor)] = [(0, rgb(0xF4D58A, 0.95)), (0.5, rgb(0xB8862B, 0.75)), (1, rgb(0x6E4A16, 0.9))]
-let silverTrim: [(CGFloat, CGColor)] = [(0, rgb(0xF4F7FA, 0.95)), (0.5, rgb(0xA9B2BC, 0.8)), (1, rgb(0x4E565F, 0.9))]
 
 let gold = Material(
     shadow: rgb(0x05061A, 0.6),
@@ -374,15 +369,6 @@ let gold = Material(
     highlight: rgb(0xFFF6D6, 0.6),
     lowlight: rgb(0x5E3C10, 0.55),
     rim: rgb(0x4A2E0C, 0.9))
-
-let silver = Material(
-    shadow: rgb(0x02120A, 0.6),
-    base: rgb(0x6E767F),
-    body: [(0, rgb(0xFFFFFF)), (0.35, rgb(0xDDE2E7)), (0.75, rgb(0xA3ACB6)), (1, rgb(0x6D757E))],
-    sheen: rgb(0xFFFFFF, 0.6),
-    highlight: rgb(0xFFFFFF, 0.75),
-    lowlight: rgb(0x2E353C, 0.5),
-    rim: rgb(0x262C32, 0.9))
 
 /// The main motif: a solid puzzle piece with an engraved infinity loop.
 func drawPuzzleMotif(_ ctx: CGContext, piece m: Material, loop e: Engraving, scale: CGFloat, weight: CGFloat, pixels: Int) {
@@ -663,119 +649,6 @@ func drawScroll(in ctx: CGContext, pixels: Int) {
         weight: weight)
 }
 
-// MARK: - Shield
-
-/// Heater shield: flat top with rounded corners, sides sweeping to a point.
-func heaterShield(in r: CGRect) -> CGPath {
-    let p = CGMutablePath()
-    let corner = r.width * 0.07
-    let shoulder = r.minY + r.height * 0.38
-    p.move(to: CGPoint(x: r.minX + corner, y: r.minY))
-    p.addLine(to: CGPoint(x: r.maxX - corner, y: r.minY))
-    p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY + corner), control: CGPoint(x: r.maxX, y: r.minY))
-    p.addLine(to: CGPoint(x: r.maxX, y: shoulder))
-    p.addCurve(
-        to: CGPoint(x: r.midX, y: r.maxY),
-        control1: CGPoint(x: r.maxX, y: r.minY + r.height * 0.72),
-        control2: CGPoint(x: r.midX + r.width * 0.2, y: r.maxY - r.height * 0.08))
-    p.addCurve(
-        to: CGPoint(x: r.minX, y: shoulder),
-        control1: CGPoint(x: r.midX - r.width * 0.2, y: r.maxY - r.height * 0.08),
-        control2: CGPoint(x: r.minX, y: r.minY + r.height * 0.72))
-    p.addLine(to: CGPoint(x: r.minX, y: r.minY + corner))
-    p.addQuadCurve(to: CGPoint(x: r.minX + corner, y: r.minY), control: CGPoint(x: r.minX, y: r.minY))
-    p.closeSubpath()
-    return p
-}
-
-func drawShield(in ctx: CGContext, pixels: Int) {
-    let (scale, weight) = begin(ctx, pixels: pixels)
-    drawTile(
-        ctx,
-        TileStyle(
-            base: rgb(0x07170E),
-            background: [(0, rgb(0x2C7A50)), (0.55, rgb(0x134A2D)), (1, rgb(0x072014))],
-            halo: rgb(0x8CF0BE, 0.22),
-            trim: silverTrim),
-        scale: scale, weight: weight, pixels: pixels)
-
-    let outer = CGRect(x: 258, y: 212, width: 508, height: 640)
-    let shield = heaterShield(in: outer)
-    var rimMetal = silver
-    rimMetal.bodyEndInset = 200
-    rimMetal.sheenOffset = CGPoint(x: 110, y: 120)
-    drawSolid(ctx, shield, rimMetal, scale: scale, weight: weight)
-
-    let fieldRect = outer.insetBy(dx: 40, dy: 40).offsetBy(dx: 0, dy: -6)
-    let field = heaterShield(in: CGRect(x: fieldRect.minX, y: fieldRect.minY, width: fieldRect.width, height: fieldRect.height + 14))
-    ctx.saveGState()
-    ctx.addPath(field)
-    ctx.clip()
-    ctx.drawLinearGradient(
-        gradient([(0, rgb(0x2F9A5E)), (0.5, rgb(0x17673C)), (1, rgb(0x0B3D22))]),
-        start: CGPoint(x: fieldRect.minX, y: fieldRect.minY), end: CGPoint(x: fieldRect.maxX - 120, y: fieldRect.maxY), options: [])
-    // Per pale: the dexter half a shade lighter, a quiet heraldic division.
-    ctx.clip(to: CGRect(x: fieldRect.minX, y: fieldRect.minY, width: fieldRect.width / 2, height: fieldRect.height + 20))
-    ctx.setFillColor(rgb(0xFFFFFF, 0.07))
-    ctx.fill(fieldRect.insetBy(dx: 0, dy: -20))
-    ctx.restoreGState()
-    // Recessed: inner shadow along the top edge of the field.
-    ctx.saveGState()
-    ctx.addPath(field)
-    ctx.clip()
-    ctx.setShadow(offset: CGSize(width: 0, height: -10 * scale), blur: 18 * scale, color: rgb(0x01100A, 0.8))
-    ctx.addPath(field)
-    ctx.setLineWidth(20)
-    ctx.setStrokeColor(rgb(0x01100A, 0.9))
-    ctx.strokePath()
-    ctx.restoreGState()
-    ctx.addPath(field)
-    ctx.setStrokeColor(rgb(0x1E242A, 0.9))
-    ctx.setLineWidth(5 * weight)
-    ctx.strokePath()
-
-    let charge = transformed(puzzlePiece(), scale: 0.56, from: CGPoint(x: 512, y: 518), to: CGPoint(x: 508, y: 488))
-    var chargeMetal = silver
-    chargeMetal.shadow = rgb(0x01100A, 0.7)
-    chargeMetal.shadowDrop = 12
-    chargeMetal.shadowBlur = 22
-    chargeMetal.bodyEndInset = 40
-    chargeMetal.sheenOffset = CGPoint(x: 80, y: 120)
-    chargeMetal.sheenRadius = 170
-    chargeMetal.highlightDepth = 7
-    chargeMetal.lowlightDepth = 8
-    drawSolid(ctx, charge, chargeMetal, scale: scale, weight: weight)
-}
-
-// MARK: - Midnight
-
-func drawMidnight(in ctx: CGContext, pixels: Int) {
-    let (scale, weight) = begin(ctx, pixels: pixels)
-    drawTile(
-        ctx,
-        TileStyle(
-            base: rgb(0x050506),
-            background: [(0, rgb(0x2E3038)), (0.5, rgb(0x15161B)), (1, rgb(0x060608))],
-            halo: rgb(0xB8C0D8, 0.1),
-            trim: [(0, rgb(0x8A8E99, 0.7)), (0.5, rgb(0x42454E, 0.6)), (1, rgb(0x1E2026, 0.8))],
-            trimWidth: 6,
-            shadowAlpha: 0.45,
-            gloss: 0.28),
-        scale: scale, weight: weight, pixels: pixels)
-    drawPuzzleMotif(
-        ctx,
-        piece: Material(
-            shadow: rgb(0x000000, 0.7),
-            base: rgb(0x8A8D95),
-            body: [(0, rgb(0xF6F7F9)), (0.45, rgb(0xDADCE1)), (1, rgb(0xA4A7AF))],
-            sheen: rgb(0xFFFFFF, 0.35),
-            highlight: rgb(0xFFFFFF, 0.7),
-            lowlight: rgb(0x2A2C33, 0.45),
-            rim: rgb(0x000000, 0.55)),
-        loop: Engraving(width: 48, lightCatch: rgb(0xFFFFFF, 0.8), fill: [(0, rgb(0x060608)), (1, rgb(0x22242B))]),
-        scale: scale, weight: weight, pixels: pixels)
-}
-
 // MARK: - Gilded
 
 func drawGilded(in ctx: CGContext, pixels: Int) {
@@ -855,8 +728,6 @@ let alternates: [(String, Painter)] = [
     ("AltIcon-Classic", drawClassic),
     ("AltIcon-Rune", drawRune),
     ("AltIcon-Scroll", drawScroll),
-    ("AltIcon-Shield", drawShield),
-    ("AltIcon-Midnight", drawMidnight),
     ("AltIcon-Gilded", drawGilded),
 ]
 try fm.createDirectory(at: previewDir, withIntermediateDirectories: true)
@@ -870,7 +741,7 @@ for (name, paint) in alternates {
     try renderPNG(pixels: 256, to: previewDir.appendingPathComponent("\(name).png"), paint)
 }
 
-// Contact sheet: all six at 256 px on a neutral grey that flatters light and dark tiles.
+// Contact sheet: every alternate at 256 px on a neutral grey that flatters light and dark tiles.
 let cell = 256, gap = 32
 let sheet = try makeContext(width: alternates.count * cell + (alternates.count + 1) * gap, height: cell + 2 * gap)
 sheet.setFillColor(rgb(0xC9CBD1))
