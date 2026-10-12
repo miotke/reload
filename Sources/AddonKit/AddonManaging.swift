@@ -88,6 +88,17 @@ public protocol AddonManaging: Sendable {
 
     /// When `refresh` last completed for `installation`, or nil if it never has.
     func lastRefresh(in installation: Installation) async -> Date?
+
+    // MARK: Observing stored data (so the app never reaches into the database or store)
+
+    /// Commits to the metadata database made by this process, as kinds plus affected repos.
+    func metadataChanges() -> AsyncStream<MetadataChange>
+    /// Changes when any process (e.g. `addonctl`) commits to the metadata database.
+    func metadataVersion() async -> Int64?
+    /// The install store's folder, for watching changes made by other processes.
+    var storeDirectory: URL { get }
+    /// Stored support and available flavors for `refs`, without touching the network.
+    func storedAvailability(for refs: [AddonRef], in installation: Installation) async -> [AddonRef: StoredAvailability]
 }
 
 extension AddonManaging {
@@ -131,4 +142,37 @@ extension AddonManaging {
 
     @discardableResult
     public func checkVisible(_ refs: [AddonRef], in installation: Installation) async -> [AddonRef] { [] }
+}
+
+/// What a metadata commit touched, in terms the UI understands.
+public struct MetadataChange: Sendable, Hashable {
+    public enum Kind: String, Sendable, Hashable, CaseIterable {
+        /// Support verdicts or available flavors.
+        case support
+        /// Catalogue rows: names, summaries, dates, stars.
+        case catalogue
+        /// README, screenshots, release notes.
+        case details
+    }
+
+    public var kinds: Set<Kind>
+    /// Affected repos; empty means many or unknown.
+    public var refs: Set<AddonRef>
+
+    public init(kinds: Set<Kind>, refs: Set<AddonRef>) {
+        self.kinds = kinds
+        self.refs = refs
+    }
+}
+
+/// A repo's stored availability for one installation's flavor.
+public struct StoredAvailability: Sendable, Hashable {
+    public var support: SupportStatus?
+    /// Nil when not checked yet.
+    public var availableFlavors: Set<Flavor>?
+
+    public init(support: SupportStatus?, availableFlavors: Set<Flavor>?) {
+        self.support = support
+        self.availableFlavors = availableFlavors
+    }
 }
