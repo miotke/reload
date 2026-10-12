@@ -12,6 +12,9 @@ public actor GitHubAPIClient {
     public static let supportReserve = 10
     /// Optional API calls (README fallback, release details) are only made above this many.
     public static let comfortableQuota = 30
+    /// Hourly API calls GitHub allows without and with a token, when no response said otherwise.
+    public static let anonymousLimit = 60
+    public static let authenticatedLimit = 5000
     /// Repos whose last releases response is kept in memory for ETag revalidation.
     static let releasesCacheLimit = 64
 
@@ -29,6 +32,8 @@ public actor GitHubAPIClient {
 
     private var rateRemaining: Int?
     private var rateReset: Date?
+    /// `x-ratelimit-limit` of the last response, for the current token.
+    private var rateCeiling: Int?
     private var loadedRateLimit = false
     /// Last 200 response of the releases endpoint per repo (lowercased `owner/repo`), capped
     /// at `releasesCacheLimit` with the least recently stored dropped first.
@@ -63,6 +68,7 @@ public actor GitHubAPIClient {
         // Another account has its own quota; the next response says how much.
         rateRemaining = nil
         rateReset = nil
+        rateCeiling = nil
         loadedRateLimit = true
     }
 
@@ -88,6 +94,12 @@ public actor GitHubAPIClient {
     public func rateLimit() async -> (remaining: Int?, resetAt: Date?) {
         await loadRateLimitIfNeeded()
         return (rateRemaining, rateReset)
+    }
+
+    /// Hourly API calls for the current token: as GitHub last reported it, otherwise 60
+    /// without a token and 5,000 with one.
+    public func quotaLimit() -> Int {
+        rateCeiling ?? (currentToken() == nil ? Self.anonymousLimit : Self.authenticatedLimit)
     }
 
     private func loadRateLimitIfNeeded() async {
@@ -270,6 +282,9 @@ public actor GitHubAPIClient {
         loadedRateLimit = true
         let remaining = response.value(forHTTPHeaderField: "x-ratelimit-remaining").flatMap { Int($0.trimmingCharacters(in: .whitespaces)) }
         let reset = Self.resetDate(response)
+        if let limit = response.value(forHTTPHeaderField: "x-ratelimit-limit").flatMap({ Int($0.trimmingCharacters(in: .whitespaces)) }) {
+            rateCeiling = limit
+        }
         if let remaining { rateRemaining = remaining }
         if let reset { rateReset = reset }
         if remaining != nil || reset != nil {

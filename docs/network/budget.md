@@ -61,6 +61,20 @@ Rows the 0017 changes affect. **Measured** rows come from the offline request-co
 
 How: [decision 0009](../decisions/0009-local-first-search.md), [0010](../decisions/0010-quota-free-endpoints.md), [0011](../decisions/0011-single-cache-owner.md), [0017](../decisions/0017-details-without-quota-release-json-by-tag.md), [0019](../decisions/0019-available-games-and-visible-row-checks.md).
 
+## Quota status
+
+`gitHubStatus()` (`AddonManager+Maintenance.swift`) reports what the settings screen shows, without a request:
+
+| Field | From |
+|---|---|
+| `api` | `GitHubAPIClient`'s tracked `core` limit; the stored row on first use. Nil after a token change until GitHub answers |
+| `search` | the stored `search` row |
+| `apiLimit` | the last `x-ratelimit-limit`, else 60 or 5,000 by token |
+| `hasToken` | whether a token is configured (environment or Keychain) |
+| `webPausedUntil` | `GitHubWebClient`'s pause, only while it's in the future |
+
+A window whose reset time has passed is reported full (`remaining` = limit, no reset). Rate-limit writes don't emit a `metadataChanges()` event, since `MetadataChange` has no kind for them; the app re-reads on appear.
+
 ## Useful facts
 
 - REST API: 60 calls/h per IP unauthenticated, 5,000 with a token.

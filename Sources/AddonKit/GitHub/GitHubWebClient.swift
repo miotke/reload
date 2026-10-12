@@ -43,7 +43,12 @@ public actor GitHubWebClient {
 
     /// True while github.com is pushing back and every web request fails fast.
     func isPaused() -> Bool {
-        blockedUntil.map { $0 > now() } ?? false
+        pausedUntil() != nil
+    }
+
+    /// When the current pause ends; nil when web requests aren't paused.
+    public func pausedUntil() -> Date? {
+        blockedUntil.flatMap { $0 > now() ? $0 : nil }
     }
 
     /// A request to github.com or raw.githubusercontent.com, with the pause and backoff above.

@@ -68,7 +68,7 @@ Sources/addonctl/            the CLI (docs/cli/)
 | Search, Browse, stored flavors and catalogue rows | `Sources/AddonKit/AddonManager+Search.swift` |
 | Resolve, install, adoption, uninstall, removing unmanaged folders | `Sources/AddonKit/AddonManager+Install.swift` |
 | Update checks and states, updates, rollback, pin, channel | `Sources/AddonKit/AddonManager+Updates.swift` |
-| Rate limit, clearing caches | `Sources/AddonKit/AddonManager+Maintenance.swift` |
+| GitHub status (quota, search quota, web pause), rate limit, clearing caches | `Sources/AddonKit/AddonManager+Maintenance.swift` |
 | The façade's protocol, `MetadataChange`, `StoredAvailability` | `Sources/AddonKit/AddonManaging.swift` |
 | Inspector details and their storage, release notes | `Sources/AddonKit/AddonManager+Details.swift` |
 | Background refresh, its targets, progress, stored update states | `Sources/AddonKit/AddonManager+Refresh.swift` |
@@ -131,7 +131,7 @@ Sources/addonctl/            the CLI (docs/cli/)
 | Updates | `checkForUpdates(in:)`, `update(_:in:)` and `update(releases:in:)` → `AsyncStream<OperationEvent>` |
 | Changes | `uninstall`, `rollback`, `setPinned`, `setChannel` |
 | Metadata | `refresh(in:force:)` → `AsyncStream<RefreshProgress>`, `lastRefresh(in:)` ([refresh.md](../features/refresh.md)), `checkVisible(_:in:)` ([visible rows](../features/refresh.md#visible-row-checks)), `details(for:in:)` ([details](../features/details-and-screenshots.md)), `availableFlavors(for:)` (stored, local) |
-| Misc | `tokenDidChange()`, `rateLimit()`, `clearCaches()`, `database.changes()` ([change stream](data-storage.md#change-stream)) |
+| Misc | `tokenDidChange()`, `gitHubStatus()` ([quota status](../network/budget.md#quota-status)), `rateLimit()`, `clearCaches()`, `database.changes()` ([change stream](data-storage.md#change-stream)) |
 
 ### Behaviour worth knowing
 
