@@ -5,7 +5,12 @@ import Foundation
 struct InfoCommand: ContextCommand {
     static let configuration = CommandConfiguration(
         commandName: "info",
-        abstract: "Show details about an add-on: latest Forever release, installed version and folders.",
+        abstract: "Show details about an add-on: description, Forever support, latest version, installed version and folders.",
+        discussion: """
+            Uses the stored details, refreshed from github.com and raw.githubusercontent.com when \
+            they're over a day old. With --prerelease (or for an add-on on the prerelease \
+            channel) the newest prerelease is resolved too, which uses the API.
+            """,
         aliases: ["show"]
     )
 
@@ -25,57 +30,88 @@ struct InfoCommand: ContextCommand {
         let addonRef = try await context.ref(for: ref, in: installation)
         let installed = try await context.installedAddon(addonRef, in: installation)
         let channel: Channel = prerelease ? .prerelease : (installed?.channel ?? context.config.load().defaultChannel ?? .stable)
+        let manager = context.manager
 
         let spinner = Spinner(enabled: context.showsProgress)
         spinner.start("Looking up \(Format.ref(addonRef))…")
-        let summary = await Self.catalogueInfo(for: addonRef, context: context, installation: installation)
+        let entry = await manager.catalogueEntry(for: addonRef)
+        var details: AddonDetails?
+        var detailsError: (any Error)?
+        do {
+            details = try await manager.details(for: addonRef, in: installation)
+        } catch {
+            detailsError = error
+        }
+        let readmePath = await MetadataInfo.readmePath(for: addonRef, in: manager.database)
+        // Stable answers come from the stored details; prereleases only the API knows.
         var release: ResolvedRelease?
         var releaseError: (any Error)?
-        do {
-            release = try await context.manager.resolve(addonRef, for: installation, channel: channel)
-        } catch {
-            releaseError = error
+        if channel == .prerelease {
+            do {
+                release = try await manager.resolve(addonRef, for: installation, channel: .prerelease)
+            } catch {
+                releaseError = error
+            }
         }
         spinner.stop()
 
-        let state: UpdateState? = installed.map { addon in
-            if addon.pinned { return .pinned }
-            if let release { return addon.isUpdate(release) ? .available(release) : .upToDate }
-            if case AddonError.noCompatibleRelease? = releaseError { return .noCompatibleRelease }
-            return .failed(releaseError.map(ExitStatus.message(for:)) ?? "unknown")
+        let state: UpdateStateJSON? = installed.map { addon in
+            if channel == .prerelease {
+                return UpdateStateJSON(Self.prereleaseState(addon, release: release, error: releaseError))
+            }
+            return Self.stableState(addon, latestVersion: details?.latestVersion, support: details?.support ?? .unknown)
         }
+        let name = details?.name ?? entry?.name ?? installed?.name ?? addonRef.identifier
+        let summary = details?.summary ?? entry?.description
+        let readme = Self.readmeDescription(path: readmePath, hasReadme: details?.readme != nil)
+        let notes = release?.changelog ?? details?.latestChangelog ?? installed?.changelog
 
         if context.json {
             try context.emit(Output(
-                ref: addonRef, name: release?.name ?? installed?.name ?? summary?.name ?? addonRef.identifier,
-                summary: summary?.summary, stars: summary?.stars, url: Self.webURL(addonRef),
+                ref: addonRef, name: name, summary: summary, stars: details?.stars, url: Self.webURL(addonRef),
+                lastUpdated: details?.lastUpdated ?? entry?.lastUpdated,
+                support: details.map { SupportJSON($0.support) },
+                latestVersion: details?.latestVersion, latestPublishedAt: details?.latestPublishedAt,
+                readmePath: readmePath?.nilIfEmpty, screenshots: details?.screenshots.count ?? 0,
+                detailsFetchedAt: details?.fetchedAt, detailsError: detailsError.map(ExitStatus.message(for:)),
                 channel: channel, latest: release.map { ReleaseJSON($0, includeChangelog: changelog) },
                 latestError: releaseError.map(ExitStatus.message(for:)),
-                installed: installed, updateState: state.map(UpdateStateJSON.init)
+                changelog: changelog ? notes : nil,
+                installed: installed, updateState: state
             ))
             return
         }
 
         let style = context.style
-        let name = release?.name ?? installed?.name ?? summary?.name ?? addonRef.identifier
         context.print(style.bold(name) + "  " + style.dim(Format.ref(addonRef)))
-        if let text = summary?.summary { context.print(text) }
+        if let summary { context.print(summary) }
         var rows: [[String]] = []
         if let url = Self.webURL(addonRef) { rows.append(["Website", url.absoluteString]) }
-        if let stars = summary?.stars { rows.append(["Stars", "\(stars)"]) }
+        if let stars = details?.stars { rows.append(["Stars", "\(stars)"]) }
+        if let updated = details?.lastUpdated ?? entry?.lastUpdated { rows.append(["Updated", Format.relative(updated)]) }
+        if let details {
+            rows.append(["Forever", Format.support(details.support, style: style)])
+            if let version = details.latestVersion {
+                let published = details.latestPublishedAt.map { "  " + style.dim(Format.relative($0)) } ?? ""
+                rows.append(["Latest", style.green(version) + published])
+            }
+            rows.append(["README", readme])
+            rows.append(["Screenshots", "\(details.screenshots.count)"])
+        } else if let detailsError {
+            rows.append(["Details", style.red(ExitStatus.message(for: detailsError))])
+        }
         if let release {
             let pre = release.isPrerelease ? style.yellow(" (prerelease)") : ""
-            rows.append(["Latest Forever", style.green(release.version) + pre + "  " + style.dim(Format.relative(release.publishedAt))])
-            rows.append(["Asset", release.assetName])
+            rows.append(["Latest prerelease", style.green(release.version) + pre + "  " + style.dim(Format.relative(release.publishedAt))])
         } else if let releaseError {
-            rows.append(["Latest Forever", style.red(ExitStatus.message(for: releaseError))])
+            rows.append(["Latest prerelease", style.red(ExitStatus.message(for: releaseError))])
         }
         rows.append(["Channel", channel.rawValue])
         if let installed {
             var version = installed.version + "  " + style.dim("installed \(Format.relative(installed.installedAt))")
             if installed.pinned { version += style.yellow("  pinned") }
             rows.append(["Installed", version])
-            if let state { rows.append(["Status", Format.updateState(state, style: style)]) }
+            if let state { rows.append(["Status", Self.describe(state, style: style)]) }
             rows.append(["Folders", installed.folders.joined(separator: ", ")])
             if let previous = installed.previousRelease { rows.append(["Rollback to", previous.version]) }
         } else {
@@ -88,7 +124,6 @@ struct InfoCommand: ContextCommand {
             for line in release.reasoning { context.print("  • " + line) }
         }
         if changelog {
-            let notes = release?.changelog ?? installed?.changelog
             context.print("")
             context.print(style.bold("Changelog:"))
             context.print(notes?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? style.dim("(none)"))
@@ -99,13 +134,43 @@ struct InfoCommand: ContextCommand {
         ref.source == .github ? URL(string: "https://github.com/\(ref.identifier)") : nil
     }
 
-    /// Description and stars from the first (local) search emission, best effort.
-    static func catalogueInfo(for ref: AddonRef, context: CLIContext, installation: Installation) async -> SearchResult? {
-        let query = SearchQuery(text: ref.identifier.split(separator: "/").last.map(String.init) ?? ref.identifier, flavor: installation.flavor, foreverOnly: false)
-        for await results in context.manager.search(query, in: installation) {
-            return results.first { $0.id == ref }
+    /// The stable channel's state from stored details: an unchanged version is up to date,
+    /// the same rule the core's update check uses for quota-free releases.
+    static func stableState(_ addon: InstalledAddon, latestVersion: String?, support: SupportStatus) -> UpdateStateJSON {
+        if addon.pinned { return UpdateStateJSON(.pinned) }
+        guard let latestVersion else { return UpdateStateJSON(state: "unknown") }
+        if latestVersion == addon.version { return UpdateStateJSON(.upToDate) }
+        switch support {
+        case .unsupported, .noReleases: return UpdateStateJSON(.noCompatibleRelease)
+        default: return UpdateStateJSON(state: "available", version: latestVersion)
         }
-        return nil
+    }
+
+    static func prereleaseState(_ addon: InstalledAddon, release: ResolvedRelease?, error: (any Error)?) -> UpdateState {
+        if addon.pinned { return .pinned }
+        if let release { return addon.isUpdate(release) ? .available(release) : .upToDate }
+        if case AddonError.noCompatibleRelease? = error { return .noCompatibleRelease }
+        return .failed(error.map(ExitStatus.message(for:)) ?? "unknown")
+    }
+
+    static func describe(_ state: UpdateStateJSON, style: Style) -> String {
+        switch state.state {
+        case "upToDate": style.dim("up to date")
+        case "available": style.green("→ \(state.version ?? "?")") + style.dim("  run `addonctl update`")
+        case "pinned": style.yellow("pinned, skipped")
+        case "noCompatibleRelease": style.dim("no Forever build")
+        case "failed": style.red("failed: \(state.message ?? "")")
+        default: style.yellow("unknown")
+        }
+    }
+
+    /// `path` is nil when nobody has looked yet, and empty when the repo has no README.
+    static func readmeDescription(path: String?, hasReadme: Bool) -> String {
+        switch path {
+        case let path? where !path.isEmpty: path
+        case ""?: "none"
+        default: hasReadme ? "yes" : "not fetched yet"
+        }
     }
 
     struct Output: Encodable {
@@ -114,9 +179,19 @@ struct InfoCommand: ContextCommand {
         var summary: String?
         var stars: Int?
         var url: URL?
+        var lastUpdated: Date?
+        var support: SupportJSON?
+        var latestVersion: String?
+        var latestPublishedAt: Date?
+        var readmePath: String?
+        var screenshots: Int
+        var detailsFetchedAt: Date?
+        var detailsError: String?
         var channel: Channel
+        /// The resolved prerelease, on the prerelease channel only.
         var latest: ReleaseJSON?
         var latestError: String?
+        var changelog: String?
         var installed: InstalledAddon?
         var updateState: UpdateStateJSON?
     }

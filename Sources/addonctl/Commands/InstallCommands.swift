@@ -203,14 +203,20 @@ struct RemoveCommand: ContextCommand {
 
 // MARK: - update
 
-/// A failure reported by an `OperationEvent`, which only carries a message.
+/// A failure reported by an `OperationEvent` or `UpdateState`, which only carry a message.
 struct OperationFailure: Error, LocalizedError {
     var message: String
     var errorDescription: String? { message }
 
-    /// Recovers the typed error where the message identifies it.
-    var typed: any Error {
-        if message.hasPrefix("GitHub rate limit reached") { return AddonError.rateLimited(resetAt: nil) }
+    /// The core's own wording for a rate limit, without the full stop and retry time.
+    static let rateLimitPrefix = AddonError.rateLimited(resetAt: nil).localizedDescription
+        .trimmingCharacters(in: .punctuationCharacters)
+
+    /// Recovers the typed error. The core's events carry no error value, so a rate limit is
+    /// recognised by the stored API rate-limit state first and the core's message second.
+    func typed(rateLimit: RateLimitState? = nil, now: Date = Date()) -> any Error {
+        if let rateLimit, rateLimit.isExhausted(at: now) { return AddonError.rateLimited(resetAt: rateLimit.resetAt) }
+        if message.hasPrefix(Self.rateLimitPrefix) { return AddonError.rateLimited(resetAt: nil) }
         return self
     }
 }
@@ -219,6 +225,11 @@ struct UpdateCommand: ContextCommand {
     static let configuration = CommandConfiguration(
         commandName: "update",
         abstract: "Update all add-ons, or the ones listed. Pinned add-ons are skipped.",
+        discussion: """
+            Checks every add-on first and downloads only real updates. Add-ons that ship a \
+            release.json are checked on github.com, so an update that finds nothing new uses no \
+            API quota.
+            """,
         aliases: ["upgrade", "up"]
     )
 
@@ -229,6 +240,30 @@ struct UpdateCommand: ContextCommand {
 
     @Flag(help: "Show what would change without installing anything.")
     var dryRun = false
+
+    /// What to do with each add-on after a check.
+    struct Plan {
+        var install: [ResolvedRelease] = []
+        var skipped: [SkippedJSON] = []
+        var failed: [(ref: AddonRef, message: String)] = []
+    }
+
+    /// Only `.available` states are installed; everything else is reported as checked.
+    static func plan(_ installed: [InstalledAddon], states: [AddonRef: UpdateState], flavor: Flavor) -> Plan {
+        var plan = Plan()
+        for addon in installed {
+            switch states[addon.id] {
+            case .available(let release)?: plan.install.append(release)
+            case .upToDate?: plan.skipped.append(SkippedJSON(ref: addon.id, reason: "Up to date"))
+            case .pinned?: plan.skipped.append(SkippedJSON(ref: addon.id, reason: "Pinned"))
+            case .noCompatibleRelease?:
+                plan.failed.append((addon.id, AddonError.noCompatibleRelease(addon.id, flavor).localizedDescription))
+            case .failed(let message)?: plan.failed.append((addon.id, message))
+            case nil: plan.failed.append((addon.id, "Not checked"))
+            }
+        }
+        return plan
+    }
 
     func run(_ context: CLIContext) async throws {
         let installation = try await context.installation()
@@ -250,54 +285,85 @@ struct UpdateCommand: ContextCommand {
             if context.json { try context.emit(UpdateOutput(installation: installation.id, updated: [], skipped: [], failed: [])) }
             return
         }
+        try await Self.perform(targets, installed: installed, context: context, installation: installation)
+    }
 
+    /// With no `targets`, checks everything once (always asking for the latest tags) and
+    /// installs only the add-ons with an update. Named targets go through the core's
+    /// per-add-on check-then-install.
+    static func perform(_ targets: [AddonRef], installed: [InstalledAddon], context: CLIContext, installation: Installation) async throws {
+        let manager = context.manager
         let byRef = Dictionary(installed.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let board = ProgressBoard(live: context.showsProgress, style: context.errStyle)
         let style = context.errStyle
         var updated: [UpdatedJSON] = []
         var skipped: [SkippedJSON] = []
-        var failures: [(ref: AddonRef, error: any Error)] = []
+        var failures: [(ref: AddonRef, message: String)] = []
         var lines: [[String]] = []
 
         func name(_ ref: AddonRef) -> String { byRef[ref]?.name ?? Format.ref(ref) }
         func from(_ ref: AddonRef) -> String { byRef[ref]?.version ?? "?" }
+        func skip(_ ref: AddonRef, _ reason: String) {
+            skipped.append(SkippedJSON(ref: ref, reason: reason))
+            let text = reason == "Pinned" ? "pinned, skipped" : reason.lowercased()
+            board.update(key: ref.description, status: style.dim(text))
+            if reason == "Pinned" || context.verbose {
+                lines.append([name(ref), from(ref), context.style.dim(text)])
+            }
+        }
+        func fail(_ ref: AddonRef, _ message: String) {
+            failures.append((ref, message))
+            board.update(key: ref.description, status: style.red("failed"))
+            lines.append([name(ref), from(ref), context.style.red("failed: \(message)")])
+        }
 
-        for await event in context.manager.update(targets, in: installation) {
-            switch event {
-            case .queued(let ref):
-                board.add(key: ref.description, name: name(ref), detail: from(ref), status: style.dim("checking"))
-            case .downloading(let ref, let progress):
-                board.update(key: ref.description, fraction: progress, detail: "\(from(ref)) → …", status: "downloading")
-            case .installing(let ref):
-                board.update(key: ref.description, fraction: 1, status: "installing")
-            case .done(let addon):
-                board.update(key: addon.id.description, fraction: 1, detail: "\(from(addon.id)) → \(addon.version)", status: style.green("done"))
-                updated.append(UpdatedJSON(ref: addon.id, from: from(addon.id), to: addon.version, addon: addon))
-                lines.append([addon.name, "\(from(addon.id)) → \(addon.version)", context.style.green("done")])
-            case .skipped(let ref, let reason):
-                skipped.append(SkippedJSON(ref: ref, reason: reason))
-                let text = reason == "Pinned" ? "pinned, skipped" : reason.lowercased()
-                board.update(key: ref.description, status: style.dim(text))
-                if reason == "Pinned" || context.verbose {
-                    lines.append([name(ref), from(ref), context.style.dim(text)])
+        var events: AsyncStream<OperationEvent>?
+        if targets.isEmpty {
+            for addon in installed {
+                board.add(key: addon.id.description, name: addon.name, detail: addon.version, status: style.dim("checking"))
+            }
+            let states = try await manager.checkForUpdates(in: installation)
+            let plan = Self.plan(installed, states: states, flavor: installation.flavor)
+            for item in plan.skipped { skip(item.ref, item.reason) }
+            for item in plan.failed { fail(item.ref, item.message) }
+            // An empty list means "every add-on" to the core, which would check them all again.
+            if !plan.install.isEmpty { events = manager.update(releases: plan.install, in: installation) }
+        } else {
+            events = manager.update(targets, in: installation)
+        }
+
+        if let events {
+            for await event in events {
+                switch event {
+                case .queued(let ref):
+                    board.add(key: ref.description, name: name(ref), detail: from(ref), status: style.dim("checking"))
+                case .downloading(let ref, let progress):
+                    board.update(key: ref.description, fraction: progress, detail: "\(from(ref)) → …", status: "downloading")
+                case .installing(let ref):
+                    board.update(key: ref.description, fraction: 1, status: "installing")
+                case .done(let addon):
+                    board.update(key: addon.id.description, fraction: 1, detail: "\(from(addon.id)) → \(addon.version)", status: style.green("done"))
+                    updated.append(UpdatedJSON(ref: addon.id, from: from(addon.id), to: addon.version, addon: addon))
+                    lines.append([addon.name, "\(from(addon.id)) → \(addon.version)", context.style.green("done")])
+                case .skipped(let ref, let reason):
+                    skip(ref, reason)
+                case .failed(let ref, let message):
+                    fail(ref, message)
                 }
-            case .failed(let ref, let message):
-                let failure = OperationFailure(message: message)
-                failures.append((ref, failure.typed))
-                board.update(key: ref.description, status: style.red("failed"))
-                lines.append([name(ref), from(ref), context.style.red("failed: \(message)")])
             }
         }
         board.finish()
 
+        let rateLimit = failures.isEmpty ? nil : await manager.database.rateLimit("core")
+        let typedFailures = failures.map { (ref: $0.ref, error: OperationFailure(message: $0.message).typed(rateLimit: rateLimit)) }
         if context.json {
-            let failed = failures.map { FailureJSON(ref: $0.ref, code: ExitStatus.identifier(for: $0.error), message: ExitStatus.message(for: $0.error)) }
+            let failed = typedFailures.map { FailureJSON(ref: $0.ref, code: ExitStatus.identifier(for: $0.error), message: ExitStatus.message(for: $0.error)) }
             try context.emit(UpdateOutput(installation: installation.id, updated: updated, skipped: skipped, failed: failed))
         } else {
             if !board.live, !lines.isEmpty, !context.quiet {
                 context.print(Table(headers: [], rows: lines).render(style: context.style))
             } else if board.live {
-                for failure in failures {
+                for failure in typedFailures {
                     context.console.err(style.red("error: ") + "\(name(failure.ref)): " + ExitStatus.message(for: failure.error))
                 }
             }
@@ -309,7 +375,7 @@ struct UpdateCommand: ContextCommand {
             context.noteIfGameRunning(changed: updated.count)
         }
         let attempted = updated.count + failures.count
-        if let error = ExitStatus.batchError(failures: failures.map(\.error), total: max(attempted, 1)) { throw error }
+        if let error = ExitStatus.batchError(failures: typedFailures.map(\.error), total: max(attempted, 1)) { throw error }
     }
 
     struct UpdatedJSON: Encodable {
@@ -319,7 +385,7 @@ struct UpdateCommand: ContextCommand {
         var addon: InstalledAddon
     }
 
-    struct SkippedJSON: Encodable {
+    struct SkippedJSON: Encodable, Equatable {
         var ref: AddonRef
         var reason: String
     }

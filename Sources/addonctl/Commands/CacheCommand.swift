@@ -5,7 +5,11 @@ import Foundation
 struct CacheCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "cache",
-        abstract: "Manage the download, catalogue and support caches.",
+        abstract: "Show or clear cached downloads and the metadata database.",
+        discussion: """
+            Downloads live in Caches. The catalogue, Forever verdicts, details and refresh state \
+            live in metadata.sqlite in Application Support, shared with the app.
+            """,
         subcommands: [Info.self, Clear.self],
         defaultSubcommand: Info.self
     )
@@ -18,20 +22,24 @@ struct CacheCommand: AsyncParsableCommand {
     }
 
     struct Output: Encodable {
+        /// The Caches folder.
         var directory: String
+        var metadataDatabase: String
         var entries: [Entry]
         var totalBytes: Int64
     }
 
-    /// Sizes of the cache folder's parts: downloads, catalogue, support checks, everything else.
-    static func usage(of directories: AppDirectories) -> [Entry] {
+    /// Sizes of the Caches folder's parts: downloads, release.json files, files older
+    /// versions left behind, everything else.
+    static func cacheUsage(of directories: AppDirectories) -> [Entry] {
         let fm = FileManager.default
         let root = directories.caches
         let items = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         let labels: [String: String] = [
             "downloads": "Downloaded archives",
-            CatalogueSource.cacheFileName: "Catalogue",
-            SupportCache.fileName: "Forever support checks",
+            "github": "GitHub release.json files",
+            CatalogueSource.cacheFileName: "Old catalogue cache (unused)",
+            SupportCache.fileName: "Old support cache (unused)",
         ]
         var entries: [Entry] = []
         var other = Entry(name: "Other", path: root.path(percentEncoded: false), files: 0, bytes: 0)
@@ -46,6 +54,17 @@ struct CacheCommand: AsyncParsableCommand {
         }
         if other.files > 0 { entries.append(other) }
         return entries
+    }
+
+    /// `metadata.sqlite` and its write-ahead log, when they exist.
+    static func metadataUsage(of directories: AppDirectories) -> [Entry] {
+        [
+            ("Metadata database", MetadataInfo.databaseURL(directories)),
+            ("Metadata write-ahead log", MetadataInfo.walURL(directories)),
+        ].compactMap { name, url in
+            let (files, bytes) = size(of: url)
+            return files == 0 ? nil : Entry(name: name, path: url.path(percentEncoded: false), files: files, bytes: bytes)
+        }
     }
 
     static func size(of url: URL) -> (files: Int, bytes: Int64) {
@@ -69,19 +88,33 @@ struct CacheCommand: AsyncParsableCommand {
         return (files, total)
     }
 
+    /// Deletes everything in the Caches folder. The metadata database isn't in it.
+    static func clearCacheFolder(_ directories: AppDirectories) throws {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: directories.caches.path(percentEncoded: false)) else { return }
+        for item in try fm.contentsOfDirectory(at: directories.caches, includingPropertiesForKeys: nil) {
+            try fm.removeItem(at: item)
+        }
+    }
+
     struct Info: ContextCommand {
-        static let configuration = CommandConfiguration(commandName: "info", abstract: "Show cache sizes.")
+        static let configuration = CommandConfiguration(commandName: "info", abstract: "Show cache and metadata database sizes.")
 
         @OptionGroup var global: GlobalOptions
 
         func run(_ context: CLIContext) async throws {
-            let entries = CacheCommand.usage(of: context.directories)
+            let directories = context.directories
+            let entries = CacheCommand.cacheUsage(of: directories) + CacheCommand.metadataUsage(of: directories)
             let total = entries.reduce(0) { $0 + $1.bytes }
+            let databasePath = MetadataInfo.databaseURL(directories).path(percentEncoded: false)
             if context.json {
-                try context.emit(Output(directory: context.directories.caches.path(percentEncoded: false), entries: entries, totalBytes: total))
+                try context.emit(Output(
+                    directory: directories.caches.path(percentEncoded: false), metadataDatabase: databasePath,
+                    entries: entries, totalBytes: total))
                 return
             }
-            context.print(context.style.dim(context.directories.caches.path(percentEncoded: false)))
+            context.print(context.style.dim(directories.caches.path(percentEncoded: false)))
+            context.print(context.style.dim(databasePath))
             guard !entries.isEmpty else {
                 context.print("The cache is empty.")
                 return
@@ -93,20 +126,40 @@ struct CacheCommand: AsyncParsableCommand {
     }
 
     struct Clear: ContextCommand {
-        static let configuration = CommandConfiguration(commandName: "clear", abstract: "Delete cached downloads, the catalogue and support checks.")
+        static let configuration = CommandConfiguration(
+            commandName: "clear",
+            abstract: "Delete cached downloads. With --metadata, also empty the metadata database."
+        )
 
         @OptionGroup var global: GlobalOptions
 
+        @Flag(help: "Also empty metadata.sqlite (catalogue, Forever verdicts, details, refresh state). Rebuilding it uses the network.")
+        var metadata = false
+
         func run(_ context: CLIContext) async throws {
-            let before = CacheCommand.usage(of: context.directories).reduce(0) { $0 + $1.bytes }
-            guard try context.confirm("Clear \(Format.bytes(before)) of caches? Rollback needs cached downloads.", action: "cache clear") else {
+            let directories = context.directories
+            let cacheBytes = CacheCommand.cacheUsage(of: directories).reduce(0) { $0 + $1.bytes }
+            guard try context.confirm("Clear \(Format.bytes(cacheBytes)) of cached downloads? Rollback needs them.", action: "cache clear") else {
                 throw CLIError.cancelled
             }
-            try await context.manager.clearCaches()
+            if metadata {
+                let metadataBytes = CacheCommand.metadataUsage(of: directories).reduce(0) { $0 + $1.bytes }
+                let question = "Also empty the metadata database (\(Format.bytes(metadataBytes)))? Search finds nothing until the catalogue is downloaded again."
+                guard try context.confirm(question, action: "cache clear --metadata") else { throw CLIError.cancelled }
+            }
+
+            try CacheCommand.clearCacheFolder(directories)
+            if metadata { try await MetadataInfo.clear(context.manager.database) }
+
             if context.json {
-                try context.emit(Output(directory: context.directories.caches.path(percentEncoded: false), entries: [], totalBytes: 0))
+                let remaining = CacheCommand.cacheUsage(of: directories) + CacheCommand.metadataUsage(of: directories)
+                try context.emit(Output(
+                    directory: directories.caches.path(percentEncoded: false),
+                    metadataDatabase: MetadataInfo.databaseURL(directories).path(percentEncoded: false),
+                    entries: remaining, totalBytes: remaining.reduce(0) { $0 + $1.bytes }))
             } else {
-                context.say("Cleared \(Format.bytes(before)) of caches.")
+                context.say("Cleared \(Format.bytes(cacheBytes)) of cached downloads.")
+                if metadata { context.say("Emptied the metadata database. Run `addonctl refresh` to rebuild it.") }
             }
         }
     }

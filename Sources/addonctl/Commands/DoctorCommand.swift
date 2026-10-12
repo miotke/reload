@@ -5,7 +5,7 @@ import Foundation
 struct DoctorCommand: ContextCommand {
     static let configuration = CommandConfiguration(
         commandName: "doctor",
-        abstract: "Check installations, store integrity, GitHub access and the token."
+        abstract: "Check installations, store integrity, the metadata database, GitHub quota and the token."
     )
 
     @OptionGroup var global: GlobalOptions
@@ -59,9 +59,27 @@ struct DoctorCommand: ContextCommand {
             }
         }
 
-        // GitHub
+        // Metadata database and refresh
+        let database = context.manager.database
+        checks += await Self.metadata(database, url: database.url)
+        for installation in installations {
+            checks.append(Self.lastRefresh(await context.manager.lastRefresh(in: installation), installation: installation))
+        }
+
+        // GitHub: the stored rate-limit state costs nothing; `/rate_limit` is free but is
+        // only asked when nothing is stored yet.
         let token = Self.tokenSource(context)
-        checks.append(await Self.github(token: token.value))
+        let now = Date()
+        if let core = await MetadataInfo.rateLimit("core", in: database) {
+            checks.append(Self.rateLimitCheck(name: "GitHub API", core, now: now))
+        } else {
+            checks.append(await Self.github(token: token.value))
+        }
+        if let search = await MetadataInfo.rateLimit("search", in: database) {
+            checks.append(Self.rateLimitCheck(name: "GitHub search", search, low: 3, now: now))
+        } else {
+            checks.append(Check(name: "GitHub search", level: .ok, message: "No live searches recorded"))
+        }
         checks.append(token.value == nil
             ? Check(name: "GitHub token", level: .warning, message: "Not set (60 API calls/hour). Set one with `addonctl config set github-token`.")
             : Check(name: "GitHub token", level: .ok, message: "Set (\(token.source))"))
@@ -113,6 +131,52 @@ struct DoctorCommand: ContextCommand {
         }
         checks.insert(Check(name: label, level: .ok, message: "\(managed) managed, \(unmanaged) unmanaged"), at: 0)
         return checks
+    }
+
+    /// Whether `metadata.sqlite` opened, its schema version and how much it holds.
+    /// `url` is nil when the core fell back to an in-memory database.
+    static func metadata(_ database: MetadataDatabase, url: URL?) async -> [Check] {
+        guard let url else {
+            return [Check(name: "Metadata", level: .error, message: "metadata.sqlite couldn't be opened; using a temporary in-memory database (check disk space and permissions)")]
+        }
+        do {
+            let version = try await database.schemaVersion()
+            let counts = try await MetadataInfo.counts(database)
+            let size = CacheCommand.size(of: url).bytes
+            var checks = [Check(
+                name: "Metadata", level: .ok,
+                message: "\(url.lastPathComponent) schema v\(version), \(Format.bytes(size)): \(counts.catalogue) catalogue rows, \(counts.support) support verdicts"
+            )]
+            if counts.catalogue == 0 {
+                checks.append(Check(name: "Catalogue", level: .warning, message: "Empty; run `addonctl refresh` to download it"))
+            }
+            return checks
+        } catch {
+            return [Check(name: "Metadata", level: .error, message: "\(url.lastPathComponent) unreadable: \(ExitStatus.message(for: error))")]
+        }
+    }
+
+    static func lastRefresh(_ date: Date?, installation: Installation, now: Date = Date()) -> Check {
+        let name = "Refresh \(installation.id)"
+        guard let date else { return Check(name: name, level: .warning, message: "Never refreshed; run `addonctl refresh`") }
+        return Check(name: name, level: .ok, message: "Last refreshed \(Format.relative(date, now: now))")
+    }
+
+    /// A stored rate-limit row, as last reported by GitHub. Below `low` calls left is a
+    /// warning: the API allows 60 an hour without a token, search only 10 a minute.
+    static func rateLimitCheck(name: String, _ state: MetadataInfo.RateLimit, low: Int = 10, now: Date = Date()) -> Check {
+        let seen = state.updatedAt.map { " (seen \(Format.relative($0, now: now)))" } ?? ""
+        if let reset = state.resetAt, reset <= now {
+            return Check(name: name, level: .ok, message: "Quota has reset since it was last seen")
+        }
+        guard let remaining = state.remaining else {
+            return Check(name: name, level: .ok, message: "No remaining count recorded\(seen)")
+        }
+        let reset = state.resetAt.map { ", resets \($0.formatted(.relative(presentation: .named, unitsStyle: .wide)))" } ?? ""
+        if remaining == 0 {
+            return Check(name: name, level: .warning, message: "Rate limited\(reset)\(seen)")
+        }
+        return Check(name: name, level: remaining < low ? .warning : .ok, message: "\(remaining) calls left\(reset)\(seen)")
     }
 
     static func tokenSource(_ context: CLIContext) -> (value: String?, source: String) {

@@ -6,7 +6,11 @@ struct SearchCommand: ContextCommand {
     static let configuration = CommandConfiguration(
         commandName: "search",
         abstract: "Search for add-ons that work on Forever.",
-        discussion: "Waits for Forever verification of the top results before printing.",
+        discussion: """
+            Searches the local catalogue. GitHub is asked only when fewer than 3 add-ons match, \
+            or with --github. The FOREVER column shows stored verdicts; `addonctl refresh` and \
+            `addonctl info` update them.
+            """,
         aliases: ["s"]
     )
 
@@ -15,7 +19,7 @@ struct SearchCommand: ContextCommand {
     @Argument(help: "Words to search for.")
     var query: [String]
 
-    @Flag(help: "Also run a live GitHub search (uses API quota).")
+    @Flag(help: "Also run a deeper live GitHub search (uses search API quota).")
     var github = false
 
     @Flag(help: "Include add-ons verified not to support Forever.")
@@ -31,30 +35,46 @@ struct SearchCommand: ContextCommand {
 
     func run(_ context: CLIContext) async throws {
         let installation = try await context.installationOrPlaceholder()
+        let installed = (try? await context.manager.addons(in: installation)) ?? []
         let text = query.joined(separator: " ")
         let searchQuery = SearchQuery(text: text, flavor: installation.flavor, foreverOnly: !all, includeLiveGitHub: github)
 
         let spinner = Spinner(enabled: context.showsProgress)
-        spinner.start("Searching for \"\(text)\" and checking Forever support…")
-        var latest: [SearchResult] = []
-        for await results in context.manager.search(searchQuery, in: installation) {
-            latest = results
-        }
+        let updates = context.manager.searchUpdates(searchQuery, in: installation, installed: installed)
+        let (latest, searchedGitHub) = await Self.collect(updates) { spinner.start("Searching GitHub…") }
         spinner.stop()
+        if searchedGitHub, !github {
+            context.note("Few local matches, so GitHub was searched too.")
+        }
 
         let results = Self.filter(latest, all: all, limit: limit)
         if context.json {
-            try context.emit(Output(query: text, results: results.map(SearchResultJSON.init)))
+            try context.emit(Output(query: text, searchedGitHub: searchedGitHub, results: results.map(SearchResultJSON.init)))
             return
         }
         guard !results.isEmpty else {
-            context.print("No add-ons found for \"\(text)\".\(github ? "" : " Try --github to search GitHub too.")")
+            context.print("No add-ons found for \"\(text)\".\(github ? "" : " Try --github to search GitHub more widely.")")
             return
         }
         context.print(Format.searchTable(results, style: context.style))
         if latest.count > results.count, !all {
             context.detail("\(latest.count - results.count) more result(s) hidden; use --limit or --all.")
         }
+    }
+
+    /// The last results, and whether GitHub live search ran. `onGitHub` is called once,
+    /// when it starts.
+    static func collect(_ updates: AsyncStream<SearchUpdate>, onGitHub: () -> Void = {}) async -> (results: [SearchResult], searchedGitHub: Bool) {
+        var latest: [SearchResult] = []
+        var searchedGitHub = false
+        for await update in updates {
+            latest = update.results
+            if update.isSearchingGitHub, !searchedGitHub {
+                searchedGitHub = true
+                onGitHub()
+            }
+        }
+        return (latest, searchedGitHub)
     }
 
     /// Drops results verified unsupported unless `all`, then applies `limit`.
@@ -70,6 +90,8 @@ struct SearchCommand: ContextCommand {
 
     struct Output: Encodable {
         var query: String
+        /// True when GitHub live search ran (automatically or with `--github`).
+        var searchedGitHub: Bool
         var results: [SearchResultJSON]
     }
 }

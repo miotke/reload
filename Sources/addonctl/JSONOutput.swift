@@ -93,17 +93,29 @@ struct SupportJSON: Encodable, Equatable {
 struct UpdateStateJSON: Encodable, Equatable {
     /// `upToDate`, `available`, `pinned`, `noCompatibleRelease`, `failed`.
     var state: String
+    /// The version an `available` update would install.
+    var version: String?
     var release: ReleaseJSON?
     var message: String?
 
     init(_ updateState: UpdateState) {
         switch updateState {
         case .upToDate: state = "upToDate"
-        case .available(let release): state = "available"; self.release = ReleaseJSON(release, includeChangelog: false)
+        case .available(let release):
+            state = "available"
+            version = release.version
+            self.release = ReleaseJSON(release, includeChangelog: false)
         case .pinned: state = "pinned"
         case .noCompatibleRelease: state = "noCompatibleRelease"
         case .failed(let message): state = "failed"; self.message = message
         }
+    }
+
+    /// A state known only by version, e.g. from stored details rather than a resolved release.
+    init(state: String, version: String? = nil, message: String? = nil) {
+        self.state = state
+        self.version = version
+        self.message = message
     }
 }
 
