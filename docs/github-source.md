@@ -42,6 +42,8 @@ The same check runs on an add-on folder already on disk, which adopting uses.
 |---|---|---|
 | Release list | `api.github.com/repos/{owner}/{repo}/releases?per_page=10` | Yes |
 | `release.json`, zips | each asset's `browser_download_url` | No |
+| Latest stable tag | `HEAD github.com/{owner}/{repo}/releases/latest` (redirects to `…/releases/tag/{tag}`) | No |
+| Latest release's `release.json` | `github.com/{owner}/{repo}/releases/download/{tag}/release.json` | No |
 
 - **Headers:** `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28` and the app's User-Agent. `Authorization: Bearer` is added only when a token is set, and never on asset downloads.
 - **ETags:** the caller's ETag is sent as `If-None-Match`, and a 304 returns `.notModified`. Without a caller ETag, the source still revalidates its own in-memory cache.
@@ -49,7 +51,8 @@ The same check runs on an add-on folder already on disk, which adopting uses.
   - 404 → `notFound`
   - 403 or 429 with no remaining quota (or a `retry-after` header) → `rateLimited(resetAt:)`
   - any other non-2xx status → `http`
-- **Rate limit:** `rateLimit()` reports the latest `x-ratelimit-remaining` and reset time. Without a token, GitHub allows 60 calls per hour.
+- **Rate limit:** `rateLimit()` reports the latest `x-ratelimit-remaining` and reset time. Without a token, GitHub allows 60 calls per hour. `quotaIsComfortable()` is true above 30 calls left (or before any call); optional API calls such as the README fallback wait for it.
+- **github.com requests** (the free routes) never send the token. A 429 or 5xx is retried twice with backoff (2 s, 4 s, or the `Retry-After`). A 429 that persists, or asks to wait more than 30 s, pauses every github.com request until it's over.
 
 ### Caches
 
@@ -60,17 +63,31 @@ The same check runs on an add-on folder already on disk, which adopting uses.
 
 ## Support checks (for search)
 
-`support(for:flavor:)` (the `SupportChecking` protocol) runs the same selection but **never downloads zips**:
+`support(for:flavor:)` (the `SupportChecking` protocol) costs **no API quota**. It looks only at the latest stable release:
+
+```mermaid
+flowchart LR
+    A[HEAD releases/latest] -- 302 to releases/tag/T --> B[GET releases/download/T/release.json]
+    A -- 302 to /releases --> N[.noReleases]
+    A -- 404 --> N
+    B -- has forever --> S[.supported version: T]
+    B -- other flavors only --> U[.unsupported]
+    B -- 404 --> D[.needsDownload]
+```
 
 | Outcome | `SupportStatus` |
 |---|---|
-| Found a Forever build | `.supported(version:)` |
-| Releases, but none for Forever | `.unsupported` |
-| No eligible stable release | `.noReleases` |
-| No `release.json`; confirming needs a download | `.needsDownload` |
-| Error, or quota ≤ 10 calls left | `.unknown` (never cached) |
+| Latest release's `release.json` lists Forever | `.supported(version: tag)` |
+| It lists only other flavors | `.unsupported` |
+| No releases, or the repo is gone | `.noReleases` |
+| Latest release has no `release.json` | `.needsDownload` |
+| github.com failed and the API fallback couldn't answer | `.unknown` (never cached) |
 
-Results are cached in memory for 6 hours. The 10-call reserve keeps search from using up the quota that installs and updates need.
+- `latestTag(for:)` is the first step on its own. Answers are reused for 10 minutes, so a refresh's update and support phases share one request per repo.
+- `release.json` is cached on disk per tag (`<caches>/github/release-json/tags/`), so rechecking an unchanged repo is a single `HEAD`.
+- If github.com fails for another reason, the old API path, `apiSupport(for:flavor:)`, is used while quota is comfortable. It also looks past the latest release, and keeps a 10-call reserve.
+
+Results are cached in memory for 6 hours, and persistently by the metadata database (see [search.md](search.md)).
 
 ## Parsing refs
 

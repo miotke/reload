@@ -2,8 +2,8 @@ import Foundation
 
 /// Resolves add-ons published as GitHub Releases (docs/design.md §6.5, §7.3).
 ///
-/// - API calls go to `api.github.com` and count against the rate limit; release.json and zip
-///   downloads use `browser_download_url`, which doesn't.
+/// - API calls go to `api.github.com` and count against the rate limit. release.json and zip
+///   downloads, the `releases/latest` redirect and raw.githubusercontent.com don't.
 /// - The latest `x-ratelimit-remaining` / `x-ratelimit-reset` seen is exposed via `rateLimit()`.
 public actor GitHubSource: Source, SupportChecking {
     public nonisolated let id: SourceID = .github
@@ -14,8 +14,16 @@ public actor GitHubSource: Source, SupportChecking {
     public static let supportTTL: TimeInterval = 6 * 60 * 60
     /// Releases without release.json whose zips are downloaded before giving up.
     public static let maxInspectedReleases = 3
+    /// Optional API calls (README fallback, release details) are only made above this many.
+    public static let comfortableQuota = 30
+    /// How long a `latestTag(for:)` answer is reused, so a refresh's support and update
+    /// phases share one request per repo.
+    static let latestTagTTL: TimeInterval = 10 * 60
+    /// Retries of a github.com request after a 429 or 5xx.
+    static let maxWebRetries = 2
 
     static let apiBase = URL(string: "https://api.github.com")!
+    static let webBase = URL(string: "https://github.com")!
 
     private let http: HTTPClient
     private let token: String?
@@ -29,6 +37,13 @@ public actor GitHubSource: Source, SupportChecking {
     /// Last 200 response of the releases endpoint per repo (lowercased `owner/repo`).
     private var releasesCache: [String: (etag: String, releases: [GitHubRelease])] = [:]
     private var supportCache: [String: (status: SupportStatus, checkedAt: Date)] = [:]
+    private var latestTags: [String: (tag: String?, checkedAt: Date)] = [:]
+    /// Set after github.com keeps answering 429; web requests fail fast until then.
+    private var webBlockedUntil: Date?
+    /// Delay before retry `attempt` (1-based), given the server's `Retry-After` if any.
+    var retryDelay: @Sendable (_ attempt: Int, _ retryAfter: TimeInterval?) -> Duration = { attempt, retryAfter in
+        .seconds(retryAfter ?? Double(1 << attempt))
+    }
 
     public init(http: HTTPClient = URLSessionHTTPClient(), token: String? = nil, cacheDirectory: URL? = nil) {
         self.http = http
@@ -43,6 +58,18 @@ public actor GitHubSource: Source, SupportChecking {
 
     func setClock(_ clock: @escaping @Sendable () -> Date) {
         now = clock
+    }
+
+    func setRetryDelay(_ delay: @escaping @Sendable (Int, TimeInterval?) -> Duration) {
+        retryDelay = delay
+    }
+
+    /// True when optional API calls won't eat into what installs and updates need.
+    /// Unknown counts as comfortable: nothing has been spent yet this session.
+    public func quotaIsComfortable() -> Bool {
+        guard let rateRemaining else { return true }
+        if let rateReset, rateReset <= now() { return true }
+        return rateRemaining > Self.comfortableQuota
     }
 
     // MARK: - Parsing
@@ -136,7 +163,41 @@ public actor GitHubSource: Source, SupportChecking {
 
     // MARK: - Support checks
 
+    /// Decides support from the latest release's release.json on github.com, which costs
+    /// no API quota: `releases/latest` gives the tag, then
+    /// `releases/download/<tag>/release.json` gives the flavors. Only the latest stable
+    /// release is considered. If github.com fails (other than a 404) the API path is
+    /// tried while quota is comfortable.
     public func support(for ref: AddonRef, flavor: Flavor) async -> SupportStatus {
+        guard ref.source == .github, let (owner, repo) = try? Self.split(ref) else { return .unknown }
+        let key = Self.cacheKey(ref) + "#" + flavor.rawValue
+        if let hit = supportCache[key], now().timeIntervalSince(hit.checkedAt) < Self.supportTTL {
+            return hit.status
+        }
+        let status: SupportStatus
+        do {
+            if let tag = try await latestTag(for: ref) {
+                if let json = try await webReleaseJSON(owner: owner, repo: repo, tag: tag) {
+                    status = json.release(for: flavor) != nil ? .supported(version: tag) : .unsupported
+                } else {
+                    status = .needsDownload
+                }
+            } else {
+                status = .noReleases
+            }
+        } catch AddonError.notFound {
+            status = .noReleases
+        } catch {
+            guard quotaIsComfortable() else { return .unknown }
+            return await apiSupport(for: ref, flavor: flavor)
+        }
+        supportCache[key] = (status, now())
+        return status
+    }
+
+    /// The older support check over the releases API. It looks past the latest release but
+    /// costs one API call per repo, and returns `.unknown` within `supportReserve` of the limit.
+    public func apiSupport(for ref: AddonRef, flavor: Flavor) async -> SupportStatus {
         guard ref.source == .github, let (owner, repo) = try? Self.split(ref) else { return .unknown }
         let key = Self.cacheKey(ref) + "#" + flavor.rawValue
         let current = now()
@@ -162,6 +223,100 @@ public actor GitHubSource: Source, SupportChecking {
             return status
         } catch {
             return .unknown
+        }
+    }
+
+    // MARK: - Quota-free github.com routes
+
+    /// Tag of the latest stable release (drafts and prereleases excluded), from where
+    /// `github.com/<repo>/releases/latest` redirects. Nil when the repo has no releases.
+    /// Throws `notFound` for a missing repo. Costs no API quota.
+    public func latestTag(for ref: AddonRef) async throws -> String? {
+        let (owner, repo) = try Self.split(ref)
+        let key = Self.cacheKey(ref)
+        if let hit = latestTags[key], now().timeIntervalSince(hit.checkedAt) < Self.latestTagTTL {
+            return hit.tag
+        }
+        let url = Self.webBase.appending(path: "\(owner)/\(repo)/releases/latest")
+        let (_, response) = try await webRequest(url, method: "HEAD")
+        switch response.statusCode {
+        case 200..<300:
+            let tag = Self.tag(fromReleaseURL: response.url)
+            latestTags[key] = (tag, now())
+            return tag
+        case 404:
+            throw AddonError.notFound(ref)
+        default:
+            throw AddonError.http(status: response.statusCode, url: url)
+        }
+    }
+
+    /// `…/owner/repo/releases/tag/<tag>` → `<tag>`; anything else (a repo without releases
+    /// lands on its plain releases page) → nil.
+    static func tag(fromReleaseURL url: URL?) -> String? {
+        guard let url else { return nil }
+        let parts = url.path(percentEncoded: false).split(separator: "/", omittingEmptySubsequences: true)
+        guard parts.count >= 5, parts[2] == "releases", parts[3] == "tag" else { return nil }
+        return parts[4...].joined(separator: "/")
+    }
+
+    static func releaseDownloadURL(owner: String, repo: String, tag: String, file: String) -> URL {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove("/")
+        let escaped = tag.addingPercentEncoding(withAllowedCharacters: allowed) ?? tag
+        return URL(string: "https://github.com/\(owner)/\(repo)/releases/download/\(escaped)/\(file)")!
+    }
+
+    /// release.json of the release tagged `tag`, or nil if it has none. Cached on disk by tag,
+    /// since a tag's assets rarely change and a new release gets a new tag.
+    private func webReleaseJSON(owner: String, repo: String, tag: String) async throws -> ReleaseJSON? {
+        let name = String("\(owner)__\(repo)__\(tag)".lowercased().map { $0.isLetter || $0.isNumber || "._-".contains($0) ? $0 : "_" })
+        let file = cacheDirectory?.appending(path: "github/release-json/tags/\(name).json", directoryHint: .notDirectory)
+        if let file, let data = try? Data(contentsOf: file), let json = try? ReleaseJSON(data: data) {
+            return json
+        }
+        let url = Self.releaseDownloadURL(owner: owner, repo: repo, tag: tag, file: "release.json")
+        let (data, response) = try await webRequest(url, method: "GET")
+        switch response.statusCode {
+        case 200..<300:
+            let json = try ReleaseJSON(data: data)
+            if let file {
+                try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? data.write(to: file, options: .atomic)
+            }
+            return json
+        case 404:
+            return nil
+        default:
+            throw AddonError.http(status: response.statusCode, url: url)
+        }
+    }
+
+    /// A request to github.com or raw.githubusercontent.com: no token, no API quota.
+    /// Retries 429 and 5xx with backoff. A 429 that persists, or asks for a long wait,
+    /// pauses every web request until it's over so a refresh doesn't keep hammering.
+    func webRequest(_ url: URL, method: String = "GET", accept: String? = nil) async throws -> (Data, HTTPURLResponse) {
+        var attempt = 0
+        while true {
+            if let until = webBlockedUntil, until > now() { throw AddonError.rateLimited(resetAt: until) }
+            var request = URLRequest(url: url)
+            request.httpMethod = method
+            request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
+            if let accept { request.setValue(accept, forHTTPHeaderField: "Accept") }
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await http.data(for: request)
+            let status = response.statusCode
+            guard status == 429 || (500...599).contains(status) else { return (data, response) }
+
+            attempt += 1
+            let retryAfter = response.value(forHTTPHeaderField: "retry-after").flatMap { TimeInterval($0.trimmingCharacters(in: .whitespaces)) }
+            if attempt > Self.maxWebRetries || (retryAfter ?? 0) > 30 {
+                guard status == 429 else { throw AddonError.http(status: status, url: url) }
+                let until = now().addingTimeInterval(retryAfter ?? 60)
+                webBlockedUntil = until
+                throw AddonError.rateLimited(resetAt: until)
+            }
+            try await Task.sleep(for: retryDelay(attempt, retryAfter))
         }
     }
 

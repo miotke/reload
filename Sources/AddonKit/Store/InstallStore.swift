@@ -58,14 +58,18 @@ public actor InstallStore {
     }
 
     /// Locked read-modify-write of one installation's add-on list. Creates the
-    /// installation's file if it doesn't exist yet.
+    /// installation's file if it doesn't exist yet. Leaves the file untouched when `body`
+    /// changes nothing, because the app reloads on every write to `storeDirectory`.
     @discardableResult
     public func modify<T: Sendable>(_ installation: Installation, _ body: @Sendable (inout [InstalledAddon]) throws -> T) throws -> T {
         let fd = try acquireLock()
         defer { releaseLock(fd) }
-        var file = try read(installation.id) ?? StoreFile(schemaVersion: Self.schemaVersion, installation: installation, addons: [])
+        let existing = try read(installation.id)
+        var file = existing ?? StoreFile(schemaVersion: Self.schemaVersion, installation: installation, addons: [])
         let result = try body(&file.addons)
-        try write(file)
+        if existing == nil || existing?.addons != file.addons {
+            try write(file)
+        }
         return result
     }
 
@@ -114,7 +118,9 @@ public actor InstallStore {
     /// Adds or updates `installation`, keeping its add-ons.
     public func save(_ installation: Installation) throws {
         try withLock { store in
-            var file = try store.read(installation.id) ?? StoreFile(schemaVersion: Self.schemaVersion, installation: installation, addons: [])
+            let existing = try store.read(installation.id)
+            guard existing?.installation != installation else { return }
+            var file = existing ?? StoreFile(schemaVersion: Self.schemaVersion, installation: installation, addons: [])
             file.installation = installation
             try store.write(file)
         }

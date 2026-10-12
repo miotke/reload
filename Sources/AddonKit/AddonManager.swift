@@ -20,6 +20,7 @@ public actor AddonManager: AddonManaging {
     private var searchCoordinator: SearchCoordinator
     /// Automatic detection runs at most once per process; later scans are explicit.
     private var didAutoDetect = false
+    private var retryDelay: (@Sendable (Int, TimeInterval?) -> Duration)?
 
     /// Add-ons checked or updated at once.
     static let maxConcurrentOperations = 4
@@ -69,12 +70,19 @@ public actor AddonManager: AddonManaging {
     public func tokenDidChange() async {
         let token = Self.token(environment: environment, keychain: keychain)
         github = GitHubSource(http: http, token: token, cacheDirectory: directories.caches)
+        if let retryDelay { await github.setRetryDelay(retryDelay) }
         searchCoordinator = SearchCoordinator(
             catalogue: catalogue,
             github: GitHubSearchProvider(http: http, token: token),
             support: github,
             supportCache: supportCache
         )
+    }
+
+    /// Tests skip the backoff sleeps between github.com retries.
+    func setRetryDelay(_ delay: @escaping @Sendable (Int, TimeInterval?) -> Duration) async {
+        retryDelay = delay
+        await github.setRetryDelay(delay)
     }
 
     /// Remaining GitHub API calls and when the limit resets, as last reported by GitHub.
@@ -241,28 +249,44 @@ public actor AddonManager: AddonManaging {
     // MARK: - Updates
 
     public func checkForUpdates(in installation: Installation) async throws -> [AddonRef: UpdateState] {
+        try await checkForUpdates(in: installation, progress: { _, _ in })
+    }
+
+    /// `progress` is called once per add-on as its check lands, with the number done so far.
+    func checkForUpdates(
+        in installation: Installation, progress: @Sendable (InstalledAddon, Int) -> Void
+    ) async throws -> [AddonRef: UpdateState] {
         let addons = try await store.addons(in: installation)
         var states: [AddonRef: UpdateState] = [:]
+        var etags: [AddonRef: String] = [:]
 
-        try await withThrowingTaskGroup(of: (AddonRef, UpdateState, String?).self) { group in
+        try await withThrowingTaskGroup(of: (InstalledAddon, UpdateState, String?).self) { group in
             var pending = addons[...]
             func addNext() {
                 guard let addon = pending.popFirst() else { return }
                 group.addTask {
                     let (state, etag) = await self.updateState(of: addon, in: installation)
-                    return (addon.id, state, etag)
+                    return (addon, state, etag)
                 }
             }
             for _ in 0..<Self.maxConcurrentOperations { addNext() }
-            while let (ref, state, etag) = try await group.next() {
-                states[ref] = state
-                if case .upToDate = state, let etag {
-                    // Only remember the ETag while up to date: a 304 then still means "nothing new".
-                    try? await store.modify(installation) { addons in
-                        if let index = addons.firstIndex(where: { $0.id == ref }) { addons[index].etag = etag }
-                    }
-                }
+            while let (addon, state, etag) = try await group.next() {
+                states[addon.id] = state
+                // Only remember the ETag while up to date: a 304 then still means "nothing new".
+                if case .upToDate = state, let etag, etag != addon.etag { etags[addon.id] = etag }
+                progress(addon, states.count)
                 addNext()
+            }
+        }
+
+        // The app reloads whenever the store changes, so a check that learned nothing new
+        // mustn't write.
+        if !etags.isEmpty {
+            let changes = etags
+            try? await store.modify(installation) { addons in
+                for index in addons.indices {
+                    if let etag = changes[addons[index].id] { addons[index].etag = etag }
+                }
             }
         }
         return states
