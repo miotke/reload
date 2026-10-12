@@ -54,5 +54,5 @@ Written by `export`, read by `import`. Use it to share a setup or move to anothe
 - `install --version <tag>` only succeeds when `<tag>` is the current release (then it installs and pins it). There's no public core API to install an older tag yet. `import` warns and installs the current release (still pinned) in that case.
 - `OperationEvent.failed` and `UpdateState.failed` carry only a message, not an error code, so batch failures can't always map to a precise exit code.
 - `info` may spend one API call on release notes when stored details are stale and more than 30 calls remain.
-- `search` shows stored verdicts only. Add-ons that were never opened, installed or refreshed show `—` in GAMES until the next refresh ([refresh.md](../features/refresh.md)).
+- `search` checks unchecked rows before printing, but add-ons without a `release.json` still show `—` in GAMES: telling their games needs the zip, which `info` or an install downloads.
 - Only GitHub is a source today. The `github:` prefix leaves room for others ([decision 0002](../decisions/0002-github-releases-no-keyed-apis.md)).

@@ -37,7 +37,7 @@ Destructive commands (`remove`, `remove --unmanaged`, `adopt`, `rollback`, `cach
 
 ## search
 
-- **No support checks.** GAMES shows what's stored: `R F C` letters, `·` for a missing family, `—` when not checked (no `release.json`, or never refreshed or opened).
+- **Checks rows it's about to print,** like the app checks rows on screen: `checkVisible` on those with no stored flavors (quota-free, 20 per call, a few rounds since a check can hide a row and pull another up). A spinner shows "Checking games…". GAMES then shows `R F C` letters, `·` for a missing family, `—` when the check couldn't tell (no `release.json`, github.com pausing, Low Data Mode).
 - It asks GitHub only when there are fewer than 3 local matches (3+ character query), or with `--github`. When it does so on its own, it prints `Few local matches, so GitHub was searched too.` on stderr.
 - A spinner shows "Searching GitHub…" while the live search runs (terminal only).
 - `--json` output gains `searchedGitHub`.

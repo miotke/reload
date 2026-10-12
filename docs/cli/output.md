@@ -33,7 +33,7 @@ $ addonctl update
 ```
 
 - Aligned tables go to stdout.
-- **GAMES** (`search`, `list`, `info`): which games the latest release ships builds for, in fixed positions: **R** Retail, **F** Forever, **C** Classic, `·` for a family with no build. On a terminal R is blue, F cyan, C yellow, and the installation's own family is bold. `—` (dimmed) means nobody has checked yet (no `release.json`, or not refreshed); it's not a warning. `Format.games`.
+- **GAMES** (`search`, `list`, `info`): which games the latest release ships builds for, in fixed positions: **R** Retail, **F** Forever, **C** Classic, `·` for a family with no build. On a terminal R is blue, F cyan, C yellow, and the installation's own family is bold. `—` (dimmed) means not known: no `release.json`, or the check couldn't run; it's not a warning. `Format.games`.
 - Progress rows and spinners go to **stderr**, and only when stderr is a terminal. When it isn't, each result is printed as a line on stdout instead.
 - After anything that changed files, `WoW is running; type /reload to load the changes.` is printed if an app with bundle id `com.blizzard.worldofwarcraft` is running.
 

@@ -9,8 +9,8 @@ struct SearchCommand: ContextCommand {
         discussion: """
             Searches the local catalogue. GitHub is asked only when fewer than 3 add-ons match, \
             or with --github. The GAMES column shows which games the latest release ships builds \
-            for (R Retail, F Forever, C Classic; — not checked yet); `addonctl refresh` and \
-            `addonctl info` update it.
+            for (R Retail, F Forever, C Classic). Rows not checked yet are checked before printing, \
+            like the app does for rows on screen (quota-free); — means unknown (no release.json).
             """,
         aliases: ["s"]
     )
@@ -42,12 +42,17 @@ struct SearchCommand: ContextCommand {
 
         let spinner = Spinner(enabled: context.showsProgress)
         let updates = context.manager.searchUpdates(searchQuery, in: installation, installed: installed)
-        let (latest, searchedGitHub) = await Self.collect(updates) { spinner.start("Searching GitHub…") }
+        var (latest, searchedGitHub) = await Self.collect(updates) { spinner.start("Searching GitHub…") }
         spinner.stop()
         if searchedGitHub, !github {
             context.note("Few local matches, so GitHub was searched too.")
         }
 
+        let checkSpinner = Spinner(enabled: context.showsProgress)
+        latest = await Self.checkGames(latest, flavor: installation.flavor, all: all, limit: limit, manager: context.manager, installation: installation) {
+            checkSpinner.start("Checking games…")
+        }
+        checkSpinner.stop()
         let results = Self.filter(latest, flavor: installation.flavor, all: all, limit: limit)
         if context.json {
             try context.emit(Output(query: text, searchedGitHub: searchedGitHub, results: results.map(SearchResultJSON.init)))
@@ -76,6 +81,34 @@ struct SearchCommand: ContextCommand {
             }
         }
         return (latest, searchedGitHub)
+    }
+
+    /// Checks the rows about to be printed whose games aren't known, the way the app checks
+    /// rows on screen (`checkVisible`: quota-free, at most 20 per call). A check can reveal a
+    /// row to hide, letting an unchecked one move up, so this repeats a few times.
+    static func checkGames(
+        _ results: [SearchResult], flavor: Flavor, all: Bool, limit: Int,
+        manager: any AddonManaging, installation: Installation, onStart: () -> Void = {}
+    ) async -> [SearchResult] {
+        var results = results
+        var started = false
+        for _ in 0..<(limit / 20 + 2) {
+            let shown = filter(results, flavor: flavor, all: all, limit: limit)
+            let unchecked = shown.filter { $0.availableFlavors == nil }.map(\.id)
+            guard !unchecked.isEmpty else { break }
+            if !started { onStart(); started = true }
+            let targets = BrowseFilter.visibleCheckTargets(unchecked) { _ in false }
+            guard !(await manager.checkVisible(targets, in: installation)).isEmpty else { break }
+            let stored = await manager.storedAvailability(for: targets, in: installation)
+            results = results.map { result in
+                guard let answer = stored[result.id] else { return result }
+                var result = result
+                if let support = answer.support { result.support = support }
+                if let flavors = answer.availableFlavors { result.availableFlavors = flavors }
+                return result
+            }
+        }
+        return results
     }
 
     /// Drops results with no build for the installation's family unless `all`
