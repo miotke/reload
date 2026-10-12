@@ -42,7 +42,8 @@ struct SettingsView: View {
                 Picker("Default channel", selection: $defaultChannel) {
                     ForEach(Channel.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
-                Toggle("Check for updates on launch", isOn: $checkForUpdatesOnLaunch)
+                Toggle("Check for updates automatically", isOn: $checkForUpdatesOnLaunch)
+                    .help("On launch, when the app becomes active, and every 2 hours. Check for Updates (⌘R) always works.")
             }
 
             Section("Menu Bar") {

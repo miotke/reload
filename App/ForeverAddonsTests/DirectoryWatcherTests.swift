@@ -32,4 +32,17 @@ import Testing
         try await Task.sleep(for: .milliseconds(700))
         #expect(calls.load(ordering: .relaxed) > afterDelete)
     }
+
+    @Test func fingerprintChangesOnlyWithContents() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "DirectoryWatcherTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory.appending(path: "sub"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        try Data("a".utf8).write(to: directory.appending(path: "sub/a.json"))
+        let first = DirectoryWatcher.fingerprint(of: directory)
+        #expect(DirectoryWatcher.fingerprint(of: directory) == first)
+        try Data("bb".utf8).write(to: directory.appending(path: "sub/a.json"))
+        #expect(DirectoryWatcher.fingerprint(of: directory) != first)
+    }
 }

@@ -29,7 +29,7 @@ struct AdoptSheet: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let error = state.rowErrors["unmanaged:\(target.folder)"] {
+            if let error = state.row("unmanaged:\(target.folder)").error {
                 RowErrorText(message: error)
             }
 
