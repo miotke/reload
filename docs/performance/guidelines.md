@@ -14,6 +14,7 @@ Each rule comes from `.claude/CLAUDE.md` or a number in [measurements.md](measur
 - **Batch writes** in one transaction.
 - **Never write when nothing changed.** Compare first.
 - **Never hold a write transaction across a network `await`.** Fetch first, then write.
+- **Read a list of rows in one query**, not one or two per row: pass the names as a JSON array to `json_each(?)` and join (`SupportCache.storedAvailability`). 500 rows: 0.85 ms vs 3 ms.
 - Avoid whole-file rewrites per change. 1,300 support-cache sets took 4.4 s that way, 1.7 ms batched in SQLite.
 
 ### SQLite
@@ -32,7 +33,7 @@ Each rule comes from `.claude/CLAUDE.md` or a number in [measurements.md](measur
 
 - **Progress at most 10–20 Hz.** Use `AsyncStream` with `bufferingNewest` so slow consumers see the latest value, not a backlog.
 - **Per-row `@Observable` state.** Progress and errors live in one `RowState` per row, so a tick re-renders only that row's cells and the inspector's action bar.
-- Keep refresh progress in its own object (`RefreshStatus`), observed only by the sidebar bar and the seeding sheet.
+- Keep refresh progress in its own object (`RefreshStatus`), observed only by the sidebar bar and the seeding sheet. Read it in the sidebar's own `body` (`SidebarHost`), never in `ContentView`'s, or every tick re-runs the window's root.
 - Assign model properties only when the value changed.
 
 ## Tables and lists

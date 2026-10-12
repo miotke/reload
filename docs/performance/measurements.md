@@ -1,6 +1,6 @@
 # Performance measurements
 
-Timings and sizes for the app, the CLI and the core: the baseline from the first performance audit (`561937a`) next to the second audit (`05ba0ff`). Both are Release builds.
+Timings and sizes for the app, the CLI and the core: the baseline from the first performance audit (`561937a`) next to the second audit (`05ba0ff`), both Release builds, and the third audit of Browse at 500 rows ([below](#browse-at-500-rows-d13a961)).
 
 Update these after merges that change hot paths (see `.claude/CLAUDE.md`). The rules that follow from them: [guidelines.md](guidelines.md).
 
@@ -72,6 +72,26 @@ From the second audit's findings ([decision 0017](../decisions/0017-details-with
 - A finished update rebuilds and re-sorts the Installed table once, not twice.
 - Inspector details are capped at the 20 most recently viewed add-ons.
 - Zip extraction happens before the store lock.
+
+## Browse at 500 rows (`d13a961`)
+
+Third audit, after the Browse lists grew from 20 to 500 rows and gained game bubbles, stored flavors and the sidebar. Apple M4. Core numbers are Release (`swift test -c release -Xswiftc -enable-testing --filter DatabasePerformanceTests`) over a temp database with 5k catalogue rows, 3k Forever and 1k Retail verdicts, 3k `repo_meta` and `release_json` rows, 200 live-search answers and 100 release folder lists. App numbers are Debug unit tests (`BrowsePerformanceTests`) on the main actor, so an upper bound.
+
+| Operation | Before | After |
+|---|---|---|
+| `storedAvailability` for 500 refs (a live patch of a whole list) | 3.05 ms (1,000 queries) | 0.85 ms (1 query) |
+| `browse(in:)`, both 500-row lists | 8.1 ms | same |
+| Search per keystroke, whole pipeline | 5.0 ms (index query 0.5 ms; reading verdicts 1.5, flavors 2.0, stars 0.2) | same |
+| Refresh targets: seed / later | 1.2 / 0.9 ms | same |
+| `releaseFolders()` | 0.12 ms | same |
+| `BrowseModel.rebuildRows`, 500 rows: unsorted / by name / by games | 3.7–4.5 / 3.8 / 5.7 ms | same |
+| `applyStored` patching all 500 rows | 4.3 ms | same |
+| Progress tick during a refresh | re-ran the window's root `body` | re-runs only the sidebar |
+
+- **Query plans.** Every per-repo lookup (support, `repo_meta`, `release_json`, `search_cache`, catalogue) uses its primary key, and the rotation query uses `support_flavor_checked`. Whole-table reads (verdicts by flavor, flavors, stars) are the intended scans. `DatabasePerformanceTests.hotQueriesUseAnIndex` keeps it that way.
+- **Writes.** Flavors, stars, folders, rate limits and update states skip unchanged rows; a re-checked verdict still writes its `checked_at`, which is its TTL clock, and the Browse patch it triggers ends in an equality check that skips the rebuild. Transactions are synchronous closures, so none can span a network `await`.
+- **Row building.** Of the 3 ms to build 500 `BrowseRow`s, `GameBubblesModel` is 1.9 ms and `DayLabel` 0.9 ms. That's within a frame, at most twice a second during a refresh, so it stays.
+- Not re-measured: launch, idle memory, SwiftUI updates in a running app.
 
 ## How to measure
 

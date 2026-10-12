@@ -71,7 +71,7 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | Refresh, update, Update All, install, pin, adopt, Move to Trash | `App/ForeverAddons/Models/UpdateQueue.swift` |
 | Per-row progress and errors (`RowState`), refresh progress (`RefreshStatus`) | `App/ForeverAddons/Models/RowState.swift` |
 | CLI install state (first-launch offer, Settings) | `App/ForeverAddons/Models/CommandLineToolModel.swift` |
-| Window: split view, detail per section, toolbar, search field and its scope, title menu wiring, `InspectorSplit` | `App/ForeverAddons/Views/ContentView.swift` |
+| Window: split view, the sidebar host (reads its progress and counts), detail per section, toolbar, search field and its scope, title menu wiring, `InspectorSplit` | `App/ForeverAddons/Views/ContentView.swift` |
 | Sidebar (library sections with counts, Browse, categories, refresh bar) and the title menu's game picker | `App/ForeverAddons/Views/SidebarView.swift` |
 | Library table (Installed, Updates, Unmanaged, Pinned), its cells, context menu, empty states and the Updates header | `App/ForeverAddons/Views/InstalledView.swift` |
 | Browse table, filter bar, status bar and cells | `App/ForeverAddons/Views/BrowseView.swift` |

@@ -102,7 +102,7 @@ Sources/addonctl/            the CLI (docs/cli/)
 | SQLite schema, migrations, change stream | `Sources/AddonKit/Store/MetadataDatabase.swift` |
 | Catalogue download and storage | `Sources/AddonKit/Search/CatalogueSource.swift` |
 | CSV reader | `Sources/AddonKit/Search/CSVParser.swift` |
-| Stored verdicts, latest tags, available flavors | `Sources/AddonKit/Search/SupportCache.swift` |
+| Stored verdicts, latest tags, available flavors, batched availability reads | `Sources/AddonKit/Search/SupportCache.swift` |
 | Search layers merged, Browse content | `Sources/AddonKit/Search/SearchCoordinator.swift` |
 | Text normalisation and the local index | `Sources/AddonKit/Search/SearchIndex.swift` |
 | Query aliases and Browse categories | `Sources/AddonKit/Search/SearchAliases.swift` |
