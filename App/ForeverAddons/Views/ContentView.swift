@@ -8,13 +8,7 @@ struct ContentView: View {
     var body: some View {
         @Bindable var model = model
         NavigationSplitView {
-            SidebarView(selection: $model.section, counts: model.current?.installed.counts ?? LibraryCounts(),
-                        categories: model.categories, refresh: model.visibleRefresh,
-                        showsInstallation: model.installations.count > 1,
-                        fetch: model.current.map { state in
-                            FetchFooter.Model(lastFetched: state.queue.lastChecked, isRefreshing: state.queue.isRefreshing,
-                                              refresh: model.checkForUpdates)
-                        })
+            SidebarHost(model: model)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 300)
         } detail: {
             if let state = model.current {
@@ -54,6 +48,23 @@ struct ContentView: View {
             model.section = storedSection
             await model.initialLoad()
         }
+    }
+}
+
+/// Reads the sidebar's inputs in its own body, so refresh progress ticks (10–20 Hz) and
+/// count changes re-render only the sidebar, not the whole window (docs/performance/guidelines.md).
+private struct SidebarHost: View {
+    var model: AppModel
+
+    var body: some View {
+        @Bindable var model = model
+        SidebarView(selection: $model.section, counts: model.current?.installed.counts ?? LibraryCounts(),
+                    categories: model.categories, refresh: model.visibleRefresh,
+                    showsInstallation: model.installations.count > 1,
+                    fetch: model.current.map { state in
+                        FetchFooter.Model(lastFetched: state.queue.lastChecked, isRefreshing: state.queue.isRefreshing,
+                                          refresh: model.checkForUpdates)
+                    })
     }
 }
 

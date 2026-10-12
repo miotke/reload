@@ -31,6 +31,7 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0020](0020-core-ui-boundary-and-feature-models.md) | Core/UI boundary, feature models and snapshot rendering | Accepted | 2026-10-12 |
 | [0021](0021-sidebar-navigation-and-game-picker.md) | Sidebar navigation with library sections and categories; game picker in the title | Accepted | 2026-10-12 |
 | [0022](0022-mac-style-settings-and-alternate-icons.md) | Mac-style tabbed Settings; alternate icons through `applicationIconImage` only | Accepted | 2026-10-12 |
+| [0023](0023-batched-row-reads-and-sidebar-progress.md) | One query for a Browse list's stored answers; refresh progress observed only in the sidebar | Accepted | 2026-10-12 |
 
 ## By area
 
@@ -39,7 +40,8 @@ Each record explains one decision: its context, what was decided, the alternativ
 | Architecture | 0001, 0004, 0005, 0008 |
 | Sources and flavor support | 0002, 0003, 0016, 0018, 0019 |
 | Network | 0009, 0010, 0011, 0017, 0019 |
-| App | 0006, 0007, 0012, 0013, 0015, 0019, 0021, 0022 |
+| App | 0006, 0007, 0012, 0013, 0015, 0019, 0021, 0022, 0023 |
+| Performance | 0008, 0013, 0023 |
 | Docs | 0014 |
 
 ## Writing a new record
