@@ -67,8 +67,9 @@ flowchart LR
 | Doc | Read this when… |
 |---|---|
 | [project.md](app/project.md) | you're changing the Xcode project, targets, the embedded CLI or `ADDONS_DATA_DIR` |
-| [layout.md](app/layout.md) | you're working on the window, sidebar, toolbar, inspector placement, tables or sorting |
+| [layout.md](app/layout.md) | you're working on the window, sidebar, toolbar, inspector placement, tables, sorting or the add-on window |
 | [first-launch.md](app/first-launch.md) | you're touching the seeding sheet, refresh progress or the 2-hour auto refresh |
+| [live-data.md](app/live-data.md) | you're changing how the app follows database changes, CLI writes or the install store |
 | [cli-install.md](app/cli-install.md) | you're changing how the app installs `addonctl` into `/usr/local/bin` |
 
 ## cli/
@@ -77,6 +78,7 @@ flowchart LR
 |---|---|
 | [commands.md](cli/commands.md) | you need a command, how `<ref>` resolves, or how the installation is picked |
 | [output.md](cli/output.md) | you're changing tables, JSON, progress, exit codes, environment or completions |
+| [maintenance.md](cli/maintenance.md) | you're using or changing `refresh`, `cache` or `doctor` |
 | [config.md](cli/config.md) | you need config keys, the `addons.json` format or current limits |
 
 ## decisions/

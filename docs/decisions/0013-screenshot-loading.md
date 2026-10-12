@@ -7,13 +7,13 @@ Screenshots are downloaded once to a disk cache, decoded as thumbnails at displa
 
 ## Context
 
-The inspector shows images from an add-on's README. READMEs mix real screenshots with status badges and logos, and screenshots are often large PNGs. Decoding them at full size for a 320 px strip wastes memory and main-thread time, and arrow-keying through a table would start a download for every row.
+The inspector shows images from an add-on's README. READMEs mix real screenshots with status badges and logos, and screenshots are often large PNGs. Decoding them at full size for a strip of small thumbnails wastes memory and main-thread time, and arrow-keying through a table would start a download for every row.
 
 ## Decision
 
-- **Filter:** drop badge hosts (shields.io, badgen and similar), CI badges (`…/badge.svg`) and all SVGs. Keep at most **6** images per add-on.
+- **Filter in the core** (`ReadmeImages`): drop badge hosts (shields.io, badgen and similar), CI badges, SVGs, favicons and tiny icons. The app only keeps at most **6** images per add-on.
 - **Download once:** `ScreenshotLoader` has its own `URLSession` with a dedicated `URLCache` (32 MB memory, 200 MB disk). Refuse images over **5 MB**.
-- **Thumbnails:** decode with ImageIO at display size (320 px on the long side), off the main actor, lazily as the strip scrolls.
+- **Thumbnails:** decode with ImageIO at display size (2× the thumbnail width), off the main actor, lazily as the strip scrolls.
 - **Full resolution only in the viewer** (up to 2000 px), when the user clicks a thumbnail.
 - **Cache decoded images** in an `NSCache` keyed by size and URL.
 - **Cancel** loads when the selection changes (`.task(id:)`).

@@ -21,7 +21,7 @@ New files under `App/ForeverAddons/` (and `Sources/addonctl/`) are picked up on 
 |---|---|
 | `ForeverAddons` | The app. Depends on the `AddonKit` package product and embeds `addonctl`. Default actor isolation `MainActor` |
 | `addonctl` | The CLI, compiled from `../Sources/addonctl` (the whole folder) against `AddonKit` and `ArgumentParser` (swift-argument-parser, pinned to 1.5.0 like `Package.swift`). Built with `-parse-as-library` because the entry point is an `@main` type. Default isolation `nonisolated`, matching the package |
-| `ForeverAddonsTests` | Unit tests for app helpers (`CLIInstaller`, `DirectoryWatcher`, `DayLabel`, `ScreenshotFilter`, table rows and sorting, `MarkdownParser`). Links `AddonKit`. Not hosted: the sources under test are compiled into the test bundle, so tests never launch the app |
+| `ForeverAddonsTests` | Unit tests for app helpers (`CLIInstaller`, `DirectoryWatcher`, `DayLabel`, table rows and sorting, `MarkdownParser`, and `EnvironmentUsageTests` for [decision 0015](../decisions/0015-environment-only-at-scene-roots.md)). Links `AddonKit`. Not hosted: the sources under test are compiled into the test bundle, so tests never launch the app |
 
 The app is signed "Sign to Run Locally", so no Apple developer account is needed.
 
@@ -59,8 +59,8 @@ With sandboxed data, the first-launch `addonctl` offer doesn't appear, and the s
 | Folder | Contents |
 |---|---|
 | `App/ForeverAddons/Models/` | `AppModel` (root: manager, installations, selections, banner, store watcher, seeding, auto refresh), `InstallationModel` (per-installation add-ons, update state, table rows, `RowState`s, `RefreshStatus`, search, browse, details), `CommandLineToolModel` (CLI install state) |
-| `App/ForeverAddons/Views/` | `ContentView` (split view, sidebar with refresh progress, `InspectorSplit`), `InstalledView`, `BrowseView`, `AddonInspectorView`, `ScreenshotViews`, `MarkdownView`, `SeedingSheet`, `AdoptSheet`, `SettingsView`, `CommandLineToolViews`, shared `Components` |
-| `App/ForeverAddons/Support/` | `AppEnvironment` (standard or `ADDONS_DATA_DIR` wiring), `DirectoryWatcher`, `CLIInstaller`, `TableSorting` + `TableRows`, `MarkdownBlocks`, `AddonFormatting` (`DayLabel`, `ScreenshotFilter`), `ScreenshotLoader`, small helpers |
+| `App/ForeverAddons/Views/` | `ContentView` (split view, sidebar with refresh progress, `InspectorSplit`), `InstalledView`, `BrowseView`, `AddonInspectorView` (`AddonDetailView`), `AddonWindow`, `ScreenshotViews`, `MarkdownView`, `SeedingSheet`, `AdoptSheet`, `SettingsView`, `CommandLineToolViews`, shared `Components` |
+| `App/ForeverAddons/Support/` | `AppEnvironment` (standard or `ADDONS_DATA_DIR` wiring), `DirectoryWatcher`, `CLIInstaller`, `TableSorting` + `TableRows`, `MarkdownBlocks`, `AddonFormatting` (`DayLabel`), `ScreenshotLoader`, small helpers |
 | `App/ForeverAddonsTests/` | App unit tests |
 
 The Keychain wrapper lives in AddonKit (`KeychainStore`), shared with the CLI.

@@ -1,10 +1,12 @@
 # Details and screenshots
 
-What the inspector shows for a selected add-on, how details are loaded, and how README and screenshot images are rendered.
+What the inspector and the add-on window show for an add-on, how details are loaded, and how README and screenshot images are rendered.
 
 Code: `AddonManager+Details.swift` (`details(for:in:)` → `AddonDetails`), `Details/ReadmeImages.swift`; app side in `App/ForeverAddons/Views/AddonInspectorView.swift`, `ScreenshotViews.swift`, `MarkdownView.swift`, `Support/ScreenshotLoader.swift`, `Support/MarkdownBlocks.swift`. Where the inspector sits: [app/layout.md](../app/layout.md).
 
 ## What the inspector shows
+
+The same view (`AddonDetailView`) fills the inspector and, in a `.window` style, the [add-on window](../app/layout.md#add-on-window).
 
 For any selected add-on, installed or not:
 
@@ -60,19 +62,19 @@ Why it works this way: [decision 0013](../decisions/0013-screenshot-loading.md).
 
 ```mermaid
 flowchart LR
-    R[ReadmeImages<br/>README image URLs] --> F[ScreenshotFilter<br/>drop badges, SVG<br/>max 6]
+    R[ReadmeImages<br/>filtered README image URLs] --> F[App: max 6]
     F --> L[ScreenshotLoader]
     L --> C[(URLCache<br/>32 MB mem / 200 MB disk)]
-    L --> T[Thumbnail<br/>ImageIO, 320 px]
+    L --> T[Thumbnail<br/>ImageIO, 2× display width]
     L --> V[Viewer<br/>up to 2000 px]
     T --> N[(NSCache of<br/>decoded images)]
     V --> N
 ```
 
 - **Which images (core, `ReadmeImages`):** Markdown inline and reference images and HTML `<img src>`, in document order and de-duplicated, ignoring code blocks and comments. Relative paths resolve against the README's folder on raw.githubusercontent.com; `github.com/…/blob/…` and `…/raw/…` links become raw URLs. Badges (shields.io and similar hosts, CI status images, anything with "badge" in the path), SVGs, favicons, `NNxNN` icons and images an `<img>` sizes at 64 px or less are dropped.
-- **App filter (`ScreenshotFilter`):** drops remaining badge hosts and SVGs, and keeps at most 6 per add-on.
+- **Filtering belongs to the core.** The app only caps the list at 6 images per add-on and refuses images over 5 MB.
 - **Download once:** `ScreenshotLoader` has its own `URLSession` with a dedicated `URLCache` (32 MB memory, 200 MB disk). Images over 5 MB are refused.
-- **Thumbnail decode:** ImageIO downsamples to the display size (320 px on the long side) off the main actor. Thumbnails load lazily as the strip scrolls.
+- **Thumbnail decode:** ImageIO downsamples to twice the thumbnail width (for Retina) off the main actor. Thumbnails are 150×96 in the inspector and 320×200 in the add-on window. They load lazily as the strip scrolls.
 - **Full resolution only in the viewer:** clicking a thumbnail opens a sheet (← / → to step, Esc to close) that decodes a larger version (up to 2000 px).
 - Decoded images are kept in an `NSCache`, keyed by size and URL.
 - Loads are cancelled when the selection changes.
