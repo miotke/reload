@@ -9,28 +9,22 @@ flowchart TB
     App[ForeverAddons.app] --> AM
     CLI[addonctl] --> AM
     AM[AddonManager<br/>actor]
-    AM --> Loc[InstallationLocator]
-    AM --> GH[GitHubSource]
-    AM --> DL[Downloader]
-    AM --> Inst[Installer]
-    AM --> Store[InstallStore]
-    AM --> Search[SearchCoordinator]
-    GH --> Sel[ReleaseSelector]
-    GH --> Zip[ZipInspector]
+    AM --> Loc[InstallationLocator] & LR[LatestReleaseStore] & GH[GitHubSource] & RF[ReadmeFetcher]
+    AM --> DL[Downloader] & Inst[Installer] & Store[InstallStore] & Search[SearchCoordinator]
+    LR --> GH & Web[GitHubWebClient] & SC
+    GH --> Sel[ReleaseSelector] & Zip[ZipInspector] & API[GitHubAPIClient]
+    RF --> Web & API
     Inst --> Ext[ZipExtractor]
-    Search --> Cat[CatalogueSource]
-    Search --> GHS[GitHubSearchProvider]
-    Search --> SC[SupportCache]
-    Cat --> DB[(metadata.sqlite)]
-    SC --> DB
-    GH --> DB
+    Search --> Cat[CatalogueSource] & GHS[GitHubSearchProvider] & SC[SupportCache]
+    Cat & SC --> DB[(metadata.sqlite)]
 ```
 
-Search no longer calls `GitHubSource`: it reads stored verdicts only ([search.md](../features/search.md)).
+Search never goes through `LatestReleaseStore`: it reads stored verdicts only ([search.md](../features/search.md)).
 
 | Component | Doc |
 |---|---|
-| `GitHubSource`, `ReleaseSelector`, `ZipInspector` | [release-selection.md](../features/release-selection.md) |
+| `LatestReleaseStore`, `GitHubSource`, `ReleaseSelector`, `ZipInspector` | [release-selection.md](../features/release-selection.md) |
+| `GitHubAPIClient`, `GitHubWebClient`, `ReadmeFetcher` | [github-endpoints.md](../network/github-endpoints.md), [caching.md](../network/caching.md) |
 | `Downloader`, `Installer`, `ZipExtractor` | [installing.md](../features/installing.md) |
 | `InstallStore`, `AppDirectories`, `MetadataDatabase` | [data-storage.md](data-storage.md) |
 | `InstallationLocator` | [finding-wow.md](../features/finding-wow.md) |
@@ -55,7 +49,7 @@ Sources/AddonKit/
 ├── Model/                   flavors, game families, refs, installs, releases, search models, errors
 ├── Parsing/                 TOC, release.json, .build.info (pure, no I/O)
 ├── Sources/                 Source/HTTPClient protocols
-├── GitHub/                  GitHubSource, GitHub API models
+├── GitHub/                  LatestReleaseStore, GitHubSource, API and web clients, ReadmeFetcher
 ├── Selection/               ReleaseSelector, ZipInspector, AdoptionIndex
 ├── Install/                 Downloader, ZipExtractor, Installer, InstallationLocator
 ├── Store/                   InstallStore, AppDirectories, MetadataDatabase
@@ -71,11 +65,16 @@ Sources/addonctl/            the CLI (docs/cli/)
 |---|---|
 | The façade: init, dependencies, token, installations, add-ons, search, resolve, install, adoption, updates, changes, caches | `Sources/AddonKit/AddonManager.swift` |
 | The façade's protocol, `MetadataChange`, `StoredAvailability` | `Sources/AddonKit/AddonManaging.swift` |
-| Inspector details, README fetch and storage, release notes | `Sources/AddonKit/AddonManager+Details.swift` |
+| Inspector details and their storage, release notes | `Sources/AddonKit/AddonManager+Details.swift` |
 | Background refresh, its targets, progress, stored update states | `Sources/AddonKit/AddonManager+Refresh.swift` |
-| Visible-row checks, Low Data Mode monitor | `Sources/AddonKit/AddonManager+Visible.swift` |
+| Visible-row checks | `Sources/AddonKit/AddonManager+Visible.swift` |
 | Observation API: metadata changes, store folder, stored availability | `Sources/AddonKit/AddonManager+Observation.swift` |
-| GitHub: parse, resolve, latest release, verdicts, `CachePolicy`, API and web requests, README, zip inspection | `Sources/AddonKit/GitHub/GitHubSource.swift` |
+| Latest release, verdicts, available flavors, `CachePolicy`, quota-free resolve (the single cache owner) | `Sources/AddonKit/GitHub/LatestReleaseStore.swift` |
+| Refs parsed, resolve over the releases API, the selection loop, zip inspection | `Sources/AddonKit/GitHub/GitHubSource.swift` |
+| REST API: token, ETags, persisted rate limit, quota reserve, release notes | `Sources/AddonKit/GitHub/GitHubAPIClient.swift` |
+| github.com and raw requests: no-follow `HEAD`, global pause, jittered backoff, Low Data Mode | `Sources/AddonKit/GitHub/GitHubWebClient.swift` |
+| README paths, ETag, "no README" cache, size cap | `Sources/AddonKit/GitHub/ReadmeFetcher.swift` |
+| The GitHub pieces wired together | `Sources/AddonKit/GitHub/GitHub.swift` |
 | GitHub API models (releases, assets) | `Sources/AddonKit/GitHub/GitHubModels.swift` |
 | `Source` and `HTTPClient` protocols, the URL session, the User-Agent | `Sources/AddonKit/Sources/Source.swift` |
 | Flavors, `FlavorRules`, interface ranges | `Sources/AddonKit/Model/Flavor.swift` |

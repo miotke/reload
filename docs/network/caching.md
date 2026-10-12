@@ -15,14 +15,15 @@ Why: [decision 0011](../decisions/0011-single-cache-owner.md).
 
 | Data | Owner | Stored in |
 |---|---|---|
-| Support verdicts (per repo and flavor), latest tags, failures | `GitHubSource` (`latestRelease` / `check`, through `SupportCache`) | `support`, `repo_meta` tables |
-| Decoded `release.json` by `repo@tag` | `GitHubSource` | `release_json` table, plus memory |
-| Every flavor a repo's latest release ships | `GitHubSource` (`latestRelease`), plus the installer's TOC inspection for repos without `release.json` | `repo_meta.available_flavors`, `flavors_tag`, `flavors_source` |
-| Last API call per repo (the 6 h throttle) | `GitHubSource` (`apiCheckIsDue`) | `repo_meta.api_checked_at`, `api_checked_tag` |
+| Support verdicts (per repo and flavor), latest tags, failures | `LatestReleaseStore` (`latestRelease` / `check`, through `SupportCache`) | `support`, `repo_meta` tables |
+| Decoded `release.json` by `repo@tag` | `LatestReleaseStore` | `release_json` table, plus memory |
+| Every flavor a repo's latest release ships | `LatestReleaseStore` (`latestRelease`), plus the installer's TOC inspection for repos without `release.json` | `repo_meta.available_flavors`, `flavors_tag`, `flavors_source` |
+| Last API call per repo (the 6 h throttle) | `LatestReleaseStore` (`apiCheckIsDue`); written by `GitHubAPIClient` on each releases request | `repo_meta.api_checked_at`, `api_checked_tag` |
 | Catalogue | `CatalogueSource` | `catalogue`, `catalogue_state` |
 | Inspector details, release notes by tag | `AddonManager.details`, `releaseNotes` | `details` |
+| README path, ETag, "no README" | `ReadmeFetcher` | `repo_meta.readme_path`, `readme_etag`, `readme_checked_at` |
 | Live search answers | `SearchCoordinator` | `search_cache` |
-| Rate-limit state | `GitHubSource` (`core`), `GitHubSearchProvider` (`search`) | `rate_limit` |
+| Rate-limit state | `GitHubAPIClient` (`core`), `GitHubSearchProvider` (`search`) | `rate_limit` |
 | Downloaded zips | `Downloader` | `<caches>/downloads/` |
 | Screenshot bytes | `ScreenshotLoader` (app) | its own `URLCache` in `<caches>/screenshots/` |
 

@@ -21,7 +21,7 @@ Swift tools 6.4, minimum macOS 27.
 
 | Kind | Use |
 |---|---|
-| Long-lived services with async work | An actor: `AddonManager`, `InstallStore`, `MetadataDatabase`, `Downloader`, `GitHubSource`, the search actors |
+| Long-lived services with async work | An actor: `AddonManager`, `InstallStore`, `MetadataDatabase`, `Downloader`, `GitHubSource`, `LatestReleaseStore`, `GitHubAPIClient`, `GitHubWebClient`, the search actors |
 | A small value read from several threads | `Mutex` from the Synchronization module |
 | App UI state | `@Observable` classes on the main actor |
 

@@ -15,10 +15,7 @@ public actor AddonManager: AddonManaging {
     public nonisolated let database: MetadataDatabase
     let catalogue: CatalogueSource
     let supportCache: SupportCache
-    /// Used only for `parse`, which never touches the network or the token.
-    let parser: GitHubSource
-
-    let github: GitHubSource
+    let github: GitHub
     let githubSearch: GitHubSearchProvider
     let searchCoordinator: SearchCoordinator
     /// Automatic detection runs at most once per process; later scans are explicit.
@@ -56,12 +53,11 @@ public actor AddonManager: AddonManaging {
         self.catalogue = CatalogueSource(http: http, database: database)
         let supportCache = SupportCache(database: database)
         self.supportCache = supportCache
-        self.parser = GitHubSource(http: http)
 
         // The Keychain is read on first GitHub use, not here: init runs on the main thread at
         // launch and a Keychain prompt would block it.
         let tokenProvider: @Sendable () -> String? = { Self.token(environment: environment, keychain: keychain) }
-        self.github = GitHubSource(
+        self.github = GitHub(
             http: http, cacheDirectory: directories.caches, database: database, store: supportCache, tokenProvider: tokenProvider,
             archiveURL: { downloader.archiveURL(for: $0) }
         )
@@ -82,13 +78,13 @@ public actor AddonManager: AddonManaging {
     /// Picks up a new token, keeping ETags, cached release.json files and rate-limit state.
     public func tokenDidChange() async {
         let token = Self.token(environment: environment, keychain: keychain)
-        await github.setToken(token)
+        await github.api.setToken(token)
         await githubSearch.setToken(token)
     }
 
     /// Tests skip the backoff sleeps between github.com retries.
     func setRetryDelay(_ delay: @escaping @Sendable (Int, TimeInterval?) -> Duration) async {
-        await github.setRetryDelay(delay)
+        await github.web.setRetryDelay(delay)
     }
 
     func setClock(_ clock: @escaping @Sendable () -> Date) async {
@@ -98,7 +94,7 @@ public actor AddonManager: AddonManaging {
 
     /// Remaining GitHub API calls and when the limit resets, as last reported by GitHub.
     public func rateLimit() async -> (remaining: Int?, resetAt: Date?) {
-        await github.rateLimit()
+        await github.api.rateLimit()
     }
 
     // MARK: - Installations
@@ -153,7 +149,7 @@ public actor AddonManager: AddonManaging {
     /// folder, or an exact catalogue name. More than one result means the input is ambiguous.
     public func lookup(_ input: String, in installation: Installation) async throws -> [AddonRef] {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let ref = parser.parse(text) { return [ref] }
+        if let ref = github.source.parse(text) { return [ref] }
 
         let installed = try await store.addons(in: installation)
         let installedMatches = installed.filter { addon in
@@ -262,7 +258,7 @@ public actor AddonManager: AddonManaging {
     /// uses the API only when that can't decide.
     func resolve(_ ref: AddonRef, flavor: Flavor, channel: Channel) async throws -> ResolvedRelease {
         guard ref.source == .github else { throw AddonError.invalidReference(ref.description) }
-        if channel == .stable, let release = await github.quotaFreeResolve(ref, flavor: flavor, policy: .forceRevalidate) {
+        if channel == .stable, let release = await github.latest.quotaFreeResolve(ref, flavor: flavor, policy: .forceRevalidate) {
             return release
         }
         return try await resolve(ref, flavor: flavor, channel: channel, etag: nil).release
@@ -273,7 +269,7 @@ public actor AddonManager: AddonManaging {
         _ ref: AddonRef, flavor: Flavor, channel: Channel, etag: String?
     ) async throws -> (release: ResolvedRelease, etag: String?) {
         guard ref.source == .github else { throw AddonError.invalidReference(ref.description) }
-        switch try await github.resolve(ref, flavor: flavor, channel: channel, etag: etag) {
+        switch try await github.source.resolve(ref, flavor: flavor, channel: channel, etag: etag) {
         case .release(let release, let etag):
             return (release, etag)
         case .notModified:
@@ -416,10 +412,10 @@ public actor AddonManager: AddonManaging {
     /// `progress` is called once per add-on as its check lands, with the number done so far.
     /// The background refresh passes `.revalidateIfStale`; explicit checks `.forceRevalidate`.
     /// Either way this is a bulk check: add-ons only the API can decide reuse their last
-    /// state while their API check isn't due (`GitHubSource.apiCheckIsDue`). The states
+    /// state while their API check isn't due (`LatestReleaseStore.apiCheckIsDue`). The states
     /// are stored for that.
     func checkForUpdates(
-        in installation: Installation, policy: GitHubSource.CachePolicy, background: Bool = false,
+        in installation: Installation, policy: CachePolicy, background: Bool = false,
         progress: @Sendable (InstalledAddon, Int) -> Void
     ) async throws -> [AddonRef: UpdateState] {
         let addons = try await store.addons(in: installation)
@@ -475,7 +471,7 @@ public actor AddonManager: AddonManaging {
     ///   decide and the repo's API check isn't due, it's returned instead of a request. Nil
     ///   (an explicit single-add-on action) always asks.
     func updateState(
-        of addon: InstalledAddon, in installation: Installation, policy: GitHubSource.CachePolicy, background: Bool = false,
+        of addon: InstalledAddon, in installation: Installation, policy: CachePolicy, background: Bool = false,
         previous: UpdateState? = nil
     ) async -> (UpdateState, String?) {
         if addon.pinned { return (.pinned, nil) }
@@ -499,25 +495,25 @@ public actor AddonManager: AddonManaging {
                 // On a fallback build, a build for the installation's own flavor is the update
                 // ("Forever build available"), whatever its tag.
                 if build != own {
-                    var latest = await github.latestRelease(for: addon.id, flavor: own, policy: policy, background: background)
+                    var latest = await github.latest.latestRelease(for: addon.id, flavor: own, policy: policy, background: background)
                     if !latest.failed, case .supported = latest.status {
-                        latest = await github.withBuild(latest, ref: addon.id, flavor: own, fetch: true, background: background)
-                        if let release = await github.resolvedRelease(addon.id, from: latest, flavor: own) { return (.available(release), nil) }
+                        latest = await github.latest.withBuild(latest, ref: addon.id, flavor: own, fetch: true, background: background)
+                        if let release = await github.latest.resolvedRelease(addon.id, from: latest, flavor: own) { return (.available(release), nil) }
                     }
                 }
-                var latest = await github.latestRelease(for: addon.id, flavor: build, policy: policy, background: background)
+                var latest = await github.latest.latestRelease(for: addon.id, flavor: build, policy: policy, background: background)
                 if !latest.failed, latest.status != .unknown, let tag = latest.tag {
                     if tag == addon.version { return (.upToDate, addon.etag) }
-                    latest = await github.withBuild(latest, ref: addon.id, flavor: build, fetch: true, background: background)
-                    if let release = await github.resolvedRelease(addon.id, from: latest, flavor: build).map(marked) {
+                    latest = await github.latest.withBuild(latest, ref: addon.id, flavor: build, fetch: true, background: background)
+                    if let release = await github.latest.resolvedRelease(addon.id, from: latest, flavor: build).map(marked) {
                         return addon.isUpdate(release) ? (.available(release), nil) : (.upToDate, addon.etag)
                     }
                 }
             }
-            if let previous, let reused = Self.reusable(previous, for: addon), !(await github.apiCheckIsDue(for: addon.id)) {
+            if let previous, let reused = Self.reusable(previous, for: addon), !(await github.latest.apiCheckIsDue(for: addon.id)) {
                 return reused
             }
-            switch try await github.resolve(addon.id, flavor: build, channel: addon.channel, etag: addon.etag) {
+            switch try await github.source.resolve(addon.id, flavor: build, channel: addon.channel, etag: addon.etag) {
             case .notModified:
                 return (.upToDate, addon.etag)
             case .release(let release, let etag):

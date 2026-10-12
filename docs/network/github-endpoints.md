@@ -2,7 +2,7 @@
 
 Every URL ForeverAddons requests, which ones cost API quota, the headers sent, rate-limit handling, and how errors are mapped.
 
-Code: `Sources/AddonKit/GitHub/GitHubSource.swift`, `Search/GitHubSearchProvider.swift`, `Search/CatalogueSource.swift`, `AddonManager+Details.swift`, `Install/Downloader.swift`.
+Code: `Sources/AddonKit/GitHub/` (`GitHubAPIClient` for the API, `GitHubWebClient` for github.com and raw, `ReadmeFetcher`, `GitHubSource`), `Search/GitHubSearchProvider.swift`, `Search/CatalogueSource.swift`, `AddonManager+Details.swift`, `Install/Downloader.swift`.
 
 ## Endpoints
 
