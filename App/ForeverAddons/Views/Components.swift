@@ -125,7 +125,7 @@ struct RowErrorIcon: View {
     }
 }
 
-/// Progress of a metadata refresh: the bar and message under "Add Installation…".
+/// Progress of a metadata refresh: the bar and message at the bottom of the sidebar.
 struct RefreshStatusView: View {
     var progress: RefreshProgress
     var installation: Installation

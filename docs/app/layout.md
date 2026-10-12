@@ -2,23 +2,29 @@
 
 The main window (sidebar, toolbar, inspector placement, the Installed and Browse tables, sorting) and the separate add-on window.
 
-Code: `App/ForeverAddons/Views/` (`ContentView`, `InstalledView`, `BrowseView`), `Models/`, `Support/TableRows.swift`, `Support/TableSorting.swift`. Why the inspector and tables work this way: [decision 0012](../decisions/0012-inspector-and-tables.md).
+Code: `App/ForeverAddons/Views/` (`ContentView`, `SidebarView`, `InstalledView`, `BrowseView`), `Models/`, `Support/TableRows.swift`, `Support/TableSorting.swift`. Why the inspector and tables work this way: [decision 0012](../decisions/0012-inspector-and-tables.md).
 
 ## Window
 
 ```
 ┌───────────────┬──────────────────────────────────────────────────────────────┐
-│               │ toolbar: [Installed|Browse]   ⟳  Update All  ▣  🔍 search    │
-│ Installations ├───────────────────────────────────────┬──────────────────────┤
-│               │ table (Installed or Browse)           │ inspector            │
-│               │                                       │ (drag edge to resize)│
-│ Add Install…  │                                       │                      │
+│ LIBRARY       │ Forever Beta ⌄          ⟳  Update All  ▣  🔍 Filter updates  │
+│  Installed  4 │ 2 updates · checked…                                         │
+│  Updates    2 ├───────────────────────────────────────┬──────────────────────┤
+│  Unmanaged  2 │ 2 updates available      [Update All] │ inspector            │
+│  Pinned     1 ├───────────────────────────────────────┤ (drag edge to resize)│
+│ BROWSE        │ table (library section or Browse)     │                      │
+│  Browse       │                                       │                      │
+│  Boss mods …  │                                       │                      │
 │ ▓▓▓▓░░ msg    │                                       │                      │
 └───────────────┴───────────────────────────────────────┴──────────────────────┘
 ```
 
-- **Sidebar:** installations, **Add Installation…**, and the [refresh progress bar](first-launch.md#sidebar-progress).
-- **Toolbar:** tab picker, ⟳ Check for Updates (⌘R), Update All, inspector toggle, search field. ⌘F focuses search from any tab; on Installed it filters the list.
+- **Title:** the installation's name opens the game picker (switch, **Add Installation…**, **Scan Again**).
+- **Sidebar:** Library (Installed, Updates, Unmanaged, Pinned, with counts), Browse and the categories, and the [refresh progress bar](first-launch.md#sidebar-progress).
+- **Toolbar:** ⟳ Check for Updates (⌘R) and Update All on library sections, inspector toggle, search field. ⌘F focuses search from any section; it filters a library section and searches the catalogue in Browse.
+
+Picker, sections, counts and search scope: [navigation.md](navigation.md).
 - **Menu bar extra** (optional, Settings): shows the update count.
 
 ## Flavor names
@@ -33,12 +39,12 @@ Each installation has one `InstallationModel`, which only owns and wires four fe
 
 | Model | Owns |
 |---|---|
-| `InstalledModel` | add-ons, stored update states, the Installed rows (sort, filter, sections), `installAction(for:)` |
+| `InstalledModel` | add-ons, stored update states, the library rows (sort, filter, section) and counts, `installAction(for:)` |
 | `BrowseModel` | search stream, home lists, Browse rows (sort, family filter), visible-row checks; `LiveMetadata` patches its rows |
-| `InspectorModel` | the selection in each tab, loaded details (the 20 most recent), release notes |
+| `InspectorModel` | the selection in each table, loaded details (the 20 most recent), release notes |
 | `UpdateQueue` | refresh and its `RefreshStatus`, update, Update All, install, pin, adopt, and each row's `RowState` |
 
-- Views take the model they need as a property: cells take `UpdateQueue`, `BrowseModel` or a pre-built row; tables take their tab's models. `AddonDetailView`, `InspectorPane` and `AddonWindow` combine all four, so they take `InstallationModel` and read its parts directly. There are no forwarding methods.
+- Views take the model they need as a property: cells take `UpdateQueue`, `BrowseModel` or a pre-built row; tables take their section's models. `AddonDetailView`, `InspectorPane` and `AddonWindow` combine all four, so they take `InstallationModel` and read its parts directly. There are no forwarding methods.
 - The app reaches the core only through `AddonManaging`; `ArchitectureTests` fails on any app file but `AppEnvironment.swift` that names `AddonManager` or a core internal.
 - Decisions come from the core: `InstallAction` (including the Retail build offer), `UpdateOffer`, `BrowseFilter` (hide incompatible, dimming, visible-check order), `AddonRef(parsing:)` and `isSameRepo`, `AdoptionPreview.canAdopt`. `ArchitectureTests` also fails if app code re-implements them.
 
@@ -47,7 +53,7 @@ Each installation has one `InstallationModel`, which only owns and wires four fe
 - The inspector is part of the detail column's content (a small custom split, `InspectorSplit` in `ContentView.swift`), **not `.inspector`**. That way the toolbar and search field span the detail area and the inspector starts below them.
 - Toggle it with the toolbar button or ⌥⌘I.
 - Drag its leading edge to resize (280–560 pt, remembered as `inspectorWidth`).
-- Selecting a row in either tab opens it. Contents: [details-and-screenshots.md](../features/details-and-screenshots.md).
+- Selecting a row in either table opens it. Contents: [details-and-screenshots.md](../features/details-and-screenshots.md).
 
 ## Installed table
 
@@ -60,7 +66,7 @@ Each installation has one `InstallationModel`, which only owns and wires four fe
 | Installed | date |
 | Action | Update / Retry, Adopt…, progress |
 
-- Managed and unmanaged folders are separate sections, each sorted.
+- One table for every library section: Installed shows managed add-ons; Updates, Unmanaged and Pinned are filtered views of the same rows ([navigation.md](navigation.md#library-sections-are-one-table)).
 - **Unmanaged rows** show the title and version of the TOC the game loads for the flavor (`Questie`, `v12.0.4`), not the folder's base TOC, with the folder name beside it when it differs. Folders one release ships are one row, "Questie · 2 folders" ([data-storage.md](../architecture/data-storage.md#reconcile)). When no TOC is for the flavor, Status says **Not loaded by Forever**.
 - **Context menus.** Managed: Update, Pin/Unpin, Open on GitHub, Show in Finder, **Uninstall…**. Unmanaged: Adopt…, Show in Finder, **Move to Trash…**. Both confirm through one dialog at the window root (`AppModel.pendingRemoval`), since a menu can't host it. The trash dialog lists every folder in the group.
 - **Update** and **Update All** install the releases the last check found (`update(releases:in:)`), with no second check. With nothing available, Update All does nothing (an empty list used to mean "update everything", which was a bug).
@@ -92,7 +98,7 @@ Browse rows, the inspector and the add-on window all take an add-on's installed 
 | Action | Install / progress / Overwrite / ✓ Installed / Update |
 
 - With an empty query, a **Popular / Recently Updated** switch picks the list. It's one table rather than two sections, so sorting applies to whichever list you're looking at.
-- Category chips run their saved query; the **Hide Classic-only** toggle ("Hide add-ons without a Retail build" on Retail, "…without a Classic build" on the classics; on by default, same `browseForeverOnly` key) filters both the home lists and search results by the [per-family rule](../features/search.md#hide-incompatible). Rows whose own game isn't confirmed are dimmed.
+- Sidebar categories run their saved query ([navigation.md](navigation.md#search-scope)); the **Hide Classic-only** toggle in the filter bar ("Hide add-ons without a Retail build" on Retail, "…without a Classic build" on the classics; on by default, same `browseForeverOnly` key) filters both the home lists and search results by the [per-family rule](../features/search.md#hide-incompatible). Rows whose own game isn't confirmed are dimmed.
 - Installed rows show a ✓ **Installed** label, or **Update** when one is stored. Double-click or Return opens the add-on window; the context menu has **Show in Installed**.
 - **Visible-row checks.** About 1 s after scrolling stops, the rows on screen (unchecked ones first, up to 20) go to `checkVisible`, which skips fresh answers and spends no API quota ([refresh.md](../features/refresh.md#visible-row-checks)). Rows report themselves through the Name cell's `onAppear` / `onDisappear`: AppKit hosts cells only for rows on screen (plus a few around them), so this names the visible rows directly, where scroll-phase and geometry modifiers would only give offsets. Each change restarts the 1 s timer. A new query or an empty search cancels it; nothing runs while a refresh does. Answers patch rows live ([live-data.md](live-data.md)).
 - A status bar shows the count, "Searching…" until the last update (or "Searching GitHub…" while the core reports a live search), and **Search GitHub for More Results**. "No results" appears only after the last update.
@@ -120,7 +126,7 @@ Which games an add-on's latest release ships builds for, replacing the old singl
 - The sort is remembered per table (`installedSort`, `browseSort` in user defaults, e.g. `updated.desc`). Column widths and visibility are remembered per window (`@SceneStorage`).
 - Browse can return to the core's order (relevance, or stars/date for the home lists) with **Sort by Relevance** / **Default Order**.
 - Rows are pre-formatted and sorted in `InstalledModel` and `BrowseModel`, never in `body` ([performance/guidelines.md](../performance/guidelines.md#tables-and-lists)).
-- **Only scene roots read `@Environment(AppModel.self)`** (`ContentView`, `SettingsView`, `MenuBarContent`; `AddonWindow` gets it from the `App` as a property). Cells, context menus, `primaryAction` handlers, toolbars, sheets and the inspector get the model, row state or closures as plain properties. `EnvironmentUsageTests` enforces it. Why: [decision 0015](../decisions/0015-environment-only-at-scene-roots.md).
+- **Only scene roots read `@Environment(AppModel.self)`** (`ContentView`, `SettingsView`, `MenuBarContent`; `AddonWindow` gets it from the `App` as a property). The sidebar, title menu, cells, context menus, `primaryAction` handlers, toolbars, sheets and the inspector get the model, row state or closures as plain properties. `EnvironmentUsageTests` enforces it. Why: [decision 0015](../decisions/0015-environment-only-at-scene-roots.md).
 
 ## Dates
 

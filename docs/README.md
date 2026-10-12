@@ -67,7 +67,8 @@ flowchart LR
 | Doc | Read this when… |
 |---|---|
 | [project.md](app/project.md) | you're changing the Xcode project, targets, the embedded CLI or `ADDONS_DATA_DIR` |
-| [layout.md](app/layout.md) | you're working on the window, sidebar, toolbar, inspector placement, tables, sorting or the add-on window |
+| [layout.md](app/layout.md) | you're working on the window, toolbar, inspector placement, tables, sorting or the add-on window |
+| [navigation.md](app/navigation.md) | you're working on the game picker, the sidebar's sections, counts and categories, or what search applies to |
 | [first-launch.md](app/first-launch.md) | you're touching the seeding sheet, refresh progress or the 2-hour auto refresh |
 | [live-data.md](app/live-data.md) | you're changing how the app follows database changes, CLI writes or the install store |
 | [cli-install.md](app/cli-install.md) | you're changing how the app installs `addonctl` into `/usr/local/bin` |

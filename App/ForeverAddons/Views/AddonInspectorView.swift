@@ -2,15 +2,15 @@ import AppKit
 import AddonKit
 import SwiftUI
 
-/// The trailing pane: details for whatever is selected in the current tab.
+/// The trailing pane: details for whatever is selected in the current section.
 struct InspectorPane: View {
     var model: AppModel
     var state: InstallationModel
 
     var body: some View {
         Group {
-            switch model.tab {
-            case .installed:
+            switch model.section.isLibrary {
+            case true:
                 switch state.installed.status(id: state.inspector.selectedAddonID) {
                 case .managed(let addon, let missing):
                     AddonDetailView(state: state, ref: addon.id, missingFolders: missing)
@@ -23,7 +23,7 @@ struct InspectorPane: View {
                 case nil:
                     noSelection("Select an add-on to see its details.")
                 }
-            case .browse:
+            case false:
                 if let id = state.inspector.selectedBrowseID, let ref = AddonRef(rowID: id) {
                     AddonDetailView(state: state, ref: ref, missingFolders: [])
                         .id(ref)

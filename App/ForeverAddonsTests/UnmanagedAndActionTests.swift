@@ -184,8 +184,8 @@ import Testing
                                       downloadURL: URL(string: "https://x")!, assetName: "b.zip")
         model.queue.apply([bags.id: .available(forever)])
         #expect(model.installed.installAction(for: bags.id, availableFlavors: nil) == .update(ref: bags.id, version: "v0.5.14", to: .ownBuild(.forever)))
-        #expect(model.installed.managedRows.first { $0.ref == bags.id }?.availableVersion == "Forever build")
-        #expect(model.installed.managedRows.first { $0.ref == bags.id }?.buildText == "Retail build")
+        #expect(model.installed.rows.first { $0.ref == bags.id }?.availableVersion == "Forever build")
+        #expect(model.installed.rows.first { $0.ref == bags.id }?.buildText == "Retail build")
 
         // A pinned add-on with an update shows as installed, not as an update.
         var pinned = bugSack

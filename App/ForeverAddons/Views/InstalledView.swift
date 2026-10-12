@@ -2,14 +2,18 @@ import AddonKit
 import AppKit
 import SwiftUI
 
-/// Managed add-ons with update status, plus unmanaged folders that can be adopted (docs/app/layout.md).
-/// A sortable table; managed and unmanaged rows are sorted within their own sections.
+/// One library section (docs/app/navigation.md): managed add-ons with update status, those
+/// with an update, unmanaged folders that can be adopted, or pinned add-ons. One sortable table
+/// whose rows `InstalledModel` filters by section and query.
 struct InstalledView: View {
     var model: AppModel
     @Environment(\.openWindow) private var openWindow
     var installed: InstalledModel
     var queue: UpdateQueue
     var inspector: InspectorModel
+    var section: LibrarySection
+    /// The toolbar search, trimmed.
+    var query: String
 
     @AppStorage("installedSort") private var sortStorage = ColumnSort(InstalledColumn.name).storageValue
     @SceneStorage("installedColumns") private var columns = TableColumnCustomization<InstalledRow>()
@@ -25,14 +29,26 @@ struct InstalledView: View {
             set: { if let first = $0.first { sortStorage = first.storageValue } })
     }
 
-    private var query: String { model.searchText.trimmingCharacters(in: .whitespaces) }
-
     /// Filtering and sorting happen in the model, once per change, not in `body`.
-    private var options: InstalledOptions { InstalledOptions(query: query, sort: sort) }
+    private var options: InstalledOptions { InstalledOptions(query: query, section: section, sort: sort) }
 
     var body: some View {
+        VStack(spacing: 0) {
+            if section == .updates && installed.counts.updates > 0 {
+                UpdatesHeader(count: installed.counts.updates, isUpdating: queue.isUpdatingAll) {
+                    Task { await queue.updateAll() }
+                }
+                Divider()
+            }
+            table
+                .overlay { emptyState }
+        }
+        .onChange(of: options, initial: true) { installed.options = options }
+    }
+
+    private var table: some View {
         @Bindable var inspector = inspector
-        Table(of: InstalledRow.self, selection: $inspector.selectedAddonID, sortOrder: sortOrder,
+        return Table(of: InstalledRow.self, selection: $inspector.selectedAddonID, sortOrder: sortOrder,
               columnCustomization: $columns) {
             TableColumn("Name", sortUsing: ColumnSort(InstalledColumn.name)) { row in
                 InstalledNameCell(row: row)
@@ -75,16 +91,7 @@ struct InstalledView: View {
             .customizationID("action")
             .disabledCustomizationBehavior(.visibility)
         } rows: {
-            if !installed.managedRows.isEmpty {
-                Section("Managed") {
-                    ForEach(installed.managedRows) { TableRow($0) }
-                }
-            }
-            if !installed.unmanagedRows.isEmpty {
-                Section("Unmanaged") {
-                    ForEach(installed.unmanagedRows) { TableRow($0) }
-                }
-            }
+            ForEach(installed.rows) { TableRow($0) }
         }
         .contextMenu(forSelectionType: AddonStatus.ID.self) { ids in
             if let id = ids.first, let status = installed.status(id: id) {
@@ -101,8 +108,6 @@ struct InstalledView: View {
                 model.showInspector = true
             }
         }
-        .overlay { emptyState }
-        .onChange(of: options, initial: true) { installed.options = options }
     }
 
     @ViewBuilder private var emptyState: some View {
@@ -115,12 +120,70 @@ struct InstalledView: View {
                 } description: {
                     Text("Nothing is installed in \(installed.installation.addonsDirectory.path(percentEncoded: false)) yet.")
                 } actions: {
-                    Button("Browse Add-ons") { model.tab = .browse }
+                    Button("Browse Add-ons") { model.section = .browse }
                 }
             }
-        } else if installed.managedRows.isEmpty && installed.unmanagedRows.isEmpty {
-            ContentUnavailableView.search(text: query)
+        } else if installed.rows.isEmpty {
+            if !query.isEmpty {
+                ContentUnavailableView {
+                    Label("No Results for “\(query)”", systemImage: "magnifyingglass")
+                } description: {
+                    Text("Nothing in \(section.title) matches. Search every add-on instead?")
+                } actions: {
+                    Button("Search All Add-ons") { model.searchAllAddons() }
+                }
+            } else if installed.counts[section] == 0 {
+                emptySection
+            }
         }
+    }
+
+    /// The selected section has nothing in it, though the installation has add-ons.
+    @ViewBuilder private var emptySection: some View {
+        switch section {
+        case .installed:
+            ContentUnavailableView {
+                Label("No Managed Add-ons", systemImage: LibrarySection.installed.symbol)
+            } description: {
+                Text("Install add-ons from Browse, or adopt the folders in Unmanaged.")
+            } actions: {
+                Button("Browse Add-ons") { model.section = .browse }
+            }
+        case .updates:
+            ContentUnavailableView(
+                "No Updates", systemImage: "checkmark.circle",
+                description: Text(queue.lastChecked == nil ? "Check for updates with ⌘R." : "Every add-on is up to date."))
+        case .unmanaged:
+            ContentUnavailableView(
+                "No Unmanaged Folders", systemImage: LibrarySection.unmanaged.symbol,
+                description: Text("ForeverAddons manages every folder in AddOns."))
+        case .pinned:
+            ContentUnavailableView(
+                "No Pinned Add-ons", systemImage: LibrarySection.pinned.symbol,
+                description: Text("Pin an add-on from its context menu to keep it at its current version."))
+        }
+    }
+}
+
+/// Above the Updates section's table: how many updates there are, and Update All.
+struct UpdatesHeader: View {
+    var count: Int
+    var isUpdating: Bool
+    var updateAll: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(count == 1 ? "1 update available" : "\(count) updates available")
+                .font(.headline)
+            Spacer()
+            if isUpdating { ProgressView().controlSize(.small) }
+            Button("Update All", systemImage: "square.and.arrow.down.on.square", action: updateAll)
+                .buttonStyle(.borderedProminent)
+                .disabled(isUpdating)
+                .help("Update every add-on that has an update, whatever the filter")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 }
 
