@@ -4,6 +4,11 @@ Native macOS add-on manager for World of Warcraft: Forever. A SwiftUI app (`App/
 
 **Start with `docs/README.md`.** It lists every doc with a one-line "read this when…". Load only the files you need.
 
+## Answers
+
+- Keep replies to the user short: a few sentences, answer first. Use a small table only when comparing options.
+- No long walkthroughs, recaps or diagrams unless asked.
+
 ## Documentation
 
 - All docs live in `docs/`, organised by topic: `architecture/`, `features/`, `network/`, `performance/`, `app/`, `cli/`, `decisions/`.
