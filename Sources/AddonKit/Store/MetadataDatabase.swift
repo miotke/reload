@@ -425,6 +425,13 @@ public actor MetadataDatabase {
             updated_at REAL NOT NULL
         );
         """,
+        // 2: `classic` was split into vanilla, tbc, wrath, titan, cata and mists. Its rows
+        // can't be told apart, and they're only a cache, so they go. `refresh_state` is keyed
+        // by installation, and an installation's updates are recomputed on its next refresh.
+        """
+        DELETE FROM support WHERE flavor = 'classic';
+        DELETE FROM details WHERE flavor = 'classic';
+        """,
     ]
 }
 
