@@ -2,14 +2,16 @@ import AddonKit
 import SwiftUI
 
 /// The sidebar: the selected installation's library sections with their counts, Browse and the
-/// categories, and the refresh progress bar (docs/app/navigation.md). Takes plain values,
-/// so it never reads the app model from the environment.
+/// categories, the refresh progress bar, and a footer with "Last fetched" and a refresh button
+/// (docs/app/navigation.md). Takes plain values, so it never reads the app model from the environment.
 struct SidebarView: View {
     @Binding var selection: SidebarItem
     var counts: LibraryCounts
     var categories: [SearchCategory]
     var refresh: (installation: Installation, progress: RefreshProgress)?
     var showsInstallation: Bool
+    /// The footer's "Last fetched" date and refresh action; no footer without an installation.
+    var fetch: FetchFooter.Model?
 
     var body: some View {
         List(selection: Binding(get: { selection }, set: { if let new = $0 { selection = new } })) {
@@ -32,15 +34,52 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom) {
-            if let refresh {
-                RefreshStatusView(progress: refresh.progress, installation: refresh.installation,
-                                  showsInstallation: showsInstallation)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                    .transition(.opacity)
+            VStack(alignment: .leading, spacing: 8) {
+                if let refresh {
+                    RefreshStatusView(progress: refresh.progress, installation: refresh.installation,
+                                      showsInstallation: showsInstallation)
+                        .transition(.opacity)
+                }
+                if let fetch { FetchFooter(model: fetch) }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
         }
         .animation(.default, value: refresh == nil)
+    }
+}
+
+/// "Last fetched Today, 8:53 AM ↻" at the bottom of the sidebar.
+struct FetchFooter: View {
+    struct Model {
+        var lastFetched: Date?
+        var isRefreshing: Bool
+        var refresh: () -> Void
+    }
+
+    var model: Model
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(FetchLabel.string(for: model.lastFetched))
+                .lineLimit(1)
+                .help("When this installation's add-on details were last refreshed")
+            Spacer(minLength: 4)
+            Button(action: model.refresh) {
+                if model.isRefreshing {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                }
+            }
+            .buttonStyle(.borderless)
+            .disabled(model.isRefreshing)
+            .help("Refresh now (⌘R)")
+            .accessibilityLabel("Refresh")
+        }
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .controlSize(.small)
     }
 }
 

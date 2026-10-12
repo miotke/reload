@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
     @AppStorage(SettingsKey.checkForUpdatesOnLaunch) private var checkForUpdatesOnLaunch = true
     @AppStorage(SettingsKey.showMenuBarExtra) private var showMenuBarExtra = false
+    @AppStorage(SettingsKey.appearance) private var appearance: AppAppearance = .system
 
     @State private var token = ""
     @State private var hasStoredToken = false
@@ -44,6 +45,13 @@ struct SettingsView: View {
                 }
                 Toggle("Check for updates automatically", isOn: $checkForUpdatesOnLaunch)
                     .help("On launch, when the app becomes active, and every 2 hours. Check for Updates (⌘R) always works.")
+            }
+
+            Section("Appearance") {
+                Picker("Appearance", selection: $appearance) {
+                    ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
+                }
+                .help("Also in View ▸ Appearance")
             }
 
             Section("Menu Bar") {

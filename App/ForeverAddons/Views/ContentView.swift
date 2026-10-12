@@ -10,7 +10,11 @@ struct ContentView: View {
         NavigationSplitView {
             SidebarView(selection: $model.section, counts: model.current?.installed.counts ?? LibraryCounts(),
                         categories: model.categories, refresh: model.visibleRefresh,
-                        showsInstallation: model.installations.count > 1)
+                        showsInstallation: model.installations.count > 1,
+                        fetch: model.current.map { state in
+                            FetchFooter.Model(lastFetched: state.queue.lastChecked, isRefreshing: state.queue.isRefreshing,
+                                              refresh: model.checkForUpdates)
+                        })
                 .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 300)
         } detail: {
             if let state = model.current {

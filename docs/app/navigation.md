@@ -57,6 +57,14 @@ So the Updates badge always equals `updateCount`, which Update All installs. Swi
 
 Empty sections explain themselves: "No Updates" ("Every add-on is up to date", or "Check for updates with ⌘R" before the first check), "No Unmanaged Folders", "No Pinned Add-ons", "No Managed Add-ons" with **Browse Add-ons**.
 
+### Sidebar footer
+
+Under the refresh progress bar (shown while a refresh runs), **Last fetched Oct 12, 7:18 AM** ("Today, 7:18 AM", or "Not fetched yet") from `lastRefresh(in:)`, and a ⟳ button that runs a forced refresh like ⌘R; it's a spinner and disabled while one runs (`FetchFooter`).
+
+## Appearance
+
+Settings ▸ Appearance and **View ▸ Appearance** pick Use System Setting, Light or Dark (`AppAppearance`, stored as `appearance`). It sets `NSApp.appearance`, so window chrome, sheets and menus follow, not just SwiftUI content.
+
 ## Search scope
 
 One toolbar search field (⌘F), whose prompt follows the section: "Filter installed add-ons", "Filter updates", "Filter unmanaged folders", "Filter pinned add-ons", "Search add-ons", "Search Bags".

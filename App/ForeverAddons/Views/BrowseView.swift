@@ -55,9 +55,8 @@ struct BrowseView: View {
                         sortOrder: sortOrder, columns: $columns)
                 .overlay { emptyState }
             Divider()
-            BrowseStatusBar(browse: browse, queue: queue, isHome: isHome, hasSort: sort != nil,
-                            includeLiveGitHub: $includeLiveGitHub,
-                            refresh: model.checkForUpdates, resetSort: { sortStorage = "" })
+            BrowseStatusBar(browse: browse, isHome: isHome, hasSort: sort != nil,
+                            includeLiveGitHub: $includeLiveGitHub, resetSort: { sortStorage = "" })
         }
         .onChange(of: options, initial: true) { browse.options = options }
         // `.task(id:)` cancels the previous search whenever the query changes; the sleep is the debounce.
@@ -135,15 +134,13 @@ struct BrowseFilterBar: View {
     }
 }
 
-/// The count or search progress, "Last fetched" with its refresh button, the games legend,
-/// and the deeper GitHub search (docs/app/layout.md#browse-table).
+/// The count or search progress, the games legend and the deeper GitHub search
+/// (docs/app/layout.md#browse-table). "Last fetched" lives in the sidebar's footer.
 struct BrowseStatusBar: View {
     var browse: BrowseModel
-    var queue: UpdateQueue
     var isHome: Bool
     var hasSort: Bool
     @Binding var includeLiveGitHub: Bool
-    var refresh: () -> Void
     var resetSort: () -> Void
 
     var body: some View {
@@ -155,20 +152,6 @@ struct BrowseStatusBar: View {
             } else {
                 Text(count == 1 ? "1 add-on" : "\(count) add-ons")
             }
-            Text("·")
-            Text(FetchLabel.string(for: queue.lastChecked))
-                .help("When this installation's add-on details were last refreshed")
-            Button(action: refresh) {
-                if queue.isRefreshing {
-                    ProgressView().controlSize(.mini)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                }
-            }
-            .buttonStyle(.borderless)
-            .disabled(queue.isRefreshing)
-            .help("Refresh now (⌘R)")
-            .accessibilityLabel("Refresh")
             Text("·")
             GameLegend(flavor: browse.installation.flavor)
             if hasSort {

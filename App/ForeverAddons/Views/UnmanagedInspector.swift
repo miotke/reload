@@ -31,6 +31,10 @@ struct UnmanagedInspector: View {
                     Button("Adopt…", action: adopt)
                         .buttonStyle(.borderedProminent)
                     Spacer()
+                    Button("Show in Finder", systemImage: "folder") {
+                        let urls = unmanaged.folders.map { inspector.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
+                        NSWorkspace.shared.activateFileViewerSelecting(urls)
+                    }
                     Button("Move to Trash…", role: .destructive, action: moveToTrash)
                 }
                 .disabled(rowState.activity != nil)
@@ -56,13 +60,6 @@ struct UnmanagedInspector: View {
                 if let notes = toc?.notes, !notes.isEmpty {
                     Text(notes).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                Button("Show in Finder", systemImage: "folder") {
-                    let urls = unmanaged.folders.map { inspector.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
-                    NSWorkspace.shared.activateFileViewerSelecting(urls)
-                }
-                .buttonStyle(.link)
-                .font(.callout)
-
                 suggestionSection
             }
             .padding()

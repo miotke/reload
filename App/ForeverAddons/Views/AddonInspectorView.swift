@@ -243,11 +243,6 @@ struct AddonDetailView: View {
                         .foregroundStyle(missing ? .orange : .primary)
                         .help(missing ? "This folder is missing from disk" : "")
                 }
-                Button("Show in Finder", systemImage: "folder") {
-                    let urls = addon.folders.map { state.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
-                    NSWorkspace.shared.activateFileViewerSelecting(urls)
-                }
-                .buttonStyle(.link)
             }
             .font(.callout)
         }
@@ -383,6 +378,11 @@ private struct InspectorActions: View {
                         }
                 }
                 Spacer()
+                Button("Show in Finder", systemImage: "folder") {
+                    let urls = installed.folders.map { queue.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
+                    NSWorkspace.shared.activateFileViewerSelecting(urls)
+                }
+                .help("Reveal \(installed.folders.joined(separator: ", ")) in Interface/AddOns")
                 Button("Uninstall…", role: .destructive) { confirmUninstall = true }
                     .disabled(busy)
                     .confirmationDialog("Uninstall \(installed.name)?", isPresented: $confirmUninstall) {

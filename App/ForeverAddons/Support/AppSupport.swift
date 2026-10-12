@@ -6,6 +6,32 @@ enum SettingsKey {
     static let defaultChannel = "defaultChannel"
     static let checkForUpdatesOnLaunch = "checkForUpdatesOnLaunch"
     static let showMenuBarExtra = "showMenuBarExtra"
+    static let appearance = "appearance"
+}
+
+/// Light, dark or the system's choice, set in Settings or View ▸ Appearance.
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .system: "Use System Setting"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    /// Sets the whole app's appearance, so window chrome, sheets and menus follow too
+    /// (`preferredColorScheme` only reaches SwiftUI content).
+    func apply() {
+        NSApp.appearance = switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
 }
 
 /// Focuses the window's toolbar search field (⌘F from any tab).

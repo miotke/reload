@@ -10,6 +10,7 @@ struct ForeverAddonsApp: App {
         usesStandardDefaults: environment.usesStandardDefaults)
 
     @AppStorage(SettingsKey.showMenuBarExtra) private var showMenuBarExtra = false
+    @AppStorage(SettingsKey.appearance) private var appearance: AppAppearance = .system
 
     var body: some Scene {
         WindowGroup {
@@ -27,12 +28,19 @@ struct ForeverAddonsApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     model.stopAutoRefresh()
                 }
+                .onChange(of: appearance, initial: true) { appearance.apply() }
         }
         .defaultSize(width: 1300, height: 880)
         .commands {
             CommandGroup(after: .textEditing) {
                 Button("Find Add-ons") { SearchFieldFocus.focus() }
                     .keyboardShortcut("f", modifiers: .command)
+            }
+            CommandGroup(before: .sidebar) {
+                Picker("Appearance", selection: $appearance) {
+                    ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
+                }
+                Divider()
             }
             CommandMenu("Add-ons") {
                 Button("Check for Updates") { model.checkForUpdates() }

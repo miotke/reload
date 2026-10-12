@@ -101,6 +101,7 @@ Known quirk: "bag" ranks the Bagnon plugins above BetterBags, because a name sta
 - **Popular:** add-ons with a stored "supported" verdict, sorted by stars when known.
 - Both lists carry `availableFlavors`. **Recently updated** always drops what the hide-incompatible rule hides; the app filters both lists again by its toggle.
 - **Recently updated:** catalogue entries with the newest update dates.
+- Each list holds up to `SearchCoordinator.browseLimit` (500) rows; the table is lazy, so the cap is about relevance, not cost. (It was 20 when Browse was a short chip-led list.)
 - **Categories:** Boss mods, Bags, UI, Quests, Maps, Auction and Combat. Each is a saved keyword query from `SearchAliases.categories`; clicking one runs that search.
 
 Results that are already installed are marked.

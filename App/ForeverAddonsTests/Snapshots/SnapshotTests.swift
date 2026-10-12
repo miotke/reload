@@ -54,11 +54,11 @@ import UniformTypeIdentifiers
                 }
                 .padding(12)
                 Divider()
-                BrowseStatusBar(browse: state.browse, queue: state.queue, isHome: true, hasSort: false,
-                                includeLiveGitHub: .constant(false), refresh: {}, resetSort: {})
+                BrowseStatusBar(browse: state.browse, isHome: true, hasSort: false,
+                                includeLiveGitHub: .constant(false), resetSort: {})
                 Divider()
-                BrowseStatusBar(browse: state.browse, queue: state.queue, isHome: false, hasSort: true,
-                                includeLiveGitHub: .constant(false), refresh: {}, resetSort: {})
+                BrowseStatusBar(browse: state.browse, isHome: false, hasSort: true,
+                                includeLiveGitHub: .constant(false), resetSort: {})
             }
         }
     }
@@ -102,7 +102,8 @@ import UniformTypeIdentifiers
     @Test func sidebar() throws {
         try Snapshot.render("sidebar", width: 220, height: 480) {
             SidebarView(selection: .constant(.library(.updates)), counts: state.installed.counts,
-                        categories: SearchAliases.categories, refresh: nil, showsInstallation: false)
+                        categories: SearchAliases.categories, refresh: nil, showsInstallation: false,
+                        fetch: FetchFooter.Model(lastFetched: Fixtures.date(10, 12), isRefreshing: false, refresh: {}))
         }
     }
 
@@ -110,7 +111,8 @@ import UniformTypeIdentifiers
         let progress = RefreshProgress(phase: .updates, completed: 3, total: 8, message: "Checking for updates…")
         try Snapshot.render("sidebar-refreshing", width: 220, height: 540) {
             SidebarView(selection: .constant(.library(.installed)), counts: state.installed.counts,
-                        categories: SearchAliases.categories, refresh: (Fixtures.installation, progress), showsInstallation: false)
+                        categories: SearchAliases.categories, refresh: (Fixtures.installation, progress), showsInstallation: false,
+                        fetch: FetchFooter.Model(lastFetched: Fixtures.date(10, 12), isRefreshing: true, refresh: {}))
         }
     }
 

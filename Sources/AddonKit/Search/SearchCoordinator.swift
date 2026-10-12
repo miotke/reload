@@ -8,6 +8,8 @@ import Foundation
 /// installed, refreshed or scrolled into view in Browse (`AddonManager.checkVisible`).
 public actor SearchCoordinator {
     /// Catalogue matches kept per search.
+    /// Rows in each Browse list. The table is lazy, so this is about relevance, not cost.
+    public static let browseLimit = 500
     public static let catalogueLimit = 200
     /// Below this many local results, GitHub live search runs automatically.
     public static let liveSearchThreshold = 3
@@ -248,16 +250,16 @@ public actor SearchCoordinator {
         }
 
         var recent: [SearchResult] = []
-        for entry in index?.recentlyUpdated(limit: 60) ?? [] {
+        for entry in index?.recentlyUpdated(limit: Self.browseLimit * 2) ?? [] {
             var result = Self.result(for: entry, origin: .catalogue, stars: stars)
             if let status = keyedStatuses[Session.key(entry.ref)] { result.support = status }
             result.availableFlavors = flavors[entry.fullName.lowercased()]
             if flavor.hidesAsIncompatible(families: result.families, support: result.support) { continue }
             recent.append(result)
-            if recent.count == 20 { break }
+            if recent.count == Self.browseLimit { break }
         }
 
-        return (Array(popular.prefix(20)), recent, SearchAliases.categories)
+        return (Array(popular.prefix(Self.browseLimit)), recent, SearchAliases.categories)
     }
 
     // MARK: Direct references

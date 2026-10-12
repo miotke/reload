@@ -332,7 +332,7 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
         // No star data yet: newest first. BugSack (2026-09-18) is newer than BigWigs (2026-09-12).
         #expect(ids(browse.popular) == ["funkydude/BugSack", "BigWigsMods/BigWigs"])
 
-        #expect(browse.recent.count == 20)
+        #expect(browse.recent.count > 20 && browse.recent.count <= SearchCoordinator.browseLimit)
         let dates = browse.recent.compactMap(\.lastUpdated)
         #expect(dates == dates.sorted(by: >))
         #expect(!ids(browse.recent).contains("Cidan/BetterBags"))
