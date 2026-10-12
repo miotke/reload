@@ -31,6 +31,7 @@ Native macOS add-on manager for World of Warcraft: Forever. A SwiftUI app (`App/
 - Tests use Swift Testing (`@Test`, `#expect`), not XCTest.
 - Match the surrounding file's style. Comments explain *why*, not *what*.
 - The app uses real data only. No mock managers or sample data in the app target.
+- **Never read `@Environment(SomeObservable.self)` inside `Table` cells, context menus, `primaryAction` handlers or toolbar item views.** AppKit hosts those in separate hosting views. During row rebuilds (sorting, search, category changes) the object can be missing, and SwiftUI traps with "No Observable object of type … found". Pass the model, row state or closures in as plain properties instead.
 
 ## Network rules
 
