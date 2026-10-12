@@ -327,7 +327,6 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         #expect(Style.plain.red("x") == "x")
         #expect(Style(enabled: true).red("x") == "\u{1B}[31mx\u{1B}[0m")
         #expect(Style.strip(Style(enabled: true).bold("hi")) == "hi")
-        #expect(Format.support(.supported(version: "v1"), style: .plain) == "✓ v1")
     }
 
     @Test func contextHonoursNoColorAndPipes() throws {

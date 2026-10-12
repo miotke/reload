@@ -310,9 +310,8 @@ struct CLIHarness {
         #expect(await SearchCommand.collect(local).searchedGitHub == false)
     }
 
-    @Test func storedBadgesShowAsIs() {
-        #expect(Format.support(.needsDownload, style: .plain) == "? needs download")
-        #expect(Format.support(.unknown, style: .plain) == "· not checked")
+    @Test func uncheckedGamesShowAsADash() {
+        #expect(Format.games(nil, flavor: .forever, style: .plain) == "—")
     }
 
     @Test func stableStateFromStoredDetails() {

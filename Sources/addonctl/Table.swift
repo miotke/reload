@@ -50,17 +50,6 @@ enum Format {
         }
     }
 
-    static func support(_ status: SupportStatus, style: Style) -> String {
-        switch status {
-        case .supported(let version): style.green("✓ \(version)")
-        case .unsupported: style.dim("— not yet")
-        case .noReleases: style.dim("— no releases")
-        case .needsDownload: style.yellow("? needs download")
-        case .checking: style.dim("… checking")
-        case .unknown: style.dim("· not checked")
-        }
-    }
-
     /// The GAMES column: `R F C` in fixed positions, `·` for a family with no build, the
     /// installation's own family in bold, and `—` when nobody has checked yet.
     static func games(_ flavors: Set<Flavor>?, flavor: Flavor, style: Style) -> String {
