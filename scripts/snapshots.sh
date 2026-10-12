@@ -11,9 +11,9 @@ if [ -z "${DEVELOPER_DIR:-}" ] && xcode-select -p | grep -q CommandLineTools; th
 fi
 
 rm -rf build/snapshots
-xcodebuild -project App/ForeverAddons.xcodeproj -scheme ForeverAddons -configuration Debug \
+xcodebuild -project App/Reload.xcodeproj -scheme Reload -configuration Debug \
     -destination 'platform=macOS' -derivedDataPath build/DerivedData \
-    test -only-testing:ForeverAddonsTests/SnapshotTests -quiet
+    test -only-testing:ReloadTests/SnapshotTests -quiet
 
 echo "Snapshots in $root/build/snapshots:"
 ls -1 build/snapshots

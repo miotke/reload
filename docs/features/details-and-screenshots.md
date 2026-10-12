@@ -2,7 +2,7 @@
 
 What the inspector and the add-on window show for an add-on, how details are loaded, and how README and screenshot images are rendered.
 
-Code: `AddonManager+Details.swift` (`details(for:in:)` → `AddonDetails`), `GitHub/ReadmeFetcher.swift`, `Details/ReadmeImages.swift`; app side in `App/ForeverAddons/Views/AddonInspectorView.swift`, `ScreenshotViews.swift`, `MarkdownView.swift`, `Support/ScreenshotLoader.swift`, `Support/MarkdownBlocks.swift`. Where the inspector sits: [app/layout.md](../app/layout.md).
+Code: `AddonManager+Details.swift` (`details(for:in:)` → `AddonDetails`), `GitHub/ReadmeFetcher.swift`, `Details/ReadmeImages.swift`; app side in `App/Reload/Views/AddonInspectorView.swift`, `ScreenshotViews.swift`, `MarkdownView.swift`, `Support/ScreenshotLoader.swift`, `Support/MarkdownBlocks.swift`. Where the inspector sits: [app/layout.md](../app/layout.md).
 
 ## What the inspector shows
 
@@ -82,7 +82,7 @@ flowchart LR
 
 - **Which images (core, `ReadmeImages`):** Markdown inline and reference images and HTML `<img src>`, in document order and de-duplicated, ignoring code blocks and comments. Relative paths resolve against the README's folder on raw.githubusercontent.com; `github.com/…/blob/…` and `…/raw/…` links become raw URLs. Badges (shields.io and similar hosts, CI status images, anything with "badge" in the path), SVGs, favicons, `NNxNN` icons and images an `<img>` sizes at 64 px or less are dropped.
 - **Filtering belongs to the core.** The app only caps the list at 6 images per add-on and refuses images over 5 MB.
-- **Download once:** `ScreenshotLoader` keeps a dedicated `URLCache` (32 MB memory, 200 MB disk) in `<caches>/screenshots/` (`AppDirectories.screenshotsDirectory`), so `ADDONS_DATA_DIR` moves it and clearing caches (`clearCaches()`, `addonctl cache clear`) empties it. The loader reads it before the network and stores each image itself, so a server's cache headers can't keep it out. A test checks a relaunch reads the disk copy.
+- **Download once:** `ScreenshotLoader` keeps a dedicated `URLCache` (32 MB memory, 200 MB disk) in `<caches>/screenshots/` (`AppDirectories.screenshotsDirectory`), so `RELOAD_DATA_DIR` moves it and clearing caches (`clearCaches()`, `reload cache clear`) empties it. The loader reads it before the network and stores each image itself, so a server's cache headers can't keep it out. A test checks a relaunch reads the disk copy.
 - **Capped while streaming:** a `Content-Length` over 5 MB is refused before the body; without one, the body arrives in the session's chunks (a data delegate, not `AsyncBytes` byte by byte, which cost about 62 ms of CPU per MB) and is cancelled once it passes 5 MB. Non-2xx responses, non-images and SVGs are refused too.
 - **Thumbnail decode:** ImageIO downsamples to twice the thumbnail width (for Retina) off the main actor and off the loader's actor, at most 3 at a time, so a gallery's thumbnails decode in parallel. Thumbnails are 150×96 in the inspector and 320×200 in the add-on window. They load lazily as the strip scrolls.
 - **Full resolution only in the viewer:** clicking a thumbnail opens a sheet (← / → to step, Esc to close) that decodes a larger version (up to 2000 px).

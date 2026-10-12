@@ -97,7 +97,7 @@ The Questie case: `Questie/` has `Questie.toc` (interface `00000`, "game client 
 - anything that isn't a single folder directly in `AddOns/` (`..`, paths, files)
 - folders that don't exist
 
-Names compare case-insensitively and duplicates are removed once, so a whole group can be passed at once. The app asks first (listing the folders); the CLI is `addonctl remove --unmanaged <folder…>`.
+Names compare case-insensitively and duplicates are removed once, so a whole group can be passed at once. The app asks first (listing the folders); the CLI is `reload remove --unmanaged <folder…>`.
 
 ## Downloader
 

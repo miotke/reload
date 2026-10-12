@@ -35,7 +35,7 @@ Every `ResolvedRelease` carries a `reasoning` trail, for example:
 ["release v426.4 (id 123)", "release.json → BigWigs-v426.4.zip (forever 16001)"]
 ```
 
-`addonctl resolve` and `addonctl info` print it ([cli/commands.md](../cli/commands.md)).
+`reload resolve` and `reload info` print it ([cli/commands.md](../cli/commands.md)).
 
 ## ZipInspector: does a zip support the flavor?
 
@@ -100,7 +100,7 @@ Forever loads the `_Mainline` family TOC, so a Retail build often works there ([
 - The install records `InstalledAddon.installedFlavorBuild = .mainline` (and keeps it in rollback snapshots).
 - **Update checks keep to that build.** They first ask whether the latest release now has a build for the installation's own flavor; if so, that's the update ("Forever build available"), even for the same tag, and installing it clears `installedFlavorBuild`. Otherwise they check the Retail build as usual. `isUpdate` treats a change of build as an update.
 - An add-on installed as its own build never switches: if a release drops Forever, the check says `noCompatibleRelease` or stays on the last Forever release.
-- App: **Install Retail Build…** with a confirmation. CLI: `addonctl install` asks `[Y/n]` when there's no Forever build (`--yes` accepts), or pass `--retail-build` up front.
+- App: **Install Retail Build…** with a confirmation. CLI: `reload install` asks `[Y/n]` when there's no Forever build (`--yes` accepts), or pass `--retail-build` up front.
 - Which action applies is decided in the core: `InstallAction(installed:update:availableFlavors:flavor:)` gives `.installFallbackBuild` (from `Flavor.offeredFallbackBuild`), and an update back to the own build is `UpdateOffer.ownBuild`.
 
 ## Parsing refs

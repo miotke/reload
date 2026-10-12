@@ -137,7 +137,7 @@ import Testing
 
     @Test func environmentTokenWinsOverKeychain() {
         let keychain = KeychainStore(service: "AddonKitTests-\(UUID().uuidString)")
-        #expect(AddonManager.token(environment: ["GITHUB_TOKEN": "b", "ADDONS_GITHUB_TOKEN": "a"], keychain: keychain) == "a")
+        #expect(AddonManager.token(environment: ["GITHUB_TOKEN": "b", "RELOAD_GITHUB_TOKEN": "a"], keychain: keychain) == "a")
         #expect(AddonManager.token(environment: ["GITHUB_TOKEN": " b "], keychain: keychain) == "b")
         #expect(AddonManager.token(environment: [:], keychain: keychain) == nil)
     }

@@ -23,8 +23,8 @@ Update these after merges that change hot paths (see `.claude/CLAUDE.md`). The r
 
 | Command | Baseline | `05ba0ff` |
 |---|---|---|
-| `addonctl --help` | 6 ms | 4.5 ms |
-| `addonctl list` | 10–17 ms | 8 ms empty, 14 ms with 130 add-ons |
+| `reload --help` | 6 ms | 4.5 ms |
+| `reload list` | 10–17 ms | 8 ms empty, 14 ms with 130 add-ons |
 
 ## Core
 
@@ -95,4 +95,4 @@ Third audit, after the Browse lists grew from 20 to 500 rows and gained game bub
 
 ## How to measure
 
-- Build Release, launch in the background with `ADDONS_DATA_DIR=<tmp>`, keep it brief, and quit it afterwards. Never quit the user's own running copy ([development.md](../development.md#testing-without-touching-your-real-setup)).
+- Build Release, launch in the background with `RELOAD_DATA_DIR=<tmp>`, keep it brief, and quit it afterwards. Never quit the user's own running copy ([development.md](../development.md#testing-without-touching-your-real-setup)).

@@ -265,7 +265,7 @@ public actor GitHubReleaseResolver: Source {
             return try ZipInspector.inspect(zipAt: file, flavor: flavor)
         }
         let data = try await web.download(asset.browserDownloadURL)
-        let dir = fm.temporaryDirectory.appending(path: "ForeverAddons-inspect-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let dir = fm.temporaryDirectory.appending(path: "Reload-inspect-\(UUID().uuidString)", directoryHint: .isDirectory)
         try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: dir) }
         let temp = dir.appending(path: "\(asset.id)-\(safeName)", directoryHint: .notDirectory)

@@ -24,7 +24,7 @@ With 60 calls an hour, a launch plus one search and one category click nearly us
 - Fallback results are **written into the local catalogue** (`source = 'github_search'`), so they're found locally next time.
 - Query results are cached in `search_cache` for **24 hours**; an empty result **1 hour**.
 - The search API limit (10 requests a minute unauthenticated) is respected; its state is stored in `rate_limit`, shared by the app and CLI.
-- **Search GitHub for More Results** and `addonctl search --github` still ask GitHub on demand.
+- **Search GitHub for More Results** and `reload search --github` still ask GitHub on demand.
 
 ## Alternatives considered
 

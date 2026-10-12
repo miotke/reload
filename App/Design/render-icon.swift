@@ -1,4 +1,4 @@
-// Renders the ForeverAddons app icon and its alternate icons with CoreGraphics.
+// Renders the Reload app icon and its alternate icons with CoreGraphics.
 //
 // Regenerate everything (run from the repo root):
 //
@@ -6,9 +6,9 @@
 //
 // Outputs:
 //   App/Design/AppIcon-1024.png                          1024 px preview
-//   App/ForeverAddons/Assets.xcassets/Contents.json
-//   App/ForeverAddons/Assets.xcassets/AppIcon.appiconset/ every macOS size + Contents.json
-//   App/ForeverAddons/Assets.xcassets/AltIcon-*.imageset/ one 1024 px PNG each (universal 1x)
+//   App/Reload/Assets.xcassets/Contents.json
+//   App/Reload/Assets.xcassets/AppIcon.appiconset/ every macOS size + Contents.json
+//   App/Reload/Assets.xcassets/AltIcon-*.imageset/ one 1024 px PNG each (universal 1x)
 //   App/Design/alt-previews/AltIcon-*.png                256 px previews
 //   App/Design/alt-icons-sheet.png                       all alternates side by side
 //
@@ -40,7 +40,7 @@ import UniformTypeIdentifiers
 let scriptURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
 let designDir = scriptURL.deletingLastPathComponent()
 let appDir = designDir.deletingLastPathComponent()
-let catalogDir = appDir.appendingPathComponent("ForeverAddons/Assets.xcassets")
+let catalogDir = appDir.appendingPathComponent("Reload/Assets.xcassets")
 let iconSetDir = catalogDir.appendingPathComponent("AppIcon.appiconset")
 let previewDir = designDir.appendingPathComponent("alt-previews")
 

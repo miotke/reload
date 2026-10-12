@@ -8,9 +8,9 @@ Why these settings: [decision 0005](../decisions/0005-swift-6-concurrency.md).
 
 | Target | Settings |
 |---|---|
-| `AddonKit`, `addonctl`, tests (`Package.swift`) | Swift 6 language mode, strict concurrency, `NonisolatedNonsendingByDefault`, `InferIsolatedConformances` |
-| `ForeverAddons` app, app tests (`App/project.yml`) | The same, plus `SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor` |
-| `addonctl` built by Xcode | `SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated`, to match the package |
+| `AddonKit`, `reload`, tests (`Package.swift`) | Swift 6 language mode, strict concurrency, `NonisolatedNonsendingByDefault`, `InferIsolatedConformances` |
+| `Reload` app, app tests (`App/project.yml`) | The same, plus `SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor` |
+| `reload` built by Xcode | `SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated`, to match the package |
 
 Swift tools 6.4, minimum macOS 27.
 

@@ -1,6 +1,6 @@
 # CLI config
 
-The `addonctl config` keys and where they're stored, the `addons.json` export format, and the CLI's current limits.
+The `reload config` keys and where they're stored, the `addons.json` export format, and the CLI's current limits.
 
 Commands: [commands.md](commands.md). Where files live: [data-storage.md](../architecture/data-storage.md).
 
@@ -8,7 +8,7 @@ Commands: [commands.md](commands.md). Where files live: [data-storage.md](../arc
 
 | Key | Stored in | Notes |
 |---|---|---|
-| `github-token` | Keychain (service `com.andrewmiotke.ForeverAddons`, account `github-token`) | Shared with the app's Settings |
+| `github-token` | Keychain (service `com.andrewmiotke.Reload`, account `github-token`) | Shared with the app's Settings |
 | `default-channel` | `<Application Support>/config.json` | `stable` or `prerelease` |
 | `default-install` | `<Application Support>/config.json` | Validated against known installations; a path is added first |
 
@@ -16,13 +16,13 @@ Commands: [commands.md](commands.md). Where files live: [data-storage.md](../arc
 
 - `set` reads stdin (no echo on a terminal) and **refuses a value on the command line**, so the token doesn't end up in shell history.
 - `get` prints it masked (`ghp_…abcd`) with its source.
-- `ADDONS_GITHUB_TOKEN` and `GITHUB_TOKEN` win over the Keychain ([output.md](output.md#environment)).
+- `RELOAD_GITHUB_TOKEN` and `GITHUB_TOKEN` win over the Keychain ([output.md](output.md#environment)).
 - A token raises the API limit from 60 to 5,000 calls an hour ([github-endpoints.md](../network/github-endpoints.md#quota)).
 
 ```sh
-addonctl config set github-token < token.txt
-addonctl config get github-token
-addonctl config unset github-token
+reload config set github-token < token.txt
+reload config get github-token
+reload config unset github-token
 ```
 
 ## `addons.json`

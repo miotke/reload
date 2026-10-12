@@ -1,6 +1,6 @@
 import Foundation
 
-/// Diagnostics and cache clearing for `addonctl doctor` and `cache` (docs/cli/maintenance.md),
+/// Diagnostics and cache clearing for `reload doctor` and `cache` (docs/cli/maintenance.md),
 /// and the GitHub status the app's settings show (docs/network/budget.md).
 extension AddonManager {
     /// Remaining GitHub API calls and when the limit resets, as last reported by GitHub.

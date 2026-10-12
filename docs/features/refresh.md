@@ -68,4 +68,4 @@ flowchart LR
 - The stream keeps only the newest few elements. `.finished` is always last.
 - Cancelling the consumer stops the work without recording a refresh.
 - In the app, progress lives in `RefreshStatus`, observed only by the sidebar bar and the seeding sheet ([performance/guidelines.md](../performance/guidelines.md#progress-and-observation)). Verdicts and flavors the refresh writes reach Browse rows live ([app/live-data.md](../app/live-data.md)).
-- From the terminal: `addonctl refresh [--force]` ([cli/commands.md](../cli/maintenance.md#refresh)).
+- From the terminal: `reload refresh [--force]` ([cli/commands.md](../cli/maintenance.md#refresh)).

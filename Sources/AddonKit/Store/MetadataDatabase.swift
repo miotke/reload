@@ -87,7 +87,7 @@ public struct SQLRow: Sendable, Hashable {
 /// Shared metadata (catalogue, support verdicts, repo details, refresh and rate-limit state)
 /// in `<applicationSupport>/metadata.sqlite`, through the system SQLite.
 ///
-/// The app and `addonctl` open the same file, so it runs in WAL mode with a 5 s busy
+/// The app and `reload` open the same file, so it runs in WAL mode with a 5 s busy
 /// timeout. The connection is opened without SQLite's own mutex: the actor is the only
 /// thing that touches it. Schema changes are ordered `migrations`, tracked in
 /// `PRAGMA user_version`, each applied in its own transaction on open.

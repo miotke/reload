@@ -33,7 +33,7 @@ That duplicated the "latest tag → `release.json`" logic and made it easy to fo
 | Search and Browse | none: they read stored verdicts only |
 | Opening details | `.revalidateIfStale` |
 | Background refresh (every 2 h): update and support phases | `.revalidateIfStale`; the support phase reuses what the update phase just stored |
-| Explicit check (⌘R, `checkForUpdates`, `addonctl outdated`/`update`), forced refresh, install, `update` | `.forceRevalidate` |
+| Explicit check (⌘R, `checkForUpdates`, `reload outdated`/`update`), forced refresh, install, `update` | `.forceRevalidate` |
 
 ## Alternatives considered
 

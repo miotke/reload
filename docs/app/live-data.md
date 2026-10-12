@@ -2,7 +2,7 @@
 
 How the app stays current without polling: change events for its own metadata writes, the metadata version for the CLI's writes, and the store watcher for installs. All three come through `AddonManaging` (`metadataChanges()`, `metadataVersion()`, `storeDirectory`); the app never opens the database or the store itself.
 
-Code: `App/ForeverAddons/Models/AppModel.swift`, `Models/LiveMetadata.swift`, `Models/BrowseModel.swift`, `Support/DirectoryWatcher.swift`. The database side: [data-storage.md](../architecture/data-storage.md#change-stream).
+Code: `App/Reload/Models/AppModel.swift`, `Models/LiveMetadata.swift`, `Models/BrowseModel.swift`, `Support/DirectoryWatcher.swift`. The database side: [data-storage.md](../architecture/data-storage.md#change-stream).
 
 ## Three sources of change
 
@@ -10,7 +10,7 @@ Code: `App/ForeverAddons/Models/AppModel.swift`, `Models/LiveMetadata.swift`, `M
 flowchart LR
     W1[App's own DB writes<br/>refresh, details, live search] --> CH[metadataChanges]
     CH --> P[Patch Browse games<br/>at most every 500 ms]
-    W2[addonctl DB writes] --> DV{metadataVersion changed<br/>on activation?}
+    W2[reload DB writes] --> DV{metadataVersion changed<br/>on activation?}
     DV -- yes --> RM[Reload metadata<br/>for every installation]
     W3[Install store writes<br/>app or CLI] --> SW[Store watcher<br/>DispatchSource]
     SW --> RA[Reload add-on list]
@@ -19,7 +19,7 @@ flowchart LR
 | Change | Detected by | What reloads |
 |---|---|---|
 | The app's own metadata writes (refresh, details, live search, visible-row checks) | `metadataChanges()` | Games and verdicts on the rows currently shown |
-| `addonctl` metadata writes | `metadataVersion()` (`PRAGMA data_version`), compared on app activation | Metadata for every installation model |
+| `reload` metadata writes | `metadataVersion()` (`PRAGMA data_version`), compared on app activation | Metadata for every installation model |
 | Install store writes (app or CLI) | the store watcher | The add-on list |
 
 ## Live games during a refresh
@@ -34,9 +34,9 @@ flowchart LR
 
 - `metadataChanges()` only sees writes made through this process's connection.
 - So on app activation, `AppModel.reloadMetadataIfChanged()` compares `metadataVersion()` with the last value it saw. Only if it changed does each installation's `BrowseModel.reloadMetadata()` run.
-- That catches `addonctl refresh`, `addonctl info` (which stores details) and `addonctl cache clear --metadata`.
+- That catches `reload refresh`, `reload info` (which stores details) and `reload cache clear --metadata`.
 
-## Live updates from `addonctl` installs
+## Live updates from `reload` installs
 
 - The app watches the store folder (`AddonManaging.storeDirectory`) with a `DispatchSource` and reloads, debounced, when it changes. Add-ons installed or updated from the terminal show up immediately.
 - Store-watcher reloads only re-read the add-on list, never the network.

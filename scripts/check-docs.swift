@@ -9,7 +9,7 @@
 //   3. Every `docs/...md` path mentioned in source comments exists.
 //   4. The "Where things live" tables in docs/architecture/core.md (core + CLI) and
 //      docs/app/project.md (app) only name paths that exist, and together cover every
-//      Swift file under Sources/ and App/ForeverAddons/.
+//      Swift file under Sources/ and App/Reload/.
 
 import Foundation
 
@@ -95,7 +95,7 @@ for doc in docs where doc.hasPrefix("docs/decisions/") && doc != "docs/decisions
 // MARK: 3. Doc paths in source comments
 
 // Tests are skipped: they contain example paths as test data.
-let sources = files(under: "Sources", ext: ".swift") + files(under: "App/ForeverAddons", ext: ".swift")
+let sources = files(under: "Sources", ext: ".swift") + files(under: "App/Reload", ext: ".swift")
 let docPathPattern = try! Regex(#"docs/[a-z0-9/_-]+\.md"#)
 for source in sources {
     guard let text = read(source) else { continue }
@@ -130,7 +130,7 @@ for (doc, area) in [("docs/architecture/core.md", "core and CLI"), ("docs/app/pr
     }
 }
 if !covered.isEmpty {
-    let mustCover = files(under: "Sources", ext: ".swift") + files(under: "App/ForeverAddons", ext: ".swift")
+    let mustCover = files(under: "Sources", ext: ".swift") + files(under: "App/Reload", ext: ".swift")
     for file in mustCover where !covered.contains(where: { file == $0 || file.hasPrefix($0 + "/") }) {
         problems.append("\(file): not in any Where things live table")
     }

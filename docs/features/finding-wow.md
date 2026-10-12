@@ -29,7 +29,7 @@ Detection only reads. It never writes anything into the game folder.
 
 ## Adding a folder by hand
 
-`installation(at:)` (behind `AddonManager.addInstallation(at:)`, **Add Installation…** in the app and `addonctl installs add`) accepts any of these:
+`installation(at:)` (behind `AddonManager.addInstallation(at:)`, **Add Installation…** in the app and `reload installs add`) accepts any of these:
 - the game-version folder itself, e.g. `World of Warcraft/_classic_beta_`
 - its `Interface/AddOns` folder
 - the `World of Warcraft` folder, when it holds exactly one game-version folder
@@ -39,8 +39,8 @@ Anything else throws `installationNotFound`.
 ## When detection runs
 
 - `installations()` returns what's stored. Only the first call in a process with nothing stored runs detection.
-- After that, only `detectInstallations()` runs it (`addonctl installs` does).
-- With `ADDONS_DATA_DIR` set, auto-detection is off, so only folders you add exist ([development.md](../development.md#testing-without-touching-your-real-setup)).
+- After that, only `detectInstallations()` runs it (`reload installs` does).
+- With `RELOAD_DATA_DIR` set, auto-detection is off, so only folders you add exist ([development.md](../development.md#testing-without-touching-your-real-setup)).
 
 ## Known folders
 

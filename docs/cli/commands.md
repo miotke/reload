@@ -1,13 +1,13 @@
 # CLI commands
 
-Every `addonctl` command, how `<ref>` arguments are resolved, and how the installation is chosen.
+Every `reload` command, how `<ref>` arguments are resolved, and how the installation is chosen.
 
-`addonctl` is a package-manager-style CLI over the same core (`AddonManager`) and the same install store as the app. An add-on installed in one shows up in the other. Output, exit codes and environment: [output.md](output.md). Config keys and `addons.json`: [config.md](config.md).
+`reload` is a package-manager-style CLI over the same core (`AddonManager`) and the same install store as the app. An add-on installed in one shows up in the other. Output, exit codes and environment: [output.md](output.md). Config keys and `addons.json`: [config.md](config.md).
 
 ## Installing it
 
-- **From the app:** on first launch the app offers to install it, creating the symlink `/usr/local/bin/addonctl` → the binary inside the app (admin password needed). You can also install it later from Settings ▸ Command Line. See [app/cli-install.md](../app/cli-install.md).
-- **From source:** `swift build -c release --product addonctl`, then put `.build/release/addonctl` on your `PATH`.
+- **From the app:** on first launch the app offers to install it, creating the symlink `/usr/local/bin/reload` → the binary inside the app (admin password needed). You can also install it later from Settings ▸ Command Line. See [app/cli-install.md](../app/cli-install.md).
+- **From source:** `swift build -c release --product reload`, then put `.build/release/reload` on your `PATH`.
 
 ## Commands
 
@@ -87,14 +87,14 @@ Names go through `AddonManager.lookup`: installed add-ons first (name, repo name
 
 | File | Contents |
 |---|---|
-| `AddonCtl.swift` | Root command (`@main struct AddonCtl`), subcommand list, `main` mapping errors to exit codes and JSON errors |
+| `ReloadCLI.swift` | Root command (`@main struct ReloadCLI`), subcommand list, `main` mapping errors to exit codes and JSON errors |
 | `Context.swift` | `GlobalOptions`, `CLIContext` (output, prompts, installation and ref choice), `ContextCommand` |
 | `Selection.swift` | Pure installation and ref selection |
 | `Table.swift`, `Terminal.swift` | Tables and formatting; `Style`, `Console`, `Prompter`, `Spinner`, `ProgressBoard` |
 | `JSONOutput.swift`, `Errors.swift` | JSON documents and wrappers; `CLIError`, `ExitStatus` |
-| `Config.swift`, `AddonsFile.swift`, `Environment.swift` | `config.json` + Keychain, `addons.json`, `ADDONS_DATA_DIR`, WoW-running check, completion |
+| `Config.swift`, `AddonsFile.swift`, `Environment.swift` | `config.json` + Keychain, `addons.json`, `RELOAD_DATA_DIR`, WoW-running check, completion |
 | `Commands/` | One file per command group |
 
-Built by SwiftPM (`swift build --product addonctl`) and by the Xcode project ([app/project.md](../app/project.md#targets)). There's no `main.swift` and no SwiftPM resources.
+Built by SwiftPM (`swift build --product reload`) and by the Xcode project ([app/project.md](../app/project.md#targets)). There's no `main.swift` and no SwiftPM resources.
 
-Tests: `Tests/addonctlTests` (`@testable import addonctl`) cover selection, tables, JSON shapes, exit-code mapping, export/import, colour rules, config and completion.
+Tests: `Tests/reloadTests` (`@testable import reload`) cover selection, tables, JSON shapes, exit-code mapping, export/import, colour rules, config and completion.

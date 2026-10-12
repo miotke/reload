@@ -1,6 +1,6 @@
 # Overview
 
-What ForeverAddons is, its three parts (the app, the CLI and the core), and how they fit together.
+What Reload is, its three parts (the app, the CLI and the core), and how they fit together.
 
 ## What it is
 
@@ -16,8 +16,8 @@ A native macOS add-on manager for **World of Warcraft: Forever**, written in Swi
 ```mermaid
 flowchart TB
     subgraph Front ends
-        App[ForeverAddons.app<br/>SwiftUI, App/]
-        CLI[addonctl<br/>Sources/addonctl/]
+        App[Reload.app<br/>SwiftUI, App/]
+        CLI[reload<br/>Sources/reload/]
     end
     App -- embeds --> CLI
     App --> AM
@@ -35,14 +35,14 @@ flowchart TB
 | Part | What it does | Docs |
 |---|---|---|
 | **App** (`App/`) | SwiftUI window with Installed and Browse tables, an inspector, Settings and a menu bar extra. Bundles the CLI | [app/](app/project.md) |
-| **CLI** (`addonctl`) | Package-manager-style commands (`search`, `install`, `update`, `outdated`, …) with `--json` and exit codes | [cli/](cli/commands.md) |
+| **CLI** (`reload`) | Package-manager-style commands (`search`, `install`, `update`, `outdated`, …) with `--json` and exit codes | [cli/](cli/commands.md) |
 | **Core** (`AddonKit`) | All logic: finding WoW, choosing releases, downloading, installing, the store, search | [architecture/core.md](architecture/core.md) |
 
 ## How they fit
 
 - **One core, one state.** The app and the CLI both call `AddonManager` and share one install store and one metadata database. An add-on installed from the terminal shows up in the app, and the reverse ([decision 0001](decisions/0001-swift-package-core.md)).
 - **Safe to run side by side.** Store writes take a cross-process `flock`, and the app watches the store folder and reloads when the CLI changes it ([data-storage.md](architecture/data-storage.md)).
-- **Anything the app can do, `addonctl` can do.**
+- **Anything the app can do, `reload` can do.**
 - **Shared credentials.** The GitHub token lives in the Keychain, readable by both.
 
 ## A typical install
@@ -50,7 +50,7 @@ flowchart TB
 1. You search "boss" in Browse. Results come from the local catalogue, ranked, with R / F / C games bubbles ([search.md](features/search.md)).
 2. You click Install. The core resolves the newest release with a Forever build ([release-selection.md](features/release-selection.md)).
 3. The zip is downloaded, validated and swapped into `Interface/AddOns` with backups ([installing.md](features/installing.md)).
-4. The record is written to the install store. `addonctl list` shows it at once.
+4. The record is written to the install store. `reload list` shows it at once.
 
 ## Where to go next
 

@@ -3,9 +3,9 @@ import Synchronization
 import Testing
 @testable import AddonKit
 
-/// Hits github.com and raw.githubusercontent.com for real. Run with `ADDONS_LIVE_TESTS=1`.
+/// Hits github.com and raw.githubusercontent.com for real. Run with `RELOAD_LIVE_TESTS=1`.
 /// None of these spend API quota.
-@Suite(.enabled(if: ProcessInfo.processInfo.environment["ADDONS_LIVE_TESTS"] == "1"))
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["RELOAD_LIVE_TESTS"] == "1"))
 struct LiveMetadataTests {
     let repos = [
         AddonRef(source: .github, identifier: "BigWigsMods/BigWigs"),

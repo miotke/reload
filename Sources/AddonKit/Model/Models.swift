@@ -166,7 +166,7 @@ public struct ResolvedRelease: Sendable, Hashable {
     /// Release body, Markdown.
     public var changelog: String?
     public var isPrerelease: Bool
-    /// Human-readable trail of how this release/asset was chosen (`addonctl resolve`).
+    /// Human-readable trail of how this release/asset was chosen (`reload resolve`).
     public var reasoning: [String]
     /// Another game's build, chosen with `allowFamilyFallback` (`.mainline` on Forever); nil
     /// for the installation's own flavor.

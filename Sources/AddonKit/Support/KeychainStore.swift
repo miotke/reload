@@ -3,7 +3,7 @@ import Security
 
 /// Stores the user's GitHub token as a generic password in the login Keychain.
 ///
-/// Shared by the app and `addonctl` (docs/architecture/core.md).
+/// Shared by the app and `reload` (docs/architecture/core.md).
 public struct KeychainStore: Sendable {
     public struct KeychainError: Error, LocalizedError, Sendable {
         public var status: OSStatus
@@ -28,8 +28,18 @@ public struct KeychainStore: Sendable {
         ]
     }
 
-    /// The stored value, or nil if none is stored or it can't be read.
+    /// The stored value, or nil if none is stored or it can't be read. The default service
+    /// also takes over a token stored under the old ForeverAddons bundle ID, once (decision 0024).
     public func get() -> String? {
+        if let value = read() { return value }
+        guard service == AppInfo.bundleID else { return nil }
+        let legacy = KeychainStore(service: LegacyDataMigration.legacyBundleID, account: account)
+        guard let value = legacy.read(), (try? set(value)) != nil else { return nil }
+        try? legacy.delete()
+        return value
+    }
+
+    private func read() -> String? {
         var query = baseQuery
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne

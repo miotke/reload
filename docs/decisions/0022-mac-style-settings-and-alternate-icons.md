@@ -21,7 +21,7 @@ Settings became a standard toolbar-tab preferences window of grouped forms, and 
 - **`SettingsView` is the only reader of `AppModel`.** Tabs take values, bindings, closures or their own small models (`GitHubTokenModel`, `CommandLineToolModel`), so snapshots build them from fixtures and never touch the Keychain.
 - **Alternate icons set `NSApp.applicationIconImage`** from an `AltIcon-*` imageset, at launch and on change; Classic sets `nil` to use the bundle icon. This changes the Dock and app switcher while the app runs. A footnote says Finder always shows the standard icon.
 - **The token source is shown, the rate limit isn't.** The app mirrors the core's documented order (environment, then Keychain) for display. Stored rate-limit state isn't on `AddonManaging`, so showing it waits for a core task.
-- **Reset first-launch steps** clears the two flags behind a confirmation, and is disabled on `ADDONS_DATA_DIR`, where they aren't stored.
+- **Reset first-launch steps** clears the two flags behind a confirmation, and is disabled on `RELOAD_DATA_DIR`, where they aren't stored.
 
 ## Alternatives considered
 

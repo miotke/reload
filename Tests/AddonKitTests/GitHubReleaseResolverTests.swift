@@ -340,7 +340,7 @@ private final class TestClock: Sendable {
 }
 
 @Suite struct GitHubReleaseResolverLiveTests {
-    @Test(.enabled(if: ProcessInfo.processInfo.environment["ADDONS_LIVE_TESTS"] == "1"))
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["RELOAD_LIVE_TESTS"] == "1"))
     func resolvesBigWigsForForever() async throws {
         let github = GitHub(token: ProcessInfo.processInfo.environment["GITHUB_TOKEN"])
         let source = github.source

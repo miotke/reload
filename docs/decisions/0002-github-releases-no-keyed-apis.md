@@ -24,7 +24,7 @@ The hosts differ in access:
 
 - **GitHub Releases is the primary source.** BigWigs, DBM, WeakAuras, Details, Plater, BugSack and others publish there.
 - **The GitHub catalogue powers search** (~2.4k repos, one raw download per day).
-- **No keyed APIs.** The app never ships a secret. Users may add their *own* GitHub token (Keychain or `ADDONS_GITHUB_TOKEN`) to raise rate limits.
+- **No keyed APIs.** The app never ships a secret. Users may add their *own* GitHub token (Keychain or `RELOAD_GITHUB_TOKEN`) to raise rate limits.
 - **WoWInterface and Tukui are keyless candidates for later**, as more `Source` implementations. The `github:` ref prefix leaves room for them.
 
 ## Alternatives considered

@@ -97,7 +97,7 @@ public protocol AddonManaging: Sendable {
 
     /// Commits to the metadata database made by this process, as kinds plus affected repos.
     func metadataChanges() -> AsyncStream<MetadataChange>
-    /// Changes when any process (e.g. `addonctl`) commits to the metadata database.
+    /// Changes when any process (e.g. `reload`) commits to the metadata database.
     func metadataVersion() async -> Int64?
     /// The install store's folder, for watching changes made by other processes.
     var storeDirectory: URL { get }

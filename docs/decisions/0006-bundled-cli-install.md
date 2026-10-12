@@ -1,6 +1,6 @@
 # 0006: Bundle the CLI in the app and install it as a symlink
 
-The app ships `addonctl` at `Contents/Helpers/addonctl` and, once at first launch, offers to link it into `/usr/local/bin` through an admin prompt run by `osascript` off the main thread.
+The app ships `reload` at `Contents/Helpers/reload` and, once at first launch, offers to link it into `/usr/local/bin` through an admin prompt run by `osascript` off the main thread.
 
 - **Status:** Accepted
 - **Date:** 2026-10-11
@@ -13,12 +13,12 @@ Writing to `/usr/local/bin` needs admin rights. The first version created the li
 
 ## Decision
 
-- The Xcode project builds `addonctl` from `Sources/addonctl` and copies it into `ForeverAddons.app/Contents/Helpers/addonctl`, code-signed with the app.
+- The Xcode project builds `reload` from `Sources/reload` and copies it into `Reload.app/Contents/Helpers/reload`, code-signed with the app.
 - At first launch (after the seeding sheet), the app asks once: **Install** or **Not Now**. The answer is remembered (`didOfferCommandLineTool`).
-- **Install** creates a **symlink** `/usr/local/bin/addonctl` → the helper, so updating the app updates the tool.
+- **Install** creates a **symlink** `/usr/local/bin/reload` → the helper, so updating the app updates the tool.
 - The link is created with `do shell script … with administrator privileges`, run through **`/usr/bin/osascript` as a subprocess, off the main thread**.
 - Settings ▸ Command-Line Tool shows the status and offers Install, Repair (link points to another copy) and Uninstall.
-- Uninstall only removes a symlink that points into a `ForeverAddons.app` bundle.
+- Uninstall only removes a symlink that points into a `Reload.app` bundle.
 
 ## Alternatives considered
 

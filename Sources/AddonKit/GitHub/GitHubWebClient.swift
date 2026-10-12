@@ -171,7 +171,7 @@ final class NetworkPathMonitor: Sendable {
         monitor.pathUpdateHandler = { [weak self] path in
             self?.constrained.withLock { $0 = path.isConstrained }
         }
-        monitor.start(queue: DispatchQueue(label: "ForeverAddons.network-path", qos: .utility))
+        monitor.start(queue: DispatchQueue(label: "Reload.network-path", qos: .utility))
     }
 
     var isConstrained: Bool { constrained.withLock { $0 } }

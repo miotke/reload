@@ -48,7 +48,7 @@ struct GitHubStatusTests {
             http: StubHTTPClient(),
             locator: InstallationLocator(baseFolders: [], findApps: { [] }),
             keychain: KeychainStore(service: "AddonKitTests-\(UUID().uuidString)"),
-            environment: ["ADDONS_GITHUB_TOKEN": "t0ken"]
+            environment: ["RELOAD_GITHUB_TOKEN": "t0ken"]
         )
         let clock = MutableClock()
         await manager.setClock(clock.now)

@@ -1,6 +1,6 @@
 # CLI output
 
-How `addonctl` prints results: global options, tables, JSON, progress, errors, exit codes, environment variables and shell completions.
+How `reload` prints results: global options, tables, JSON, progress, errors, exit codes, environment variables and shell completions.
 
 Commands: [commands.md](commands.md).
 
@@ -20,14 +20,14 @@ Accepted by every command (they go after the command name).
 ## Terminal output
 
 ```
-$ addonctl search boss
+$ reload search boss
   NAME                 REPO                              GAMES  UPDATED
   BigWigs              BigWigsMods/BigWigs               R F C  2 days ago   (installed)
   DBM - Core           DeadlyBossMods/DeadlyBossMods     R F C  3 days ago
   RetailOnly           someone/RetailOnly                R · ·  5 days ago
   BossTimers           someone/BossTimers                —      1 week ago
 
-$ addonctl update
+$ reload update
   BigWigs      v426.3 → v426.4   ━━━━━━━━━━━━━━━━━━━━ done
   BugSack      pinned, skipped
 ```
@@ -92,14 +92,14 @@ JSON error codes: `invalid_reference`, `not_found`, `no_compatible_release`, `ra
 
 | Variable | Effect |
 |---|---|
-| `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN` | Override the Keychain token for this run |
-| `ADDONS_DATA_DIR` | Keep all data under this folder (`AppDirectories(root:)`) and skip WoW auto-detection, so only `installs add` installations exist. Use it for testing |
+| `RELOAD_GITHUB_TOKEN`, then `GITHUB_TOKEN` | Override the Keychain token for this run |
+| `RELOAD_DATA_DIR` | Keep all data under this folder (`AppDirectories(root:)`) and skip WoW auto-detection, so only `installs add` installations exist. Use it for testing |
 | `NO_COLOR` | Disable colour |
 
 ## Shell completions
 
 ```sh
-addonctl --generate-completion-script zsh > ~/.zfunc/_addonctl
+reload --generate-completion-script zsh > ~/.zfunc/_reload
 ```
 
-`<ref>` arguments complete installed add-on names and `owner/repo`s, read straight from the store files (no network, honours `ADDONS_DATA_DIR`).
+`<ref>` arguments complete installed add-on names and `owner/repo`s, read straight from the store files (no network, honours `RELOAD_DATA_DIR`).

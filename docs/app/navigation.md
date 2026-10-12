@@ -2,7 +2,7 @@
 
 How you move around the main window: the game picker in the title, the sidebar's sections and categories, and what the toolbar search applies to.
 
-Code: `App/ForeverAddons/Views/SidebarView.swift` (sidebar, title menu), `Support/SidebarSections.swift` (sections, counts, search scope), `Models/AppModel.swift` (`section`, `searchText`). Why: [decision 0021](../decisions/0021-sidebar-navigation-and-game-picker.md). The rest of the window: [layout.md](layout.md).
+Code: `App/Reload/Views/SidebarView.swift` (sidebar, title menu), `Support/SidebarSections.swift` (sections, counts, search scope), `Models/AppModel.swift` (`section`, `searchText`). Why: [decision 0021](../decisions/0021-sidebar-navigation-and-game-picker.md). The rest of the window: [layout.md](layout.md).
 
 ## Game picker
 
@@ -19,7 +19,7 @@ The window title is the selected installation's name ("Forever Beta"), with the 
 ```
 
 - Each installation shows its display name with the game version (or folder name) as the item's subtitle; the current one has a checkmark.
-- The selection is remembered in user defaults (`selectedInstallation`), except on sandboxed data (`ADDONS_DATA_DIR`), so a temporary run never replaces it. A remembered installation that's gone falls back to the first.
+- The selection is remembered in user defaults (`selectedInstallation`), except on sandboxed data (`RELOAD_DATA_DIR`), so a temporary run never replaces it. A remembered installation that's gone falls back to the first.
 - Switching clears both tables' selections; refreshes still run only on launch, activation, ⌘R and the 2-hour timer.
 - With no installation, the detail area offers **Add Installation…** and **Scan Again** instead.
 
@@ -31,7 +31,7 @@ A source-list `List` with selection, for the selected installation:
 |---|---|---|---|
 | Library | **Installed** | managed add-ons | managed count |
 | | **Updates** | managed add-ons with an update offer, **Update All** above the table | update count |
-| | **Unmanaged** | folders ForeverAddons didn't install; Adopt… and Move to Trash… | folder groups |
+| | **Unmanaged** | folders Reload didn't install; Adopt… and Move to Trash… | folder groups |
 | | **Pinned** | pinned add-ons | pinned count |
 | Browse | **Browse** | Popular / Recently Updated, or search results | — |
 | | Boss mods, Bags, UI, Quests, Maps, Auction, Combat | that category's saved query | — |

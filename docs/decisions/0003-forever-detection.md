@@ -43,7 +43,7 @@ Forever's values (beta 1.60.1) may change at launch.
 - Most releases resolve with one quota-free `release.json` download.
 - Authors who dropped Forever support leave users on the last working version.
 - When Forever launches with new values, only `FlavorRules` changes.
-- `ResolvedRelease.reasoning` records each step, printed by `addonctl resolve`.
+- `ResolvedRelease.reasoning` records each step, printed by `reload resolve`.
 
 ## See also
 

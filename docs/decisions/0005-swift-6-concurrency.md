@@ -15,7 +15,7 @@ Swift 6.2 added "approachable concurrency" features that make the strict model e
 
 - Minimum **macOS 27**, built with **Swift tools 6.4** in **Swift 6 language mode** with strict concurrency.
 - Every package target enables `NonisolatedNonsendingByDefault` and `InferIsolatedConformances`.
-- The app target sets `SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor`. Off-main helpers are marked `nonisolated`. The Xcode `addonctl` target stays `nonisolated` to match the package.
+- The app target sets `SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor`. Off-main helpers are marked `nonisolated`. The Xcode `reload` target stays `nonisolated` to match the package.
 - Shared mutable state lives in **actors** (`AddonManager`, `InstallStore`, `Downloader`, `GitHubReleaseResolver`, search actors), or **`Mutex`** from the Synchronization module for small values.
 - No `NSLock` and no `@unchecked Sendable` in library code.
 

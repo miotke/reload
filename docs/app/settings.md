@@ -2,7 +2,7 @@
 
 The Settings window's tabs, what each stores and where, and how the alternate app icon works (and why Finder never shows it).
 
-Code: `App/ForeverAddons/Views/SettingsView.swift` (scene root, General and Advanced), `Views/AppearanceSettings.swift`, `Views/GitHubSettings.swift`, `Models/GitHubStatusModel.swift`, `Views/CommandLineToolViews.swift`, `Support/SettingsSupport.swift`. Why: [decision 0022](../decisions/0022-mac-style-settings-and-alternate-icons.md).
+Code: `App/Reload/Views/SettingsView.swift` (scene root, General and Advanced), `Views/AppearanceSettings.swift`, `Views/GitHubSettings.swift`, `Models/GitHubStatusModel.swift`, `Views/CommandLineToolViews.swift`, `Support/SettingsSupport.swift`. Why: [decision 0022](../decisions/0022-mac-style-settings-and-alternate-icons.md).
 
 ## Layout
 
@@ -16,7 +16,7 @@ Code: `App/ForeverAddons/Views/SettingsView.swift` (scene root, General and Adva
 | General | `gearshape` | default channel, check for updates automatically, default installation (only with more than one), update count in the menu bar |
 | Appearance | `paintpalette` | Light / Dark / System cards, app icon grid |
 | GitHub | `person.badge.key` | token field with Save and Remove, which token is in use, rate limits, links about tokens |
-| Command Line | `terminal` | `addonctl` status with Install / Repair / Uninstall ([cli-install.md](cli-install.md)), example commands |
+| Command Line | `terminal` | `reload` status with Install / Repair / Uninstall ([cli-install.md](cli-install.md)), example commands |
 | Advanced | `gearshape.2` | show the data and caches folders in Finder, reset first-launch steps |
 
 ## Keys
@@ -36,7 +36,7 @@ All in the app's user defaults (`SettingsKey`), except the token.
 
 ## GitHub
 
-- "Token in use" follows the core's order: `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (`GitHubTokenSource`). When a variable is set, a footnote says the Keychain token is ignored.
+- "Token in use" follows the core's order: `RELOAD_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (`GitHubTokenSource`). When a variable is set, a footnote says the Keychain token is ignored.
 - Save and Remove write the Keychain, then call `tokenDidChange()` on the manager.
 - Save and Remove also reload the rate limits, since the token changes them.
 
@@ -59,9 +59,9 @@ From `AddonManaging.gitHubStatus()`, which reads stored state only (no requests)
 
 ## Advanced
 
-- **Show in Finder** opens `AppEnvironment.directories()`: Application Support and Caches, or the folders under `ADDONS_DATA_DIR`. A missing folder is created first.
-- **Reset…** asks for confirmation, then clears `didSeedAddonDetails` and `didOfferCommandLineTool` (`FirstLaunchSteps`), so the seeding sheet and the `addonctl` offer come back on the next launch ([first-launch.md](first-launch.md)).
-- With `ADDONS_DATA_DIR` those steps aren't remembered, so the button is disabled.
+- **Show in Finder** opens `AppEnvironment.directories()`: Application Support and Caches, or the folders under `RELOAD_DATA_DIR`. A missing folder is created first.
+- **Reset…** asks for confirmation, then clears `didSeedAddonDetails` and `didOfferCommandLineTool` (`FirstLaunchSteps`), so the seeding sheet and the `reload` offer come back on the next launch ([first-launch.md](first-launch.md)).
+- With `RELOAD_DATA_DIR` those steps aren't remembered, so the button is disabled.
 
 ## App icon
 

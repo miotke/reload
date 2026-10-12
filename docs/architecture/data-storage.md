@@ -8,17 +8,19 @@ Code: `Sources/AddonKit/Store/` (`AppDirectories`, `InstallStore`, `MetadataData
 
 | What | Path |
 |---|---|
-| Installed add-on records | `~/Library/Application Support/com.andrewmiotke.ForeverAddons/installations/<installation id>.json` |
+| Installed add-on records | `~/Library/Application Support/com.andrewmiotke.Reload/installations/<installation id>.json` |
 | Store lock | `…/installations/.lock` |
-| Metadata database | `~/Library/Application Support/com.andrewmiotke.ForeverAddons/metadata.sqlite` (+ `-wal`, `-shm`) |
-| CLI config | `~/Library/Application Support/com.andrewmiotke.ForeverAddons/config.json` ([cli/config.md](../cli/config.md)) |
-| GitHub token | Keychain, service `com.andrewmiotke.ForeverAddons`, account `github-token` |
-| Downloaded zips | `~/Library/Caches/com.andrewmiotke.ForeverAddons/downloads/<source>/<owner+repo>/<releaseID>-<asset>` |
-| Downloaded `release.json` files | `~/Library/Caches/com.andrewmiotke.ForeverAddons/github/release-json/` |
-| Screenshot cache (app) | `~/Library/Caches/com.andrewmiotke.ForeverAddons/screenshots/` (`AppDirectories.screenshotsDirectory`) |
+| Metadata database | `~/Library/Application Support/com.andrewmiotke.Reload/metadata.sqlite` (+ `-wal`, `-shm`) |
+| CLI config | `~/Library/Application Support/com.andrewmiotke.Reload/config.json` ([cli/config.md](../cli/config.md)) |
+| GitHub token | Keychain, service `com.andrewmiotke.Reload`, account `github-token` |
+| Downloaded zips | `~/Library/Caches/com.andrewmiotke.Reload/downloads/<source>/<owner+repo>/<releaseID>-<asset>` |
+| Downloaded `release.json` files | `~/Library/Caches/com.andrewmiotke.Reload/github/release-json/` |
+| Screenshot cache (app) | `~/Library/Caches/com.andrewmiotke.Reload/screenshots/` (`AppDirectories.screenshotsDirectory`) |
 | Add-ons | `<WoW>/_classic_beta_/Interface/AddOns/` |
 
-`AppDirectories` resolves these. `AppDirectories(root:)` puts everything under one folder (`<root>/Application Support`, `<root>/Caches`), which is what tests and `ADDONS_DATA_DIR` use.
+Data from before the rename to Reload (`com.andrewmiotke.ForeverAddons`) is moved here once at startup ([decision 0024](../decisions/0024-rename-to-reload.md)).
+
+`AppDirectories` resolves these. `AppDirectories(root:)` puts everything under one folder (`<root>/Application Support`, `<root>/Caches`), which is what tests and `RELOAD_DATA_DIR` use.
 
 Nothing is ever written into the game folder except the add-on folders themselves. No marker files.
 
@@ -30,7 +32,7 @@ Nothing is ever written into the game folder except the add-on folders themselve
   - Every write takes an exclusive `flock` on `installations/.lock`, re-reads the file inside the lock, and writes atomically.
   - `withLock` and `modify` hold the lock across a whole read-modify-write. The lock is reentrant within one store.
   - Reads skip the lock, because writes are atomic renames.
-- `storeDirectory` is public so the app can watch it and reload when the CLI changes something ([app/layout.md](../app/live-data.md#live-updates-from-addonctl-installs)).
+- `storeDirectory` is public so the app can watch it and reload when the CLI changes something ([app/layout.md](../app/live-data.md#live-updates-from-reload-installs)).
 ### Reconcile
 
 `InstallStore.reconcile` compares the records with disk; `AddonManager.addons(in:)` finishes the job. Both are local: no network.

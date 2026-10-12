@@ -2,7 +2,7 @@
 
 The main window (sidebar, toolbar, inspector placement, the Installed and Browse tables, sorting) and the separate add-on window.
 
-Code: `App/ForeverAddons/Views/` (`ContentView`, `SidebarView`, `InstalledView`, `BrowseView`), `Models/`, `Support/TableRows.swift`, `Support/TableSorting.swift`. Why the inspector and tables work this way: [decision 0012](../decisions/0012-inspector-and-tables.md).
+Code: `App/Reload/Views/` (`ContentView`, `SidebarView`, `InstalledView`, `BrowseView`), `Models/`, `Support/TableRows.swift`, `Support/TableSorting.swift`. Why the inspector and tables work this way: [decision 0012](../decisions/0012-inspector-and-tables.md).
 
 ## Window
 

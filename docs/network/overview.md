@@ -1,6 +1,6 @@
 # Network overview
 
-When ForeverAddons uses the network, and the rules every request follows. Read this before touching anything that makes requests.
+When Reload uses the network, and the rules every request follows. Read this before touching anything that makes requests.
 
 Why it works this way: [decision 0009](../decisions/0009-local-first-search.md) (local-first search) and [decision 0010](../decisions/0010-quota-free-endpoints.md) (quota-free endpoints). The refresh itself is in [features/refresh.md](../features/refresh.md).
 
@@ -40,7 +40,7 @@ Automatic refreshes can be turned off in Settings (**Check for updates automatic
 - **One owner per kind of data.** Callers state intent with a `CachePolicy`; they never bypass the owner ([decision 0011](../decisions/0011-single-cache-owner.md)).
 - **Be polite.** At most 4 concurrent requests to github.com, with jitter. Honour `retry-after` and back off on 429 and 403.
 - **Background work stays off Low Data Mode networks** (`allowsConstrainedNetworkAccess = false`).
-- **No keys shipped.** Users may add their own GitHub token in Settings or with `addonctl config set github-token`.
+- **No keys shipped.** Users may add their own GitHub token in Settings or with `reload config set github-token`.
 
 ## Related
 

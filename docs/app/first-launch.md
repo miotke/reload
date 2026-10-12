@@ -2,7 +2,7 @@
 
 What happens the first time the app opens (the seeding sheet and the CLI offer), and how refreshes run afterwards: progress, the 2-hour timer and manual checks.
 
-Code: `App/ForeverAddons/Models/AppModel.swift`, `Views/SeedingSheet.swift`. What the core's refresh does: [features/refresh.md](../features/refresh.md).
+Code: `App/Reload/Models/AppModel.swift`, `Views/SeedingSheet.swift`. What the core's refresh does: [features/refresh.md](../features/refresh.md).
 
 ## Sequence
 
@@ -14,7 +14,7 @@ flowchart TD
     D --> C{CLI offered before?<br/>didOfferCommandLineTool}
     Q -- yes --> R[refresh force: false]
     R --> C
-    C -- no, real data --> O[Offer to install addonctl]
+    C -- no, real data --> O[Offer to install reload]
     C -- yes --> T[2-hour timer]
     O --> T
 ```
@@ -24,8 +24,8 @@ flowchart TD
 - Shown when no refresh has ever completed: `lastRefresh(in:) == nil` and no `didSeedAddonDetails` flag.
 - Title "Gathering Add-on Details". It blocks the window with a determinate progress bar, the current step and "n of m".
 - It closes when the refresh finishes. After 3 seconds, **Continue in Background** lets you in while it keeps going.
-- On sandboxed data (`ADDONS_DATA_DIR`) the flag isn't stored, so only `lastRefresh` decides.
-- To see it again: Settings ▸ Advanced ▸ **Reset first-launch steps** ([settings.md](settings.md#advanced)), or `defaults delete com.andrewmiotke.ForeverAddons didSeedAddonDetails`.
+- On sandboxed data (`RELOAD_DATA_DIR`) the flag isn't stored, so only `lastRefresh` decides.
+- To see it again: Settings ▸ Advanced ▸ **Reset first-launch steps** ([settings.md](settings.md#advanced)), or `defaults delete com.andrewmiotke.Reload didSeedAddonDetails`.
 
 ## Refresh progress
 
@@ -52,4 +52,4 @@ While a refresh reports progress, a small bar and message sit at the bottom of t
 
 ## CLI install offer
 
-After the seeding sheet closes, the app offers once to install `addonctl` (unless it's already installed). Only on real data. Details: [cli-install.md](cli-install.md).
+After the seeding sheet closes, the app offers once to install `reload` (unless it's already installed). Only on real data. Details: [cli-install.md](cli-install.md).

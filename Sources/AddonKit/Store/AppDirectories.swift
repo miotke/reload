@@ -46,7 +46,7 @@ public struct AppDirectories: Sendable, Hashable {
     }
 
     /// `<caches>/screenshots`, the app's screenshot `URLCache`. Inside Caches, so clearing
-    /// caches (app or `addonctl cache clear`) includes it, and `ADDONS_DATA_DIR` moves it.
+    /// caches (app or `reload cache clear`) includes it, and `RELOAD_DATA_DIR` moves it.
     public var screenshotsDirectory: URL {
         caches.appending(path: "screenshots", directoryHint: .isDirectory)
     }

@@ -1,14 +1,14 @@
 # CLI maintenance commands
 
-The `addonctl refresh`, `cache` and `doctor` commands: keeping metadata current, clearing caches and the metadata database, and checking the setup.
+The `reload refresh`, `cache` and `doctor` commands: keeping metadata current, clearing caches and the metadata database, and checking the setup.
 
 Command list: [commands.md](commands.md). Where the files live: [data-storage.md](../architecture/data-storage.md).
 
 ## refresh
 
 ```sh
-addonctl refresh            # like the app's 2-hour refresh
-addonctl refresh --force    # refresh now, re-checking every installed add-on
+reload refresh            # like the app's 2-hour refresh
+reload refresh --force    # refresh now, re-checking every installed add-on
 ```
 
 - Runs the core's refresh for the chosen installation: catalogue, update checks, support verdicts for its flavor ([features/refresh.md](../features/refresh.md)).
@@ -29,7 +29,7 @@ addonctl refresh --force    # refresh now, re-checking every installed add-on
 - Empties `catalogue`, `catalogue_state`, `repo_meta`, `support`, `details`, `release_json`, `refresh_state` and `search_cache` in one transaction, then runs `wal_checkpoint(TRUNCATE)` and `VACUUM`.
 - **Keeps the database file**, because the app may have it open, and deleting an open WAL database corrupts it.
 - **Keeps `rate_limit`**: forgetting an exhausted quota would let the app and CLI spend requests GitHub will refuse.
-- Afterwards, run `addonctl refresh` to rebuild it. The app picks up the change on activation ([app/live-data.md](../app/live-data.md)).
+- Afterwards, run `reload refresh` to rebuild it. The app picks up the change on activation ([app/live-data.md](../app/live-data.md)).
 
 Without a terminal, both confirmations need `--yes` ([output.md](output.md)).
 
@@ -41,13 +41,13 @@ One row per check, marked ✓ (ok), `!` (warning) or error. Exit 1 if any check 
 |---|---|
 | Installations | found, default still exists |
 | Each installation | `AddOns` readable; store readable; managed and unmanaged counts; add-ons with missing folders; folders claimed by two add-ons |
-| Metadata | `metadata.sqlite` opens, schema version, size, catalogue and support row counts. Warns when the catalogue is empty (run `addonctl refresh`) |
+| Metadata | `metadata.sqlite` opens, schema version, size, catalogue and support row counts. Warns when the catalogue is empty (run `reload refresh`) |
 | Refresh *(per installation)* | when it was last refreshed, or a warning if never |
 | GitHub API | the stored `core` rate-limit state: remaining calls and reset time; warns below 10 |
 | GitHub search | the stored `search` rate-limit state; warns below 3; "No live searches recorded" if none |
 | GitHub token | set, and from where; a warning if not set (60 calls/hour) |
 | WoW | running or not |
-| Data | a warning when `ADDONS_DATA_DIR` is in use |
+| Data | a warning when `RELOAD_DATA_DIR` is in use |
 
 - GitHub rows read the **stored** rate-limit state, which costs nothing. Only when nothing is stored does `doctor` call the free `GET /rate_limit`.
 - `--json` returns `{healthy, checks[]}`.

@@ -8,11 +8,11 @@ let modernConcurrency: [SwiftSetting] = [
 ]
 
 let package = Package(
-    name: "ForeverAddons",
+    name: "Reload",
     platforms: [.macOS(.v27)],
     products: [
         .library(name: "AddonKit", targets: ["AddonKit"]),
-        .executable(name: "addonctl", targets: ["addonctl"]),
+        .executable(name: "reload", targets: ["reload"]),
     ],
     dependencies: [
         .package(url: "https://github.com/weichsel/ZIPFoundation.git", exact: "0.9.19"),
@@ -25,7 +25,7 @@ let package = Package(
             swiftSettings: modernConcurrency
         ),
         .executableTarget(
-            name: "addonctl",
+            name: "reload",
             dependencies: [
                 "AddonKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -39,8 +39,8 @@ let package = Package(
             swiftSettings: modernConcurrency
         ),
         .testTarget(
-            name: "addonctlTests",
-            dependencies: ["addonctl", "AddonKit"],
+            name: "reloadTests",
+            dependencies: ["reload", "AddonKit"],
             swiftSettings: modernConcurrency
         ),
     ]

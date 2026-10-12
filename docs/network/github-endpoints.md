@@ -1,6 +1,6 @@
 # GitHub endpoints
 
-Every URL ForeverAddons requests, which ones cost API quota, the headers sent, rate-limit handling, and how errors are mapped.
+Every URL Reload requests, which ones cost API quota, the headers sent, rate-limit handling, and how errors are mapped.
 
 Code: `Sources/AddonKit/GitHub/` (`GitHubAPIClient` for the API, `GitHubWebClient` for github.com and raw, `ReadmeFetcher`, `GitHubReleaseResolver`), `Search/GitHubSearchProvider.swift`, `Search/CatalogueSource.swift`, `AddonManager+Details.swift`, `Install/Downloader.swift`.
 
@@ -17,7 +17,7 @@ Code: `Sources/AddonKit/GitHub/` (`GitHubAPIClient` for the API, `GitHubWebClien
 | Catalogue | `raw.githubusercontent.com/layday/github-wow-addon-catalogue/main/addons.csv` | No | [catalogue import](../features/search.md#the-catalogue-cataloguesource) |
 | README | `raw.githubusercontent.com/{owner}/{repo}/HEAD/<path>` (`HEAD` = the default branch) | No | [details](../features/details-and-screenshots.md#readme) |
 | README fallback | `api.github.com/repos/{owner}/{repo}/readme` (only with a token) | Yes | details, when every path 404s |
-| Rate limit | `api.github.com/rate_limit` | No | `addonctl doctor` |
+| Rate limit | `api.github.com/rate_limit` | No | `reload doctor` |
 | Screenshots | any host in the README | n/a | [ScreenshotLoader](../features/details-and-screenshots.md#screenshots) |
 
 The `release.json` asset's `Last-Modified` header is its upload time, so it doubles as the release date (`repo_meta.latest_published_at`) without an API call.
@@ -42,7 +42,7 @@ Avoid `releases/latest/download/release.json`: it takes 3 hops and about 350 ms.
 |---|---|
 | `Accept: application/vnd.github+json` | API requests |
 | `X-GitHub-Api-Version: 2022-11-28` | API requests |
-| `User-Agent: ForeverAddons/<version> (+https://github.com/miotke/swift-addons)` | every core request |
+| `User-Agent: Reload/<version> (+https://github.com/miotke/reload)` | every core request |
 | `Authorization: Bearer <token>` | API requests, only when a token is set. **Never** on github.com or asset requests |
 | `If-None-Match: <etag>` | when an ETag is stored ([caching.md](caching.md)) |
 

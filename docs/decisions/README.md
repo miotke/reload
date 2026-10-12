@@ -1,6 +1,6 @@
 # Decision records
 
-Index of the architecture, network, performance and app decisions behind ForeverAddons, with their status.
+Index of the architecture, network, performance and app decisions behind Reload, with their status.
 
 Each record explains one decision: its context, what was decided, the alternatives, and the consequences. Current behaviour is in the topic docs ([docs/README.md](../README.md)); records explain *why*.
 
@@ -32,15 +32,16 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0021](0021-sidebar-navigation-and-game-picker.md) | Sidebar navigation with library sections and categories; game picker in the title | Accepted | 2026-10-12 |
 | [0022](0022-mac-style-settings-and-alternate-icons.md) | Mac-style tabbed Settings; alternate icons through `applicationIconImage` only | Accepted | 2026-10-12 |
 | [0023](0023-batched-row-reads-and-sidebar-progress.md) | One query for a Browse list's stored answers; refresh progress observed only in the sidebar | Accepted | 2026-10-12 |
+| [0024](0024-rename-to-reload.md) | Rename ForeverAddons to Reload; move old data across once | Accepted | 2026-10-12 |
 
 ## By area
 
 | Area | Records |
 |---|---|
-| Architecture | 0001, 0004, 0005, 0008 |
+| Architecture | 0001, 0004, 0005, 0008, 0024 |
 | Sources and flavor support | 0002, 0003, 0016, 0018, 0019 |
 | Network | 0009, 0010, 0011, 0017, 0019 |
-| App | 0006, 0007, 0012, 0013, 0015, 0019, 0021, 0022, 0023 |
+| App | 0006, 0007, 0012, 0013, 0015, 0019, 0021, 0022, 0023, 0024 |
 | Performance | 0008, 0013, 0023 |
 | Docs | 0014 |
 

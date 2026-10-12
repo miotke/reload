@@ -2,7 +2,7 @@
 
 The `AddonError` cases the core throws, what users see for each, and how the CLI maps them to exit codes.
 
-Code: `Sources/AddonKit/Model/AddonError.swift`. CLI mapping: `Sources/addonctl/Errors.swift`.
+Code: `Sources/AddonKit/Model/AddonError.swift`. CLI mapping: `Sources/reload/Errors.swift`.
 
 Everything in AddonKit throws `AddonError`. Each case has a user-facing `errorDescription`, which the app shows inline on the row and in the inspector, and the CLI prints as `error: <message>`.
 
@@ -39,4 +39,4 @@ The installing rules behind the archive and folder errors are in [installing.md]
 ## Adding a case
 
 - Give it a user-facing `errorDescription` that says what to do next where possible.
-- Map it in `ExitStatus.code(for:)` and the JSON error codes in `Sources/addonctl/Errors.swift`.
+- Map it in `ExitStatus.code(for:)` and the JSON error codes in `Sources/reload/Errors.swift`.

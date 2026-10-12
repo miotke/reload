@@ -1,4 +1,4 @@
-name: ForeverAddons
+name: Reload
 options:
   bundleIdPrefix: com.andrewmiotke
   deploymentTarget:
@@ -17,16 +17,16 @@ packages:
     url: https://github.com/apple/swift-argument-parser.git
     exactVersion: 1.5.0
 targets:
-  ForeverAddons:
+  Reload:
     type: application
     platform: macOS
     sources:
-      - path: ForeverAddons
+      - path: Reload
     dependencies:
       - package: AddonKit
         product: AddonKit
       # The CLI ships inside the app (docs/app/project.md) and is signed with it.
-      - target: addonctl
+      - target: reload-cli
         link: false
         embed: true
         codeSign: true
@@ -34,9 +34,9 @@ targets:
           destination: wrapper
           subpath: Contents/Helpers
     info:
-      path: ForeverAddons/Info.plist
+      path: Reload/Info.plist
       properties:
-        CFBundleDisplayName: ForeverAddons
+        CFBundleDisplayName: Reload
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
         LSApplicationCategoryType: public.app-category.utilities
@@ -44,9 +44,9 @@ targets:
         NSHumanReadableCopyright: "© 2026 Andrew Miotke"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.ForeverAddons
+        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.Reload
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        PRODUCT_NAME: ForeverAddons
+        PRODUCT_NAME: Reload
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_HARDENED_RUNTIME: YES
         ENABLE_APP_SANDBOX: NO
@@ -56,12 +56,14 @@ targets:
         COMBINE_HIDPI_IMAGES: YES
         SWIFT_EMIT_LOC_STRINGS: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
-  addonctl:
+  # Named apart from the app: `Reload` and `reload` would share a build folder on a
+  # case-insensitive disk. The product is still `reload`.
+  reload-cli:
     type: tool
     platform: macOS
     sources:
       # Globbed: every file in the package's CLI target.
-      - path: ../Sources/addonctl
+      - path: ../Sources/reload
     dependencies:
       - package: AddonKit
         product: AddonKit
@@ -69,8 +71,9 @@ targets:
         product: ArgumentParser
     settings:
       base:
-        PRODUCT_NAME: addonctl
-        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.ForeverAddons.addonctl
+        PRODUCT_NAME: reload
+        PRODUCT_MODULE_NAME: ReloadCLITool
+        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.Reload.cli
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
@@ -83,14 +86,14 @@ targets:
   # Not hosted: compiles the app sources (all but the `@main` entry point) into the bundle,
   # so tests never launch the app (which would use the real AddonManager), and
   # SnapshotTests can render its views over test-only data.
-  ForeverAddonsTests:
+  ReloadTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: ForeverAddonsTests
-      - path: ForeverAddons
+      - path: ReloadTests
+      - path: Reload
         excludes:
-          - ForeverAddonsApp.swift
+          - ReloadApp.swift
           - Info.plist
           - Assets.xcassets
     dependencies:
@@ -98,20 +101,20 @@ targets:
         product: AddonKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.ForeverAddonsTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.ReloadTests
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
 schemes:
-  ForeverAddons:
+  Reload:
     build:
       targets:
-        ForeverAddons: all
+        Reload: all
     test:
       targets:
-        - ForeverAddonsTests
+        - ReloadTests
     run:
       config: Debug
     archive:

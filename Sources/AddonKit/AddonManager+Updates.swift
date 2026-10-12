@@ -2,7 +2,7 @@ import Foundation
 
 /// Update checks, updates, rollback, pinning and channels (docs/features/installing.md).
 extension AddonManager {
-    /// An explicit check (⌘R, `addonctl outdated`): always asks for the latest tags.
+    /// An explicit check (⌘R, `reload outdated`): always asks for the latest tags.
     public func checkForUpdates(in installation: Installation) async throws -> [AddonRef: UpdateState] {
         try await checkForUpdates(in: installation, policy: .forceRevalidate, progress: { _, _ in })
     }

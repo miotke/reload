@@ -19,7 +19,7 @@ public enum InstallStoreError: Error, Sendable, Equatable, LocalizedError {
 /// Persists installations and their managed add-ons (docs/architecture/data-storage.md).
 ///
 /// One JSON file per installation at `<appSupport>/installations/<id>.json`. The app and
-/// `addonctl` may run at once, so every write holds an exclusive `flock` on
+/// `reload` may run at once, so every write holds an exclusive `flock` on
 /// `installations/.lock` and re-reads the file from disk inside the lock. Nothing is
 /// cached in memory. Writes are atomic renames, so reads don't need the lock.
 public actor InstallStore {

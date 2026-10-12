@@ -25,7 +25,7 @@ The crash only shows during rebuilds, so it's easy to miss in normal clicking an
   - `MenuBarContent`
 - The add-on window (`AddonWindow`) is a scene too, but it gets the model straight from the `App` as a property.
 - Everything below them gets the model, the row state or closures **as plain properties**: table cells, context menus, `primaryAction` handlers, toolbar items, sheets and the inspector.
-- `EnvironmentUsageTests` (in `ForeverAddonsTests`) scans the app sources and fails if any struct other than those three reads `@Environment(AppModel.self)`.
+- `EnvironmentUsageTests` (in `ReloadTests`) scans the app sources and fails if any struct other than those three reads `@Environment(AppModel.self)`.
 - The rule is in `.claude/CLAUDE.md` under "Code".
 
 ## Alternatives considered

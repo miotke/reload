@@ -75,5 +75,5 @@ The refresh also re-checks repos whose catalogue entry changed after `checked_at
 ## Clearing
 
 - `AddonManager.clearCaches()` empties the `support`, `repo_meta`, `details` and `release_json` tables and deletes everything under Caches (downloads, `release.json` files), including rollback zips.
-- `addonctl cache clear` empties only Caches; `cache clear --metadata` also empties the metadata tables except `rate_limit` ([cli/maintenance.md](../cli/maintenance.md#cache)).
-- `addonctl cache info` shows the sizes.
+- `reload cache clear` empties only Caches; `cache clear --metadata` also empties the metadata tables except `rate_limit` ([cli/maintenance.md](../cli/maintenance.md#cache)).
+- `reload cache info` shows the sizes.

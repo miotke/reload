@@ -99,7 +99,7 @@ extension Set<Flavor> {
 }
 
 /// One sentence on what an add-on's builds mean for an installation, shared by the app's
-/// inspector and `addonctl info` (docs/architecture/flavors.md#game-families).
+/// inspector and `reload info` (docs/architecture/flavors.md#game-families).
 public enum GameAvailability {
     public static func sentence(availableFlavors: Set<Flavor>?, for flavor: Flavor) -> String {
         guard let available = availableFlavors else { return "Not checked yet" }

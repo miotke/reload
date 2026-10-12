@@ -1,6 +1,6 @@
 # Development
 
-How to build and test ForeverAddons, how to run it without touching your real setup, and the code and docs conventions.
+How to build and test Reload, how to run it without touching your real setup, and the code and docs conventions.
 
 ## Requirements
 
@@ -12,14 +12,14 @@ If `xcode-select -p` points to the Command Line Tools, either run `sudo xcode-se
 ## Repository layout
 
 ```
-Package.swift            AddonKit library, addonctl CLI, AddonKitTests, addonctlTests
+Package.swift            AddonKit library, reload CLI, AddonKitTests, reloadTests
 Sources/AddonKit/        core library (architecture/core.md)
-Sources/addonctl/        command-line tool (cli/commands.md)
+Sources/reload/        command-line tool (cli/commands.md)
 Tests/AddonKitTests/     Swift Testing suites; Fixtures/ holds recorded GitHub JSON, a catalogue CSV, zips
-Tests/addonctlTests/     CLI tests
+Tests/reloadTests/     CLI tests
 App/project.yml          XcodeGen spec for the app (app/project.md)
-App/ForeverAddons/       SwiftUI app
-App/ForeverAddonsTests/  app unit tests
+App/Reload/       SwiftUI app
+App/ReloadTests/  app unit tests
 docs/                    all documentation (README.md is the index)
 ```
 
@@ -28,25 +28,25 @@ docs/                    all documentation (README.md is the index)
 | Task | Command |
 |---|---|
 | Core + CLI tests | `swift test` |
-| Live GitHub tests | `ADDONS_LIVE_TESTS=1 swift test` |
-| CLI | `swift run addonctl --help` |
-| CLI release build | `swift build -c release --product addonctl` |
-| App build | `xcodebuild -project App/ForeverAddons.xcodeproj -scheme ForeverAddons -configuration Debug -destination 'platform=macOS' -derivedDataPath build/DerivedData build` |
+| Live GitHub tests | `RELOAD_LIVE_TESTS=1 swift test` |
+| CLI | `swift run reload --help` |
+| CLI release build | `swift build -c release --product reload` |
+| App build | `xcodebuild -project App/Reload.xcodeproj -scheme Reload -configuration Debug -destination 'platform=macOS' -derivedDataPath build/DerivedData build` |
 | App tests | the same command with `test` instead of `build` |
 | UI snapshots | `scripts/snapshots.sh` ([below](#snapshots)) |
 | Regenerate Xcode project | `cd App && xcodegen generate` (commit the result) |
 
-Or open `App/ForeverAddons.xcodeproj` in Xcode, choose the **ForeverAddons** scheme and **My Mac**, and press ⌘R. Targets and the embedded CLI: [app/project.md](app/project.md).
+Or open `App/Reload.xcodeproj` in Xcode, choose the **Reload** scheme and **My Mac**, and press ⌘R. Targets and the embedded CLI: [app/project.md](app/project.md).
 
 Run the app and the tests before saying something works. Report failures plainly.
 
 ## Snapshots
 
-`scripts/snapshots.sh` renders the app's key views to `build/snapshots/<name>-<light|dark>.png` (gitignored), so you can see the UI without launching the app. It runs `SnapshotTests` (`xcodebuild test -only-testing:ForeverAddonsTests/SnapshotTests`).
+`scripts/snapshots.sh` renders the app's key views to `build/snapshots/<name>-<light|dark>.png` (gitignored), so you can see the UI without launching the app. It runs `SnapshotTests` (`xcodebuild test -only-testing:ReloadTests/SnapshotTests`).
 
 - **Agents must view the PNGs (the Read tool shows images) after every UI change**, in both modes, and fix clipping, wrong states or poor contrast before saying the change works.
 - Covered: Browse rows in each state (installed, update, not installed, Retail-only, Classic-only, not checked), the games bubbles with the status bar's legend and "Last fetched", Installed rows (managed, update, pinned, Retail build, unmanaged and a Questie-like group), the inspector (installed, not installed, Retail-only with **Install Retail Build…**, unmanaged with a suggestion), the Retail build sheet, the adopt sheet and the seeding sheet, plus navigation: the sidebar with counts (also while refreshing), a selected category, the installation menu's items, the Updates, Unmanaged and Pinned sections, and each Settings tab (General, Appearance with the icon grid, GitHub, Command Line, Advanced). The Settings window's frame and tab bar can't be drawn offscreen.
-- Data comes from `Fixtures` and a test-only `FixtureManager` (`App/ForeverAddonsTests/Snapshots/`); nothing touches disk or the network, and none of it is in the app target ([decision 0007](decisions/0007-real-data-only.md)).
+- Data comes from `Fixtures` and a test-only `FixtureManager` (`App/ReloadTests/Snapshots/`); nothing touches disk or the network, and none of it is in the app target ([decision 0007](decisions/0007-real-data-only.md)).
 - Views are drawn in an offscreen `NSHostingView`, not `ImageRenderer`: `ImageRenderer` leaves scroll views blank and draws borderless and link buttons as yellow placeholders. `Table` doesn't render either way, so rows are the real cell views stacked at the column widths.
 - Controls draw as in an inactive app, so prominent buttons are grey rather than the accent colour. Menus can't be drawn offscreen, so the installation menu is shown as its item labels in a menu-style panel; sidebar selection is redrawn by the renderer and its text looks slightly dim.
 - A test passes when rendering succeeds; nothing is compared against a reference image.
@@ -54,20 +54,20 @@ Run the app and the tests before saying something works. Report failures plainly
 ## Testing without touching your real setup
 
 - **Unit tests never touch real folders.** Directories are injected (`AppDirectories(root:)` on a temp folder), HTTP goes through `StubHTTPClient`, and downloads through `StubDownloadTransport`.
-- **Manual runs:** set `ADDONS_DATA_DIR=<temp folder>`, which works for both the app and the CLI ([app/project.md](app/project.md#addons_data_dir)). Then add a fake installation such as `<tmp>/World of Warcraft/_classic_beta_/Interface/AddOns`.
-- **Never** point tests or manual runs at the real WoW folder or `~/Library/Application Support/com.andrewmiotke.ForeverAddons`.
+- **Manual runs:** set `RELOAD_DATA_DIR=<temp folder>`, which works for both the app and the CLI ([app/project.md](app/project.md#reload_data_dir)). Then add a fake installation such as `<tmp>/World of Warcraft/_classic_beta_/Interface/AddOns`.
+- **Never** point tests or manual runs at the real WoW folder or `~/Library/Application Support/com.andrewmiotke.Reload`.
 - **Smoke-test and profiling launches** run in the background, stay brief, and are quit afterwards. Never quit the user's own running copy.
 - **No privileged commands.** Don't run the CLI install's admin prompt yourself ([app/cli-install.md](app/cli-install.md)).
 - **Reset first-launch state:**
-  - CLI offer: `defaults delete com.andrewmiotke.ForeverAddons didOfferCommandLineTool`
-  - Seeding sheet: `defaults delete com.andrewmiotke.ForeverAddons didSeedAddonDetails`
+  - CLI offer: `defaults delete com.andrewmiotke.Reload didOfferCommandLineTool`
+  - Seeding sheet: `defaults delete com.andrewmiotke.Reload didSeedAddonDetails`
 
 ### What the tests cover
 
 - Pure code: TOC parsing edge cases (BOM, CRLF, interface lists, colour codes), TOC suffix splitting, `release.json`, `.build.info`, search ranking against a fixture catalogue.
 - `ReleaseSelector` against recorded GitHub JSON: no `release.json`, no Forever entry in the newest release, prerelease-only, drafts, `nolib` assets.
 - The installer against a temp `AddOns` folder with tiny fixture zips: normal install, an update that drops a folder, conflicts, unmanaged overwrite, zip-slip, and a failure mid-swap that must restore backups.
-- One opt-in live test resolves real add-ons against GitHub (`ADDONS_LIVE_TESTS=1`).
+- One opt-in live test resolves real add-ons against GitHub (`RELOAD_LIVE_TESTS=1`).
 
 ## Conventions
 

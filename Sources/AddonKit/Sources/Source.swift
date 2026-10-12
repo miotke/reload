@@ -72,9 +72,9 @@ public struct URLSessionHTTPClient: HTTPClient {
 }
 
 public enum AppInfo {
-    public static let name = "ForeverAddons"
-    public static let bundleID = "com.andrewmiotke.ForeverAddons"
+    public static let name = "Reload"
+    public static let bundleID = "com.andrewmiotke.Reload"
     public static let version = "0.1.0"
-    public static let contactURL = "https://github.com/miotke/swift-addons"
+    public static let contactURL = "https://github.com/miotke/reload"
     public static var userAgent: String { "\(name)/\(version) (+\(contactURL))" }
 }

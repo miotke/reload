@@ -2,12 +2,12 @@
 
 The `AddonKit` library, its `AddonManager` façade, how the components are layered, and where the code lives.
 
-`AddonKit` does all the real work. The app and `addonctl` are thin front ends over it, and both go through one type: `AddonManager`. Why it's built this way: [decision 0001](../decisions/0001-swift-package-core.md).
+`AddonKit` does all the real work. The app and `reload` are thin front ends over it, and both go through one type: `AddonManager`. Why it's built this way: [decision 0001](../decisions/0001-swift-package-core.md).
 
 ```mermaid
 flowchart TB
-    App[ForeverAddons.app] --> AM
-    CLI[addonctl] --> AM
+    App[Reload.app] --> AM
+    CLI[reload] --> AM
     AM[AddonManager<br/>actor]
     AM --> Loc[InstallationLocator] & LR[LatestReleaseStore] & GH[GitHubReleaseResolver] & RF[ReadmeFetcher]
     AM --> DL[Downloader] & Inst[Installer] & Store[InstallStore] & Search[SearchCoordinator]
@@ -35,7 +35,7 @@ Search never goes through `LatestReleaseStore`: it reads stored verdicts only ([
 
 ## Layering
 
-- **All logic lives in `AddonKit`.** Anything the app can do, `addonctl` can do.
+- **All logic lives in `AddonKit`.** Anything the app can do, `reload` can do.
 - **Pure code is separate from I/O.** TOC and `release.json` parsing, flavor detection and release selection are plain functions on value types, tested with fixture files.
 - **I/O sits behind protocols** (`HTTPClient`, `DownloadTransport`, `SupportChecking`), so tests never touch the network.
 - **Shared state lives in actors.** See [concurrency.md](concurrency.md).
@@ -56,7 +56,7 @@ Sources/AddonKit/
 ├── Search/                  catalogue, index, providers, SupportCache, SearchCoordinator
 ├── Details/                 ReadmeImages (screenshot URLs from a README)
 └── Support/                 KeychainStore
-Sources/addonctl/            the CLI (docs/cli/)
+Sources/reload/            the CLI (docs/cli/)
 ```
 
 ## Where things live
@@ -99,6 +99,7 @@ Sources/addonctl/            the CLI (docs/cli/)
 | Finding WoW installations | `Sources/AddonKit/Install/InstallationLocator.swift` |
 | Install store and its lock | `Sources/AddonKit/Store/InstallStore.swift` |
 | App data directories | `Sources/AddonKit/Store/AppDirectories.swift` |
+| Moving ForeverAddons-era data to Reload (decision 0024) | `Sources/AddonKit/Store/LegacyDataMigration.swift` |
 | SQLite schema, migrations, change stream | `Sources/AddonKit/Store/MetadataDatabase.swift` |
 | Catalogue download and storage | `Sources/AddonKit/Search/CatalogueSource.swift` |
 | CSV reader | `Sources/AddonKit/Search/CSVParser.swift` |
@@ -110,12 +111,12 @@ Sources/addonctl/            the CLI (docs/cli/)
 | Live GitHub search and its rate limit | `Sources/AddonKit/Search/GitHubSearchProvider.swift` |
 | Screenshot URLs from a README | `Sources/AddonKit/Details/ReadmeImages.swift` |
 | GitHub token in the Keychain | `Sources/AddonKit/Support/KeychainStore.swift` |
-| CLI entry point and command list | `Sources/addonctl/AddonCtl.swift` |
-| CLI commands, one file per group | `Sources/addonctl/Commands/` |
-| CLI options, context, installation choice | `Sources/addonctl/Context.swift`, `Sources/addonctl/Selection.swift` |
-| CLI config and environment | `Sources/addonctl/Config.swift`, `Sources/addonctl/Environment.swift` |
-| CLI output: tables, colour, JSON, errors and exit codes | `Sources/addonctl/Table.swift`, `Sources/addonctl/Terminal.swift`, `Sources/addonctl/JSONOutput.swift`, `Sources/addonctl/Errors.swift` |
-| `addons.json` export format, read-only metadata views | `Sources/addonctl/AddonsFile.swift`, `Sources/addonctl/Metadata.swift` |
+| CLI entry point and command list | `Sources/reload/ReloadCLI.swift` |
+| CLI commands, one file per group | `Sources/reload/Commands/` |
+| CLI options, context, installation choice | `Sources/reload/Context.swift`, `Sources/reload/Selection.swift` |
+| CLI config and environment | `Sources/reload/Config.swift`, `Sources/reload/Environment.swift` |
+| CLI output: tables, colour, JSON, errors and exit codes | `Sources/reload/Table.swift`, `Sources/reload/Terminal.swift`, `Sources/reload/JSONOutput.swift`, `Sources/reload/Errors.swift` |
+| `addons.json` export format, read-only metadata views | `Sources/reload/AddonsFile.swift`, `Sources/reload/Metadata.swift` |
 
 ## AddonManager
 
@@ -143,5 +144,5 @@ Sources/addonctl/            the CLI (docs/cli/)
 - **Update checks are mostly quota-free.** For the stable channel, the latest tag comes from github.com: an unchanged tag is up to date, and a new tag whose `release.json` has the flavor is the update, both without an API call. Only when neither decides, or for the prerelease channel, does the API resolve run (with the stored ETag). See [release-selection.md](../features/release-selection.md#quota-free-resolve-stable-channel).
 - **Updating.** `update([])` checks every add-on as above and installs only available updates; pinned and up-to-date ones come back `.skipped`. `update(releases:in:)` installs releases the caller already resolved (the app's `.available(release)` states); an empty list does nothing. Up to 4 at once; one failure doesn't stop the others.
 - **`lookup` order:** a GitHub ref or URL first, then an installed add-on's name, repo or folder, then an exact catalogue name. More than one result means the input was ambiguous.
-- **GitHub token:** `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (`KeychainStore`, service `com.andrewmiotke.ForeverAddons`, account `github-token`, shared by the app and CLI). It's read on the first API call, so launch never waits on a Keychain prompt. `tokenDidChange()` swaps it in place, keeping ETags, `release.json` files and the rate-limit state.
+- **GitHub token:** `RELOAD_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (`KeychainStore`, service `com.andrewmiotke.Reload`, account `github-token`, shared by the app and CLI). It's read on the first API call, so launch never waits on a Keychain prompt. `tokenDidChange()` swaps it in place, keeping ETags, `release.json` files and the rate-limit state.
 - **One URL session** for the core, with the app's User-Agent and no HTTP cache ([github-endpoints.md](../network/github-endpoints.md#headers)).

@@ -2,7 +2,7 @@
 
 How a query is searched (layers, the GitHub fallback, matching, ranking, aliases), how the catalogue is imported, and what Browse shows with an empty query.
 
-Search powers the app's Browse tab and `addonctl search`. Code: `Sources/AddonKit/Search/`, `Store/MetadataDatabase.swift`.
+Search powers the app's Browse tab and `reload search`. Code: `Sources/AddonKit/Search/`, `Store/MetadataDatabase.swift`.
 
 **Search reads the local database; if it finds too little, it asks GitHub once and remembers the answer.** Other network work happens in [refresh](refresh.md) and when you open, install or update a specific add-on. Why: [decision 0009](../decisions/0009-local-first-search.md).
 
@@ -64,7 +64,7 @@ Front ends ask `BrowseFilter.isHidden(_:for:isInstalled:)`, which also keeps ins
 
 ## GitHub fallback
 
-- **Trigger:** fewer than 3 local results, a query of 3+ characters and no direct ref; or **Search GitHub for More Results** / `addonctl search --github` (`includeLiveGitHub`).
+- **Trigger:** fewer than 3 local results, a query of 3+ characters and no direct ref; or **Search GitHub for More Results** / `reload search --github` (`includeLiveGitHub`).
 - **Request:** `q=<terms> in:name,description topic:wow-addon`, sorted by recently updated, 30 per page. With `includeLiveGitHub`, fewer than 5 results retry with `topic:world-of-warcraft-addon`, then with no topic but `wow OR warcraft` added. Archived repos and forks are dropped.
 - **Remembered:** found repos are added to the `catalogue` table (`source = 'github_search'`) with their stars, and the query's answer goes in `search_cache` for 24 h (1 h if empty).
 - **Limits:** the search API allows 10 requests a minute without a token, 30 with one. The remaining count and reset time are stored in `rate_limit` (resource `search`), shared by the app and CLI. While none are left the fallback is skipped quietly; a 403 with no reset header waits 60 s.
@@ -116,4 +116,4 @@ Results that are already installed are marked.
 
 ## In the CLI
 
-`addonctl search` uses the same layers and stored verdicts and prints a note on stderr when it asks GitHub ([cli/commands.md](../cli/commands.md#search)).
+`reload search` uses the same layers and stored verdicts and prints a note on stderr when it asks GitHub ([cli/commands.md](../cli/commands.md#search)).

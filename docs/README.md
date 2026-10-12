@@ -1,4 +1,4 @@
-# ForeverAddons docs
+# Reload docs
 
 Index of every doc, with a line on when to read it. Load only the files you need.
 
@@ -7,7 +7,7 @@ New here? Start with [overview.md](overview.md). Working on the code? [developme
 ```mermaid
 flowchart LR
     App[App<br/>app/] --> Core
-    CLI[addonctl<br/>cli/] --> Core
+    CLI[reload<br/>cli/] --> Core
     Core[AddonKit<br/>architecture/core.md] --> Sel[Release selection<br/>features/release-selection.md]
     Core --> Inst[Installing<br/>features/installing.md]
     Core --> S[Search<br/>features/search.md]
@@ -66,13 +66,13 @@ flowchart LR
 
 | Doc | Read this when… |
 |---|---|
-| [project.md](app/project.md) | you're changing the Xcode project, targets, the embedded CLI or `ADDONS_DATA_DIR` |
+| [project.md](app/project.md) | you're changing the Xcode project, targets, the embedded CLI or `RELOAD_DATA_DIR` |
 | [layout.md](app/layout.md) | you're working on the window, toolbar, inspector placement, tables, sorting or the add-on window |
 | [navigation.md](app/navigation.md) | you're working on the game picker, the sidebar's sections, counts and categories, or what search applies to |
 | [first-launch.md](app/first-launch.md) | you're touching the seeding sheet, refresh progress or the 2-hour auto refresh |
 | [live-data.md](app/live-data.md) | you're changing how the app follows database changes, CLI writes or the install store |
 | [settings.md](app/settings.md) | you're changing the Settings window, a setting's key, or the app icon picker |
-| [cli-install.md](app/cli-install.md) | you're changing how the app installs `addonctl` into `/usr/local/bin` |
+| [cli-install.md](app/cli-install.md) | you're changing how the app installs `reload` into `/usr/local/bin` |
 
 ## cli/
 

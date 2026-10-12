@@ -44,7 +44,7 @@ Decision: [0002](0002-github-releases-no-keyed-apis.md).
 ## Ideas that didn't ship (yet)
 
 - Security-scoped bookmarks per installation, so the App Sandbox could be enabled later. v1 was planned as Developer ID, notarized, not sandboxed.
-- Sparkle self-updates; a Homebrew tap for `addonctl`.
+- Sparkle self-updates; a Homebrew tap for `reload`.
 - Range-request zip inspection.
 - Warning when a `RequiredDeps` add-on is missing.
 - `FlavorRules` entries for mainline and classic.
@@ -53,14 +53,14 @@ Decision: [0002](0002-github-releases-no-keyed-apis.md).
 ## Open questions (at the time)
 
 1. Forever's launch folder and product code. Currently `_classic_beta_` / `wow_classic_beta`; detect by game version so it keeps working.
-2. App name and bundle id: `ForeverAddons` / `com.andrewmiotke.ForeverAddons` were placeholders.
+2. App name and bundle id: `Reload` / `com.andrewmiotke.Reload` were placeholders.
 3. Contribute Forever tags back to the catalogue, or keep our own list of known Forever repos?
 
 ## Original milestones
 
 1. **M0 – Core parsing:** package scaffold; `Toc`, `ReleaseJSON`, `BuildInfo`, `FlavorRules`, with tests.
-2. **M1 – Resolve:** `GitHubReleaseResolver` and `ReleaseSelector`; `addonctl resolve` works for BigWigs and DBM.
-3. **M2 – Install + CLI:** `Downloader`, `Installer`, `InstallStore` (with locking), `InstallationLocator`, `AddonManager`; core `addonctl` commands with `--json` and exit codes.
+2. **M1 – Resolve:** `GitHubReleaseResolver` and `ReleaseSelector`; `reload resolve` works for BigWigs and DBM.
+3. **M2 – Install + CLI:** `Downloader`, `Installer`, `InstallStore` (with locking), `InstallationLocator`, `AddonManager`; core `reload` commands with `--json` and exit codes.
 4. **M3 – App shell:** installations sidebar, Installed list, Update All.
 5. **M4 – Search & adopt:** catalogue and installed search, Forever verification, live GitHub search, Browse, adopting, settings and Keychain token.
 6. **M5 – Polish:** rollback, `export`/`import`, `doctor`, completions, bundling the CLI in the app, menu bar extra, notarized build.
