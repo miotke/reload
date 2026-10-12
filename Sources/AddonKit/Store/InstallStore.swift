@@ -111,7 +111,7 @@ public actor InstallStore {
         let names = try fm.contentsOfDirectory(atPath: storeDirectory.path(percentEncoded: false))
         return names
             .filter { $0.hasSuffix(".json") && !$0.hasPrefix(".") }
-            .compactMap { name in try? read(String(name.dropLast(5)))?.installation }
+            .compactMap { name in try? readInstallation(String(name.dropLast(5))) }
             .sorted { $0.root.path < $1.root.path }
     }
 
@@ -243,6 +243,21 @@ public actor InstallStore {
         return try Self.decoder.decode(StoreFile.self, from: data)
     }
 
+    /// Just the installation, skipping the add-on list, which `installations()` doesn't need.
+    func readInstallation(_ installationID: String) throws -> Installation? {
+        let url = fileURL(installationID)
+        guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { return nil }
+        struct Header: Decodable {
+            var schemaVersion: Int
+            var installation: Installation
+        }
+        let header = try Self.decoder.decode(Header.self, from: Data(contentsOf: url))
+        guard header.schemaVersion <= Self.schemaVersion else {
+            throw InstallStoreError.unsupportedSchemaVersion(header.schemaVersion, file: url.lastPathComponent)
+        }
+        return header.installation
+    }
+
     private func write(_ file: StoreFile) throws {
         precondition(lockDepth > 0, "InstallStore writes must hold the lock")
         var file = file
@@ -254,17 +269,17 @@ public actor InstallStore {
 
     private static let dateStyle = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
 
-    static var encoder: JSONEncoder {
+    static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         encoder.dateEncodingStrategy = .custom { date, encoder in
             var container = encoder.singleValueContainer()
             try container.encode(date.formatted(dateStyle))
         }
         return encoder
-    }
+    }()
 
-    static var decoder: JSONDecoder {
+    static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -274,7 +289,7 @@ public actor InstallStore {
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Not an ISO-8601 date: \(text)")
         }
         return decoder
-    }
+    }()
 
     private static func isDirectory(_ url: URL) -> Bool {
         var isDir: ObjCBool = false

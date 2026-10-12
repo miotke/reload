@@ -131,12 +131,13 @@ public actor MetadataDatabase {
         self.handle = db
         self.url = url
         sqlite3_busy_timeout(db, 5_000)
-        try Self.exec(db, "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL;")
+        try Self.exec(db, "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL; PRAGMA journal_size_limit=4194304;")
         try Self.migrate(db)
     }
 
     isolated deinit {
         for statement in statements.values { sqlite3_finalize(statement) }
+        sqlite3_exec(handle, "PRAGMA optimize", nil, nil, nil)
         sqlite3_close_v2(handle)
     }
 
@@ -205,6 +206,43 @@ public actor MetadataDatabase {
         }
     }
 
+    // MARK: - Change notifications
+
+    /// What a committed write touched, so the UI can patch only affected rows.
+    public struct Change: Sendable, Hashable {
+        public var tables: Set<String>
+        /// Lower-cased `owner/repo` of the affected repos; empty means "many or unknown".
+        public var repos: Set<String>
+    }
+
+    private var observers: [UUID: AsyncStream<Change>.Continuation] = [:]
+
+    /// Writes committed through this connection. Other processes' writes don't appear here;
+    /// compare `dataVersion()` on app activation for those.
+    public func changes() -> AsyncStream<Change> {
+        let (stream, continuation) = AsyncStream.makeStream(of: Change.self, bufferingPolicy: .bufferingNewest(32))
+        let id = UUID()
+        observers[id] = continuation
+        continuation.onTermination = { _ in Task { await self.removeObserver(id) } }
+        return stream
+    }
+
+    private func removeObserver(_ id: UUID) {
+        observers[id] = nil
+    }
+
+    /// Call after a committed write.
+    func notify(_ tables: Set<String>, repos: Set<String> = []) {
+        guard !observers.isEmpty else { return }
+        let change = Change(tables: tables, repos: Set(repos.map { $0.lowercased() }))
+        for continuation in observers.values { continuation.yield(change) }
+    }
+
+    /// `PRAGMA data_version`: changes when another connection (the CLI) commits.
+    public func dataVersion() throws -> Int64 {
+        try query("PRAGMA data_version").first?.int64(0) ?? 0
+    }
+
     /// The schema version (`PRAGMA user_version`).
     public func schemaVersion() throws -> Int {
         try query("PRAGMA user_version").first?.int(0) ?? 0
@@ -218,7 +256,8 @@ public actor MetadataDatabase {
             sqlite3_clear_bindings(cached)
         } else {
             var raw: OpaquePointer?
-            let code = sqlite3_prepare_v2(handle, sql, -1, &raw, nil)
+            // Persistent: these statements are cached for the connection's lifetime.
+            let code = sqlite3_prepare_v3(handle, sql, -1, UInt32(SQLITE_PREPARE_PERSISTENT), &raw, nil)
             guard code == SQLITE_OK, let raw else { throw error(code) }
             statements[sql] = raw
             statement = raw
@@ -322,7 +361,7 @@ public actor MetadataDatabase {
             first_seen_at REAL NOT NULL,
             seen_at REAL NOT NULL,
             changed_at REAL NOT NULL
-        );
+        ) WITHOUT ROWID;
         CREATE INDEX catalogue_last_updated ON catalogue(last_updated DESC);
         CREATE INDEX catalogue_seen_at ON catalogue(seen_at);
 
@@ -354,7 +393,7 @@ public actor MetadataDatabase {
             tag TEXT,
             checked_at REAL NOT NULL,
             PRIMARY KEY (full_name, flavor)
-        );
+        ) WITHOUT ROWID;
         CREATE INDEX support_flavor_checked ON support(flavor, checked_at);
 
         CREATE TABLE details (
