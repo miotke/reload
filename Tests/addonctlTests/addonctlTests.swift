@@ -160,14 +160,18 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         let now = Date(timeIntervalSince1970: 1_000_000_000)
         let results = [
             SearchResult(id: ref("BigWigsMods/BigWigs"), name: "BigWigs", owner: "BigWigsMods", lastUpdated: now.addingTimeInterval(-2 * 86_400),
-                         installed: makeAddon("BigWigsMods/BigWigs"), support: .supported(version: "v426.4"), origin: [.catalogue]),
+                         installed: makeAddon("BigWigsMods/BigWigs"), support: .supported(version: "v426.4"),
+                         availableFlavors: [.mainline, .forever], origin: [.catalogue]),
             SearchResult(id: ref("BigWigsMods/LittleWigs"), name: "LittleWigs", owner: "BigWigsMods", lastUpdated: now.addingTimeInterval(-8 * 86_400),
                          support: .unknown, origin: [.catalogue]),
+            SearchResult(id: ref("a/AutoPotion"), name: "AutoPotion", owner: "a", support: .supported(version: "3.17.1"),
+                         availableFlavors: [.mainline, .forever, .vanilla, .mists], origin: [.catalogue]),
         ]
         #expect(Format.searchTable(results, flavor: .forever, style: .plain, now: now) == """
-              NAME        REPO                    FOREVER        UPDATED
-              BigWigs     BigWigsMods/BigWigs     ✓ v426.4       2 days ago  (installed)
-              LittleWigs  BigWigsMods/LittleWigs  · not checked  1 week ago
+              NAME        REPO                    GAMES  UPDATED
+              BigWigs     BigWigsMods/BigWigs     R F ·  2 days ago  (installed)
+              LittleWigs  BigWigsMods/LittleWigs  —      1 week ago
+              AutoPotion  a/AutoPotion            R F C  —
             """)
     }
 
@@ -177,10 +181,10 @@ func jsonObject(_ text: String) throws -> [String: Any] {
             .managed(makeAddon("b/Beta"), missingFolders: ["Beta"]),
             unmanaged("Gamma", toc: Toc(fields: ["version": "3"]), suggested: ["g/Gamma"]),
         ]
-        let text = Format.listTable(statuses, flavor: .forever, style: .plain)
-        #expect(text.contains("Alpha  v1       a/Alpha     stable   pinned"))
+        let text = Format.listTable(statuses, flavor: .forever, games: ["github:a/Alpha": [.mainline, .forever]], style: .plain)
+        #expect(text.contains("Alpha  v1       a/Alpha     R F ·  stable   pinned"))
         #expect(text.contains("missing: Beta"))
-        #expect(text.contains("Gamma  3        → g/Gamma?  —        unmanaged · Matched folder name"))
+        #expect(text.contains("Gamma  3        → g/Gamma?  —      —        unmanaged · Matched folder name"))
     }
 
     @Test func listTableShowsLoadedTocTitleAndGroups() {
@@ -192,7 +196,7 @@ func jsonObject(_ text: String) throws -> [String: Any] {
             unmanaged("Two", suggested: ["a/Two", "b/Two"]),
         ]
         let text = Format.listTable(statuses, flavor: .forever, style: .plain)
-        #expect(text.contains("Questie (Questie, QuestieDB)  v12.0.4  → Questie/Questie?  —        unmanaged · Matched CurseForge project 334372"))
+        #expect(text.contains("Questie (Questie, QuestieDB)  v12.0.4  → Questie/Questie?  —      —        unmanaged · Matched CurseForge project 334372"))
         #expect(text.contains("Old Thing (OldThing)  ") && text.contains("unmanaged · not loaded by Forever"))
         #expect(text.contains("unmanaged · 2 candidates"))
     }
@@ -236,12 +240,57 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         #expect(ListCommand.filter(statuses, unmanaged: true, missing: true).map(\.id) == ["github:b/Beta"])
     }
 
-    @Test func searchFilterHidesUnsupportedUnlessAll() {
-        let results = [SupportStatus.supported(version: "1"), .unsupported, .unknown, .noReleases].enumerated().map {
-            SearchResult(id: ref("o/r\($0.offset)"), name: "r\($0.offset)", owner: "o", support: $0.element, origin: [.catalogue])
+    @Test func searchFilterHidesOtherFamiliesUnlessAll() {
+        let cases: [(SupportStatus, Set<Flavor>?)] = [
+            (.supported(version: "1"), [.forever]), (.unsupported, [.vanilla]), (.unknown, nil), (.noReleases, nil), (.unsupported, [.mainline]),
+        ]
+        let results = cases.enumerated().map {
+            SearchResult(id: ref("o/r\($0.offset)"), name: "r\($0.offset)", owner: "o", support: $0.element.0,
+                         availableFlavors: $0.element.1, origin: [.catalogue])
         }
-        #expect(SearchCommand.filter(results, all: false, limit: 10).map(\.name) == ["r0", "r2"])
-        #expect(SearchCommand.filter(results, all: true, limit: 3).map(\.name) == ["r0", "r1", "r2"])
+        #expect(SearchCommand.filter(results, flavor: .forever, all: false, limit: 10).map(\.name) == ["r0", "r2", "r4"])
+        #expect(SearchCommand.filter(results, flavor: .mainline, all: false, limit: 10).map(\.name) == ["r2", "r4"])
+        #expect(SearchCommand.filter(results, flavor: .forever, all: true, limit: 3).map(\.name) == ["r0", "r1", "r2"])
+    }
+
+    @Test func gamesColumn() {
+        let colour = Style(enabled: true)
+        #expect(Format.games(nil, flavor: .forever, style: .plain) == "—")
+        #expect(Format.games([.mainline], flavor: .forever, style: .plain) == "R · ·")
+        #expect(Format.games([.vanilla, .forever], flavor: .mists, style: .plain) == "· F C")
+        // On a terminal each letter has its colour, and the installation's own family is bold.
+        let text = Format.games([.mainline, .forever, .cata], flavor: .forever, style: colour)
+        #expect(text.contains(colour.blue("R")))
+        #expect(text.contains(colour.bold(colour.cyan("F"))))
+        #expect(text.contains(colour.yellow("C")))
+        #expect(Style.strip(text) == "R F C")
+    }
+
+    @Test func retailBuildIsShownAndOptedInto() throws {
+        var addon = makeAddon("a/Retail")
+        addon.installedFlavorBuild = .mainline
+        let text = Format.listTable([.managed(addon, missingFolders: [])], flavor: .forever, style: .plain)
+        #expect(text.contains("Retail build"))
+        #expect(Format.build(makeAddon("a/Own")) == nil)
+        #expect(try InstallCommand.parse(["a/Retail", "--retail-build"]).retailBuild)
+        #expect(try InstallCommand.parse(["a/Retail", "--allow-family-fallback"]).retailBuild)
+        #expect(try !InstallCommand.parse(["a/Retail"]).retailBuild)
+    }
+
+    @Test func listJSONCarriesFlavors() throws {
+        let json = AddonStatusJSON(.managed(makeAddon("a/Alpha"), missingFolders: []), availableFlavors: [.forever, .vanilla])
+        let object = try JSONSerialization.jsonObject(with: JSONOutput.encoder().encode(json)) as? [String: Any]
+        #expect(object?["availableFlavors"] as? [String] == ["forever", "vanilla"])
+        #expect(object?["families"] as? [String] == ["forever", "classic"])
+    }
+
+    @Test func searchJSONCarriesFlavorsAndFamilies() throws {
+        let result = SearchResult(id: ref("a/AutoPotion"), name: "AutoPotion", owner: "a", availableFlavors: [.mists, .mainline, .forever], origin: [.catalogue])
+        let object = try JSONSerialization.jsonObject(with: JSONOutput.encoder().encode(SearchResultJSON(result))) as? [String: Any]
+        #expect(object?["availableFlavors"] as? [String] == ["mainline", "forever", "mists"])
+        #expect(object?["families"] as? [String] == ["retail", "forever", "classic"])
+        let unchecked = String(decoding: try JSONOutput.encoder().encode(SearchResultJSON(SearchResult(id: ref("o/r"), name: "r", owner: "o", origin: []))), as: UTF8.self)
+        #expect(!unchecked.contains("availableFlavors") && !unchecked.contains("families"))
     }
 
     @Test func progressBarWithoutColourUsesDistinctGlyphs() {
@@ -278,7 +327,6 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         #expect(Style.plain.red("x") == "x")
         #expect(Style(enabled: true).red("x") == "\u{1B}[31mx\u{1B}[0m")
         #expect(Style.strip(Style(enabled: true).bold("hi")) == "hi")
-        #expect(Format.support(.supported(version: "v1"), style: .plain) == "✓ v1")
     }
 
     @Test func contextHonoursNoColorAndPipes() throws {

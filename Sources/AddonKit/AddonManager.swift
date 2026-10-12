@@ -24,6 +24,10 @@ public actor AddonManager: AddonManaging {
     /// Automatic detection runs at most once per process; later scans are explicit.
     private var didAutoDetect = false
     var now: @Sendable () -> Date = Date.init
+    /// Lower-cased refs `checkVisible` is checking now, so a second call skips them.
+    var visibleInFlight: Set<String> = []
+    /// True on a constrained (Low Data Mode) network; `checkVisible` then does nothing.
+    var networkIsConstrained: @Sendable () -> Bool = { NetworkPathMonitor.shared.isConstrained }
 
     /// Add-ons checked or updated at once.
     static let maxConcurrentOperations = 4
@@ -193,6 +197,18 @@ public actor AddonManager: AddonManaging {
         searchCoordinator.searchUpdates(query, installed: installed)
     }
 
+    /// Every flavor each repo's latest release ships, as stored; refs nobody has checked are
+    /// left out. Local only.
+    public func availableFlavors(for refs: [AddonRef]) async -> [AddonRef: Set<Flavor>] {
+        guard !refs.isEmpty else { return [:] }
+        let stored = await supportCache.allAvailableFlavors()
+        var out: [AddonRef: Set<Flavor>] = [:]
+        for ref in refs where ref.source == .github {
+            if let flavors = stored[ref.identifier.lowercased()] { out[ref] = flavors }
+        }
+        return out
+    }
+
     /// The stored catalogue row for `ref` (including repos found by live search). Local only.
     public func catalogueEntry(for ref: AddonRef) async -> CatalogueEntry? {
         await catalogue.entry(for: ref)
@@ -220,37 +236,63 @@ public actor AddonManager: AddonManaging {
     /// Stable channel: tries the quota-free route first (latest tag + release.json), and
     /// uses the API only when that can't decide.
     public func resolve(_ ref: AddonRef, for installation: Installation, channel: Channel) async throws -> ResolvedRelease {
-        guard ref.source == .github else { throw AddonError.invalidReference(ref.description) }
-        if channel == .stable, let release = await github.quotaFreeResolve(ref, flavor: installation.flavor, policy: .forceRevalidate) {
+        try await resolve(ref, flavor: installation.flavor, channel: channel)
+    }
+
+    /// Like `resolve(_:for:channel:)`. With `allowFamilyFallback`, an add-on with no build for
+    /// the installation's flavor resolves to its `fallbackFlavor` build (the Retail build on
+    /// Forever), marked in `flavorBuild`. Without it, or with no fallback build either, that's
+    /// `noCompatibleRelease` for the installation's flavor (docs/features/release-selection.md#retail-build-on-forever).
+    public func resolve(_ ref: AddonRef, for installation: Installation, channel: Channel, allowFamilyFallback: Bool) async throws -> ResolvedRelease {
+        let own = installation.flavor
+        do {
+            return try await resolve(ref, flavor: own, channel: channel)
+        } catch AddonError.noCompatibleRelease {
+            guard allowFamilyFallback, let fallback = own.fallbackFlavor,
+                  var release = try? await resolve(ref, flavor: fallback, channel: channel) else {
+                throw AddonError.noCompatibleRelease(ref, own)
+            }
+            release.flavorBuild = fallback
+            release.reasoning.insert("no \(own.rawValue) build; the \(fallback.displayName) build was asked for (allowFamilyFallback)", at: 0)
             return release
         }
-        return try await resolve(ref, for: installation, channel: channel, etag: nil).release
+    }
+
+    /// Stable channel: tries the quota-free route first (latest tag + release.json), and
+    /// uses the API only when that can't decide.
+    func resolve(_ ref: AddonRef, flavor: Flavor, channel: Channel) async throws -> ResolvedRelease {
+        guard ref.source == .github else { throw AddonError.invalidReference(ref.description) }
+        if channel == .stable, let release = await github.quotaFreeResolve(ref, flavor: flavor, policy: .forceRevalidate) {
+            return release
+        }
+        return try await resolve(ref, flavor: flavor, channel: channel, etag: nil).release
     }
 
     /// `release` is nil only when `etag` was given and nothing changed.
     private func resolve(
-        _ ref: AddonRef, for installation: Installation, channel: Channel, etag: String?
+        _ ref: AddonRef, flavor: Flavor, channel: Channel, etag: String?
     ) async throws -> (release: ResolvedRelease, etag: String?) {
         guard ref.source == .github else { throw AddonError.invalidReference(ref.description) }
-        switch try await github.resolve(ref, flavor: installation.flavor, channel: channel, etag: etag) {
+        switch try await github.resolve(ref, flavor: flavor, channel: channel, etag: etag) {
         case .release(let release, let etag):
             return (release, etag)
         case .notModified:
             // Only possible with a caller ETag; ask again without one for the full release.
-            return try await resolve(ref, for: installation, channel: channel, etag: nil)
+            return try await resolve(ref, flavor: flavor, channel: channel, etag: nil)
         }
     }
 
     @discardableResult
     public func install(
-        _ ref: AddonRef, into installation: Installation, channel: Channel, force: Bool,
+        _ ref: AddonRef, into installation: Installation, channel: Channel, force: Bool, allowFamilyFallback: Bool,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> InstalledAddon {
-        let release = try await resolve(ref, for: installation, channel: channel)
+        let release = try await resolve(ref, for: installation, channel: channel, allowFamilyFallback: allowFamilyFallback)
         return try await install(release, into: installation, channel: channel, force: force, pin: nil, progress: progress)
     }
 
-    /// Downloads and installs `release`, recording it in the store under the store lock.
+    /// Downloads and installs `release`, recording it in the store under the store lock. The
+    /// flavors its TOCs ship are recorded for repos whose release.json didn't say (decision 0019).
     @discardableResult
     func install(
         _ release: ResolvedRelease, into installation: Installation, channel: Channel?, force: Bool,
@@ -260,8 +302,11 @@ public actor AddonManager: AddonManaging {
         let installer = self.installer
         // Extraction is the slow part; it runs before the lock the CLI and app wait on, and
         // off this actor. Only the ownership check, the swap and the store write are locked.
-        let prepared = try await Self.prepare(installer, archive: archive, into: installation)
+        let (prepared, shipped) = try await Self.prepare(installer, archive: archive, into: installation)
         await database.setReleaseFolders(prepared.folders, tag: release.version, for: release.ref.identifier, at: now())
+        if release.ref.source == .github, !shipped.isEmpty {
+            await supportCache.setAvailableFlavors(shipped, tag: release.version, source: .inspection, for: release.ref)
+        }
         do {
             return try await store.withLock { store in
                 let current = try store.addons(in: installation)
@@ -270,6 +315,7 @@ public actor AddonManager: AddonManaging {
                 if let channel { addon.channel = channel }
                 if let pin { addon.pinned = pin }
                 addon.changelog = release.changelog
+                addon.installedFlavorBuild = release.flavorBuild
                 addon.etag = nil
                 if let previous, previous.releaseID != release.releaseID {
                     addon.previousRelease = previous.snapshot
@@ -286,9 +332,14 @@ public actor AddonManager: AddonManaging {
         }
     }
 
+    /// Extracts to staging and reads the flavors the extracted TOCs ship.
     @concurrent
-    private static func prepare(_ installer: Installer, archive: URL, into installation: Installation) async throws -> Installer.PreparedInstall {
-        try installer.prepare(archive: archive, into: installation)
+    private static func prepare(
+        _ installer: Installer, archive: URL, into installation: Installation
+    ) async throws -> (Installer.PreparedInstall, Set<Flavor>) {
+        let prepared = try installer.prepare(archive: archive, into: installation)
+        let folders = prepared.folders.map { prepared.extracted.appending(path: $0, directoryHint: .isDirectory) }
+        return (prepared, ZipInspector.availableFlavors(addonFolders: folders))
     }
 
     public func adopt(folder: String, as ref: AddonRef, in installation: Installation) async throws -> InstalledAddon {
@@ -428,6 +479,15 @@ public actor AddonManager: AddonManaging {
         previous: UpdateState? = nil
     ) async -> (UpdateState, String?) {
         if addon.pinned { return (.pinned, nil) }
+        let own = installation.flavor
+        // An add-on installed as another game's build (the Retail build on Forever) keeps to
+        // that build; it never switches unless the user chose it.
+        let build = addon.installedFlavorBuild ?? own
+        func marked(_ release: ResolvedRelease) -> ResolvedRelease {
+            var release = release
+            release.flavorBuild = build == own ? nil : build
+            return release
+        }
         do {
             guard addon.id.source == .github else { return (.failed("Unsupported source"), nil) }
             // Stable channel: the latest release (the same lookup support checks use) settles
@@ -436,11 +496,20 @@ public actor AddonManager: AddonManaging {
             // (no release.json, the new release lacks the flavor, or the lookup failed) is the
             // API asked. Prereleases always need the API.
             if addon.channel == .stable {
-                var latest = await github.latestRelease(for: addon.id, flavor: installation.flavor, policy: policy, background: background)
+                // On a fallback build, a build for the installation's own flavor is the update
+                // ("Forever build available"), whatever its tag.
+                if build != own {
+                    var latest = await github.latestRelease(for: addon.id, flavor: own, policy: policy, background: background)
+                    if !latest.failed, case .supported = latest.status {
+                        latest = await github.withBuild(latest, ref: addon.id, flavor: own, fetch: true, background: background)
+                        if let release = await github.resolvedRelease(addon.id, from: latest, flavor: own) { return (.available(release), nil) }
+                    }
+                }
+                var latest = await github.latestRelease(for: addon.id, flavor: build, policy: policy, background: background)
                 if !latest.failed, latest.status != .unknown, let tag = latest.tag {
                     if tag == addon.version { return (.upToDate, addon.etag) }
-                    latest = await github.withBuild(latest, ref: addon.id, flavor: installation.flavor, fetch: true, background: background)
-                    if let release = await github.resolvedRelease(addon.id, from: latest, flavor: installation.flavor) {
+                    latest = await github.withBuild(latest, ref: addon.id, flavor: build, fetch: true, background: background)
+                    if let release = await github.resolvedRelease(addon.id, from: latest, flavor: build).map(marked) {
                         return addon.isUpdate(release) ? (.available(release), nil) : (.upToDate, addon.etag)
                     }
                 }
@@ -448,10 +517,11 @@ public actor AddonManager: AddonManaging {
             if let previous, let reused = Self.reusable(previous, for: addon), !(await github.apiCheckIsDue(for: addon.id)) {
                 return reused
             }
-            switch try await github.resolve(addon.id, flavor: installation.flavor, channel: addon.channel, etag: addon.etag) {
+            switch try await github.resolve(addon.id, flavor: build, channel: addon.channel, etag: addon.etag) {
             case .notModified:
                 return (.upToDate, addon.etag)
             case .release(let release, let etag):
+                let release = marked(release)
                 return addon.isUpdate(release) ? (.available(release), nil) : (.upToDate, etag)
             }
         } catch AddonError.noCompatibleRelease {
@@ -612,7 +682,7 @@ public actor AddonManager: AddonManaging {
         var release = ResolvedRelease(
             ref: ref, name: addon.name, version: previous.version, releaseID: previous.releaseID,
             publishedAt: previous.publishedAt, downloadURL: URL(filePath: "/"), assetName: previous.assetName,
-            changelog: previous.changelog
+            changelog: previous.changelog, flavorBuild: previous.flavorBuild
         )
         let archive = downloader.archiveURL(for: release)
         guard FileManager.default.fileExists(atPath: archive.path(percentEncoded: false)) else {

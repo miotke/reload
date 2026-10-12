@@ -18,7 +18,7 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
         let http = RedirectingHTTPClient()
         http.publishLatest("o/r", tag: "v2.0", flavors: ["mainline", "forever"])
         let source = await source(http)
-        #expect(await source.check(ref, flavor: .forever) == SupportCheck(status: .supported(version: "v2.0"), tag: "v2.0"))
+        #expect(await source.check(ref, flavor: .forever) == SupportCheck(status: .supported(version: "v2.0"), tag: "v2.0", availableFlavors: [.mainline, .forever]))
         #expect(http.apiRequests.isEmpty)
         // One HEAD, and the redirect isn't followed (that would download the release page).
         #expect(http.requests.first?.httpMethod == "HEAD")

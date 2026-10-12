@@ -17,6 +17,7 @@ Why: [decision 0011](../decisions/0011-single-cache-owner.md).
 |---|---|---|
 | Support verdicts (per repo and flavor), latest tags, failures | `GitHubSource` (`latestRelease` / `check`, through `SupportCache`) | `support`, `repo_meta` tables |
 | Decoded `release.json` by `repo@tag` | `GitHubSource` | `release_json` table, plus memory |
+| Every flavor a repo's latest release ships | `GitHubSource` (`latestRelease`), plus the installer's TOC inspection for repos without `release.json` | `repo_meta.available_flavors`, `flavors_tag`, `flavors_source` |
 | Last API call per repo (the 6 h throttle) | `GitHubSource` (`apiCheckIsDue`) | `repo_meta.api_checked_at`, `api_checked_tag` |
 | Catalogue | `CatalogueSource` | `catalogue`, `catalogue_state` |
 | Inspector details, release notes by tag | `AddonManager.details`, `releaseNotes` | `details` |
@@ -54,6 +55,7 @@ A stored verdict is **shown** as long as it's stored. These lifetimes only decid
 | Live search answer | 24 h; an empty answer 1 h |
 | Refresh | skipped if the last one finished under 2 h ago, unless forced ([refresh.md](../features/refresh.md)) |
 | Decoded `release.json` (API path) | in memory and `<caches>/github/release-json/<asset id>.json`; assets don't change |
+| Available flavors | as long as the tag they describe is the latest; re-derived from the stored `release.json` when the tag changes. An inspection's answer never replaces a `release.json` one |
 | `release.json` by tag (github.com path) | `release_json` table (about 600 B each), no expiry: tags don't change. Fetched once per tag, not once per process |
 | API checks per repo | 6 h for bulk and background checks, unless the latest tag changed |
 | API release lists | in memory for the last 64 repos, revalidated with ETags |

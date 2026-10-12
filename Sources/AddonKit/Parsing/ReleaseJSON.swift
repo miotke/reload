@@ -47,4 +47,9 @@ public struct ReleaseJSON: Codable, Sendable, Hashable {
     public func release(for flavor: Flavor) -> Release? {
         releases.first { !$0.nolib && $0.supports(flavor) }
     }
+
+    /// Every flavor a full build names. Names this version doesn't know are ignored.
+    public var availableFlavors: Set<Flavor> {
+        Set(releases.filter { !$0.nolib }.flatMap(\.metadata).compactMap { Flavor.from(releaseJSONName: $0.flavor) })
+    }
 }

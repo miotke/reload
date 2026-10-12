@@ -51,9 +51,9 @@ Search no longer calls `GitHubSource`: it reads stored verdicts only ([search.md
 ```
 Sources/AddonKit/
 ├── AddonManager.swift       the façade (this doc)
-├── AddonManager+Refresh.swift, AddonManager+Details.swift
+├── AddonManager+Refresh.swift, +Details.swift, +Visible.swift
 ├── AddonManaging.swift      the façade's protocol
-├── Model/                   Flavor + FlavorRules, Installation, AddonRef, InstalledAddon,
+├── Model/                   Flavor + FlavorRules, GameFamily, Installation, AddonRef, InstalledAddon,
 │                            ResolvedRelease, search models, AddonError
 ├── Parsing/                 Toc, TocFileName, ReleaseJSON, BuildInfo (pure, no I/O)
 ├── Sources/                 Source/HTTPClient protocols, GitHubSource, GitHub API models
@@ -74,11 +74,11 @@ Sources/AddonKit/
 | Installations | `installations()`, `detectInstallations()`, `addInstallation(at:)`, `removeInstallation(_:)` |
 | Add-ons | `addons(in:)` (managed + unmanaged, reconciled with disk), `installedAddons(in:)`, `lookup(_:in:)` |
 | Search | `search(_:in:)` and `search(_:in:installed:)` → `AsyncStream<[SearchResult]>`, `searchUpdates(_:in:installed:)` → `AsyncStream<SearchUpdate>`, `browse(in:)`, `catalogueEntry(for:)` |
-| Install | `resolve(_:for:channel:)`, `install(_:into:channel:force:progress:)` |
+| Install | `resolve(_:for:channel:)`, `resolve(_:for:channel:allowFamilyFallback:)`, `install(_:into:channel:force:allowFamilyFallback:progress:)` (the Retail build on Forever, [release-selection.md](../features/release-selection.md#retail-build-on-forever)) |
 | Unmanaged folders | `adoptionCandidates(folder:in:)` (local), `adoptionPreview(for:folders:in:)`, `adopt(_:in:)`, `adopt(folder:as:in:)`, `removeUnmanaged(folders:from:)` ([installing.md](../features/installing.md#adopting-unmanaged-folders)) |
 | Updates | `checkForUpdates(in:)`, `update(_:in:)` and `update(releases:in:)` → `AsyncStream<OperationEvent>` |
 | Changes | `uninstall`, `rollback`, `setPinned`, `setChannel` |
-| Metadata | `refresh(in:force:)` → `AsyncStream<RefreshProgress>`, `lastRefresh(in:)` ([refresh.md](../features/refresh.md)), `details(for:in:)` ([details](../features/details-and-screenshots.md)) |
+| Metadata | `refresh(in:force:)` → `AsyncStream<RefreshProgress>`, `lastRefresh(in:)` ([refresh.md](../features/refresh.md)), `checkVisible(_:in:)` ([visible rows](../features/refresh.md#visible-row-checks)), `details(for:in:)` ([details](../features/details-and-screenshots.md)), `availableFlavors(for:)` (stored, local) |
 | Misc | `tokenDidChange()`, `rateLimit()`, `clearCaches()`, `database.changes()` ([change stream](data-storage.md#change-stream)) |
 
 ### Behaviour worth knowing

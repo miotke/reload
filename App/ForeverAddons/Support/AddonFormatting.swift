@@ -29,28 +29,107 @@ nonisolated enum FetchLabel {
     }
 }
 
-/// Support badge wording. "Not checked" is the absence of a verdict for this flavor, not a
-/// warning; "Unknown, no release.json" is a verdict that only an install can settle.
-nonisolated enum SupportLabel {
-    static func text(for status: SupportStatus, flavor: Flavor) -> String {
-        switch status {
-        case .supported: "✓ \(flavor.displayName)"
-        case .checking: "⋯ checking"
-        case .unknown: "Not checked"
-        case .needsDownload: "Unknown, no release.json"
-        case .unsupported: "— not yet"
-        case .noReleases: "— no releases"
+/// The R / F / C bubbles for one add-on (docs/app/layout.md#games), pre-computed so a table
+/// cell only reads stored values. Three fixed positions, so columns line up.
+nonisolated struct GameBubblesModel: Hashable, Sendable {
+    struct Bubble: Hashable, Sendable, Identifiable {
+        var family: GameFamily
+        var isPresent: Bool
+        /// The installation's own family: drawn with a bolder fill.
+        var isOwn: Bool
+        var help: String
+        var id: GameFamily { family }
+    }
+
+    /// Nil when nobody has checked: drawn as a dim "—".
+    var bubbles: [Bubble]?
+    /// Tooltip for the "—".
+    var uncheckedHelp: String
+    var accessibilityLabel: String
+
+    init(availableFlavors: Set<Flavor>?, flavor: Flavor, support: SupportStatus = .unknown) {
+        let own = flavor.family
+        uncheckedHelp = switch support {
+        case .noReleases: "This repository has no GitHub releases"
+        case .needsDownload: "Not checked: its releases have no release.json, so this shows once it's installed"
+        default: "Not checked yet. Shown once the add-on is opened, refreshed or scrolled into view"
+        }
+        guard let available = availableFlavors else {
+            bubbles = nil
+            accessibilityLabel = "Games: not checked"
+            return
+        }
+        let families = available.families
+        let bubbles = GameFamily.allCases.map { family in
+            Bubble(family: family, isPresent: families.contains(family), isOwn: family == own,
+                   help: Self.help(family, available: available, installation: flavor))
+        }
+        self.bubbles = bubbles
+        let present = bubbles.filter(\.isPresent).map(\.family.displayName)
+        accessibilityLabel = present.isEmpty ? "Games: none" : "Games: " + present.joined(separator: ", ")
+    }
+
+    /// "Classic: Era, TBC Anniversary, Wrath, Cata, Mists", "No Forever build", and on Forever
+    /// the out-of-date caveat for a Retail build.
+    static func help(_ family: GameFamily, available: Set<Flavor>, installation flavor: Flavor) -> String {
+        let present = family.flavors.filter(available.contains)
+        guard !present.isEmpty else { return "No \(family.displayName) build" }
+        switch family {
+        case .classic:
+            return "Classic: " + present.map(\.shortName).joined(separator: ", ")
+        case .retail where flavor == .forever:
+            return "Retail build: may work on Forever, which lists it as out of date until you tick Load out of date AddOns"
+        case .retail, .forever:
+            return "\(family.displayName) build"
         }
     }
 
-    static func help(for status: SupportStatus, flavor: Flavor) -> String {
-        switch status {
-        case .supported(let version): "Supports \(flavor.displayName) (\(version))"
-        case .checking: "Checking for a \(flavor.displayName) build…"
-        case .unknown: "Open this add-on to check \(flavor.displayName) support"
-        case .needsDownload: "Its releases have no release.json, so \(flavor.displayName) support can only be confirmed by installing it"
-        case .unsupported: "No \(flavor.displayName) build yet"
-        case .noReleases: "This repository has no GitHub releases"
+    var isChecked: Bool { bubbles != nil }
+    /// The installation's own family has a build.
+    var ownFamilyPresent: Bool { bubbles?.contains { $0.isOwn && $0.isPresent } ?? false }
+    var familyCount: Int { bubbles?.filter(\.isPresent).count ?? 0 }
+
+    /// Ascending puts the own family first, then the most games; unchecked rows have no value.
+    static func ascending(_ lhs: Self, _ rhs: Self) -> ComparisonResult {
+        if lhs.ownFamilyPresent != rhs.ownFamilyPresent { return lhs.ownFamilyPresent ? .orderedAscending : .orderedDescending }
+        return compareValues(rhs.familyCount, lhs.familyCount)
+    }
+}
+
+/// The Browse filter toggle, by the installation's game family. Its `@AppStorage` key is still
+/// `browseForeverOnly`, so the setting carries over.
+nonisolated enum IncompatibleFilterLabel {
+    static func title(for flavor: Flavor) -> String {
+        switch flavor.family {
+        case .forever: "Hide Classic-only"
+        case .retail, .classic: "Hide add-ons without a \(flavor.family.displayName) build"
         }
+    }
+
+    static func help(for flavor: Flavor) -> String {
+        switch flavor.family {
+        case .forever:
+            "Hide add-ons that only ship Classic builds; they don't load on \(flavor.displayName). Retail-only add-ons stay: they often work, listed as out of date."
+        case .retail, .classic:
+            "Hide add-ons whose latest release has no \(flavor.family.displayName) build, so they won't load on \(flavor.displayName). Add-ons not checked yet stay."
+        }
+    }
+}
+
+/// Offering the Retail build on Forever: only with no build for the installation's flavor but
+/// one for its fallback (decision 0019).
+nonisolated enum RetailBuildOffer {
+    static func isOffered(availableFlavors: Set<Flavor>?, flavor: Flavor) -> Bool {
+        guard let available = availableFlavors, let fallback = flavor.fallbackFlavor else { return false }
+        return !available.contains(flavor) && available.contains(fallback)
+    }
+
+    /// "Retail build" for an add-on installed as another game's build, else nil.
+    static func buildLabel(_ addon: InstalledAddon) -> String? {
+        addon.installedFlavorBuild.map { "\($0.family.displayName) build" }
+    }
+
+    static func explanation(for flavor: Flavor) -> String {
+        "This add-on has no \(flavor.displayName) build. \(flavor.displayName) can load its Retail build, but lists it as out of date: tick Load out of date AddOns on the character select AddOns screen to enable it. Some Retail add-ons still break, since a few game APIs differ. Updates keep to the Retail build until a \(flavor.displayName) build appears."
     }
 }

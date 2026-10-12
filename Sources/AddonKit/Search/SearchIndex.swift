@@ -147,14 +147,6 @@ extension SupportStatus {
         case .unsupported, .noReleases: 2
         }
     }
-
-    /// Hidden by the "Forever only" toggle.
-    var isVerifiedUnsupported: Bool {
-        switch self {
-        case .unsupported, .noReleases: true
-        default: false
-        }
-    }
 }
 
 // MARK: - Index

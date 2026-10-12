@@ -136,7 +136,7 @@ struct AdoptSheet: View {
                         Text(result.id.identifier).fontWeight(.medium)
                         Text(result.summary ?? "").foregroundStyle(.secondary).lineLimit(1)
                         Spacer()
-                        SupportBadge(status: result.support, flavor: flavor)
+                        GameBubbles(model: GameBubblesModel(availableFlavors: result.availableFlavors, flavor: flavor, support: result.support))
                     }
                     .contentShape(Rectangle())
                 }

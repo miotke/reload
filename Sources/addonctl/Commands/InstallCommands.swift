@@ -25,18 +25,26 @@ struct InstallCommand: ContextCommand {
     @Flag(help: "Overwrite folders that exist but aren't managed.")
     var force = false
 
+    @Flag(
+        name: [.customLong("retail-build"), .customLong("allow-family-fallback")],
+        help: "Forever only: when an add-on has no Forever build, install its Retail build. Forever lists it as out of date until you tick Load out of date AddOns.")
+    var retailBuild = false
+
     func validate() throws {
         guard !refs.isEmpty else { throw ValidationError("Name at least one add-on to install.") }
     }
 
     func run(_ context: CLIContext) async throws {
         let installation = try await context.installation()
+        if retailBuild, installation.flavor.fallbackFlavor == nil {
+            throw CLIError.general("--retail-build is for Forever installations; \(installation.flavor.displayName) installs its own builds.")
+        }
         var requests: [BatchInstaller.Request] = []
         for input in refs {
             let ref = try await context.ref(for: input, in: installation)
             let existing = try await context.installedAddon(ref, in: installation)
             let channel: Channel = prerelease ? .prerelease : (existing?.channel ?? context.config.load().defaultChannel ?? .stable)
-            requests.append(.init(ref: ref, channel: channel, version: version, pin: version != nil))
+            requests.append(.init(ref: ref, channel: channel, version: version, pin: version != nil, allowFamilyFallback: retailBuild))
         }
         let outcome = await BatchInstaller.run(requests, force: force, context: context, installation: installation)
         if context.json {
@@ -71,6 +79,8 @@ enum BatchInstaller {
         var pin: Bool
         /// When `version` isn't the current release: fail (true) or warn and install the current one.
         var strictVersion = true
+        /// Install the fallback family's build (Retail on Forever) when there's none for the flavor.
+        var allowFamilyFallback = false
     }
 
     struct Outcome {
@@ -99,6 +109,9 @@ enum BatchInstaller {
                 if !board.live {
                     context.say("Installed \(addon.name) \(addon.version) (\(addon.folders.joined(separator: ", ")))")
                 }
+                if let build = Format.build(addon) {
+                    context.note("\(addon.name): \(build). \(installation.flavor.displayName) lists it as out of date until you tick Load out of date AddOns.")
+                }
             } catch {
                 board.update(key: key, status: context.errStyle.red("failed"))
                 outcome.failures.append((request.ref, error))
@@ -116,14 +129,16 @@ enum BatchInstaller {
         let manager = context.manager
         if let wanted = request.version {
             // AddonKit can only install the release the selector picks; accept the tag if it matches.
-            let release = try await manager.resolve(request.ref, for: installation, channel: request.channel)
+            let release = try await manager.resolve(request.ref, for: installation, channel: request.channel, allowFamilyFallback: request.allowFamilyFallback)
             if !Self.tagsMatch(release.version, wanted) {
                 let problem = "\(Format.ref(request.ref)) \(wanted) isn't the current \(installation.flavor.displayName) release (\(release.version)); installing older releases isn't supported yet."
                 guard !request.strictVersion else { throw CLIError.general(problem) }
                 context.warn(problem + " Installing \(release.version) instead.")
             }
         }
-        var addon = try await manager.install(request.ref, into: installation, channel: request.channel, force: force, progress: progress)
+        var addon = try await manager.install(
+            request.ref, into: installation, channel: request.channel, force: force,
+            allowFamilyFallback: request.allowFamilyFallback, progress: progress)
         if request.pin, !addon.pinned {
             try await manager.setPinned(true, for: request.ref, in: installation)
             addon.pinned = true

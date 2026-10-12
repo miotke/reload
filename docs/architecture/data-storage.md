@@ -63,7 +63,7 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 | `catalogue` | `full_name` (no case) | catalogue rows; `source` is `catalogue` or `github_search`; `first_seen_at`, `changed_at` |
 | `catalogue_state` | single row | ETag, last fetch, last failure |
 | `support` | `full_name` + `flavor` | verdict (`supported`, `unsupported`, `noReleases`, `needsDownload`; NULL if no check has succeeded yet), version, the tag it was based on, `checked_at`; the last failure's `error_at` and `retry_after` |
-| `repo_meta` | `full_name` | latest tag and when it was seen, publish date if known, stars, README path and ETag, when the API was last asked (`api_checked_at`) and the latest tag then (`api_checked_tag`) |
+| `repo_meta` | `full_name` | latest tag and when it was seen, publish date if known, stars, README path and ETag, when the API was last asked (`api_checked_at`) and the latest tag then (`api_checked_tag`), and every flavor the latest release ships (`available_flavors`, comma-separated; NULL = not known), with the tag it describes and its source (`release_json` or `inspection`) |
 | `release_json` | `full_name` + `tag` | the decoded `release.json` of that release (NULL: it has none), about 600 B each |
 | `release_folders` | `full_name` | the tag last downloaded and the top-level folders its zip shipped (JSON), for grouping unmanaged folders |
 | `details` | `full_name` + `flavor` | README, screenshot URLs, and release notes with the tag they belong to (`latest_version`) |
@@ -86,6 +86,7 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 | 2 | `classic` was split into `vanilla`, `tbc`, `wrath`, `titan`, `cata` and `mists` ([decision 0016](../decisions/0016-one-flavor-per-game.md)). Deletes `support` and `details` rows with `flavor = 'classic'`; they're re-checked under the new flavors. `forever` and `mainline` rows stay. `refresh_state` is keyed by installation, so it's left alone |
 | 3 | Failures no longer replace verdicts ([decision 0017](../decisions/0017-details-without-quota-release-json-by-tag.md)). Rebuilds `support` with nullable `status` and `checked_at` plus `error_at` and `retry_after`; old `error` rows become NULL-status rows with `error_at`. Adds `release_json` and `repo_meta.api_checked_at` / `api_checked_tag` |
 | 4 | Adds `release_folders` ([decision 0018](../decisions/0018-adoption-suggestions-from-toc-hints.md)). Written only when the folders or tag change |
+| 5 | Adds `repo_meta.available_flavors`, `flavors_tag`, `flavors_source` ([decision 0019](../decisions/0019-available-games-and-visible-row-checks.md)) and backfills them from the `release_json` row of each repo's latest tag (JSON1, packager names mapped like `Flavor.from(releaseJSONName:)`) |
 
 ### Change stream
 

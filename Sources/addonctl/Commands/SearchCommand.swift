@@ -8,8 +8,9 @@ struct SearchCommand: ContextCommand {
         abstract: "Search for add-ons that work on Forever.",
         discussion: """
             Searches the local catalogue. GitHub is asked only when fewer than 3 add-ons match, \
-            or with --github. The FOREVER column shows stored verdicts; `addonctl refresh` and \
-            `addonctl info` update them.
+            or with --github. The GAMES column shows which games the latest release ships builds \
+            for (R Retail, F Forever, C Classic; — not checked yet); `addonctl refresh` and \
+            `addonctl info` update it.
             """,
         aliases: ["s"]
     )
@@ -22,7 +23,7 @@ struct SearchCommand: ContextCommand {
     @Flag(help: "Also run a deeper live GitHub search (uses search API quota).")
     var github = false
 
-    @Flag(help: "Include add-ons verified not to support Forever.")
+    @Flag(help: "Include add-ons with no build for this installation's game family (classic-only ones on Forever).")
     var all = false
 
     @Option(help: "Maximum number of results.")
@@ -37,7 +38,7 @@ struct SearchCommand: ContextCommand {
         let installation = try await context.installationOrPlaceholder()
         let installed = (try? await context.manager.addons(in: installation)) ?? []
         let text = query.joined(separator: " ")
-        let searchQuery = SearchQuery(text: text, flavor: installation.flavor, compatibleOnly: !all, includeLiveGitHub: github)
+        let searchQuery = SearchQuery(text: text, flavor: installation.flavor, hideIncompatible: !all, includeLiveGitHub: github)
 
         let spinner = Spinner(enabled: context.showsProgress)
         let updates = context.manager.searchUpdates(searchQuery, in: installation, installed: installed)
@@ -47,7 +48,7 @@ struct SearchCommand: ContextCommand {
             context.note("Few local matches, so GitHub was searched too.")
         }
 
-        let results = Self.filter(latest, all: all, limit: limit)
+        let results = Self.filter(latest, flavor: installation.flavor, all: all, limit: limit)
         if context.json {
             try context.emit(Output(query: text, searchedGitHub: searchedGitHub, results: results.map(SearchResultJSON.init)))
             return
@@ -77,13 +78,11 @@ struct SearchCommand: ContextCommand {
         return (latest, searchedGitHub)
     }
 
-    /// Drops results verified unsupported unless `all`, then applies `limit`.
-    static func filter(_ results: [SearchResult], all: Bool, limit: Int) -> [SearchResult] {
+    /// Drops results with no build for the installation's family unless `all`
+    /// (`Flavor.hidesAsIncompatible`; installed ones stay), then applies `limit`.
+    static func filter(_ results: [SearchResult], flavor: Flavor, all: Bool, limit: Int) -> [SearchResult] {
         let visible = all ? results : results.filter {
-            switch $0.support {
-            case .unsupported, .noReleases: false
-            default: true
-            }
+            $0.installed != nil || !flavor.hidesAsIncompatible(families: $0.families, support: $0.support)
         }
         return Array(visible.prefix(limit))
     }

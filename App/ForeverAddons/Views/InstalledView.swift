@@ -145,10 +145,13 @@ private struct VersionCell: View {
                 Image(systemName: "arrow.right").font(.caption).foregroundStyle(.secondary)
                 Text(available).foregroundStyle(.tint)
             }
+            if let build = row.buildText {
+                Text(build).font(.caption).foregroundStyle(.secondary)
+            }
         }
         .monospacedDigit()
         .lineLimit(1)
-        .help(row.availableVersion.map { "\(row.version) → \($0)" } ?? row.version)
+        .help((row.availableVersion.map { "\(row.version) → \($0)" } ?? row.version) + (row.buildText.map { " (\($0))" } ?? ""))
     }
 }
 
@@ -165,7 +168,7 @@ private struct StatusCell: View {
                     .help("Missing \(row.missingFolders.joined(separator: ", "))")
             case .updateAvailable:
                 Label("Update", systemImage: "arrow.down.circle.fill").foregroundStyle(.tint)
-                    .help("Version \(row.availableVersion ?? "") is available")
+                    .help("\(row.availableVersion ?? "An update") is available")
             case .failed:
                 Label("Check failed", systemImage: "exclamationmark.triangle").foregroundStyle(.red)
                     .help(row.failure ?? "The update check failed")

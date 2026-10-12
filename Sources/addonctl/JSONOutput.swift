@@ -128,9 +128,14 @@ struct SearchResultJSON: Encodable {
     var lastUpdated: Date?
     var installed: InstalledAddon?
     var support: SupportJSON
+    /// Every flavor the latest release ships; absent when not checked.
+    var availableFlavors: [Flavor]?
+    var families: [GameFamily]?
     var origin: [SearchOrigin]
 
     init(_ result: SearchResult) {
+        availableFlavors = GamesJSON.flavors(result.availableFlavors)
+        families = GamesJSON.families(result.availableFlavors)
         id = result.id
         name = result.name
         summary = result.summary
@@ -143,9 +148,23 @@ struct SearchResultJSON: Encodable {
     }
 }
 
+/// `availableFlavors` and `families` as sorted arrays, absent when not checked.
+enum GamesJSON {
+    static func flavors(_ flavors: Set<Flavor>?) -> [Flavor]? {
+        flavors.map { set in Flavor.allCases.filter(set.contains) }
+    }
+
+    static func families(_ flavors: Set<Flavor>?) -> [GameFamily]? {
+        flavors.map { $0.families.sorted() }
+    }
+}
+
 struct AddonStatusJSON: Encodable {
     /// `managed` or `unmanaged`.
     var kind: String
+    /// From the latest release's release.json, or the TOCs on disk; absent when not known.
+    var availableFlavors: [Flavor]?
+    var families: [GameFamily]?
     var addon: InstalledAddon?
     var missingFolders: [String]?
     var folder: String?
@@ -166,7 +185,9 @@ struct AddonStatusJSON: Encodable {
         var confidence: String
     }
 
-    init(_ status: AddonStatus) {
+    init(_ status: AddonStatus, availableFlavors: Set<Flavor>? = nil) {
+        self.availableFlavors = GamesJSON.flavors(availableFlavors)
+        families = GamesJSON.families(availableFlavors)
         switch status {
         case .managed(let addon, let missing):
             kind = "managed"

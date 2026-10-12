@@ -14,6 +14,7 @@ flowchart LR
     O[Open, install or update<br/>one add-on] --> One[That repo only]
     S[Search, browse, sort,<br/>categories] --> DB[(Local DB only)]
     S -. fewer than 3 matches,<br/>3+ chars .-> GHS[One GitHub search]
+    V[Browse rows on screen,<br/>~1 s after scrolling stops] --> VC[Up to 20 HEADs<br/>quota-free, 4 at a time]
 ```
 
 | Trigger | What's fetched |
@@ -25,6 +26,7 @@ flowchart LR
 | Install, update, adopt | That add-on's latest tag, `release.json` and zip (quota-free on the stable channel); the API release list otherwise |
 | Rollback | Nothing: it reinstalls from the download cache and pins, no re-check |
 | Search, browse, sort, categories | Nothing, except the automatic [GitHub fallback](../features/search.md#github-fallback) |
+| Browse rows on screen, ~1 s after scrolling stops | [Visible-row checks](../features/refresh.md#visible-row-checks): for up to 20 rows without a fresh answer, `HEAD releases/latest` plus a new tag's `release.json`. Quota-free, 4 at a time; never during a refresh, on Low Data Mode or while github.com is pushing back |
 | Store-watcher reload, activation reload | Nothing |
 
 Automatic refreshes can be turned off in Settings (**Check for updates automatically**).

@@ -12,7 +12,7 @@ import Testing
     )
 
     @Test func groupedRowShowsTheLoadedTitleAndFolderCount() {
-        let row = InstalledRow(status: .unmanaged(questie), update: nil)
+        let row = InstalledRow(status: .unmanaged(questie), update: nil, flavor: .forever)
         #expect(row.id == "unmanaged:Questie")
         #expect(row.name == "Questie")
         #expect(row.subtitle == "2 folders")
@@ -21,10 +21,10 @@ import Testing
     }
 
     @Test func singleFolderRows() {
-        let renamed = InstalledRow(status: .unmanaged(UnmanagedFolder(folder: "QDB", toc: Toc(parsing: "## Title: QuestieDB\n"))), update: nil)
+        let renamed = InstalledRow(status: .unmanaged(UnmanagedFolder(folder: "QDB", toc: Toc(parsing: "## Title: QuestieDB\n"))), update: nil, flavor: .forever)
         #expect(renamed.name == "QuestieDB" && renamed.subtitle == "QDB")
         #expect(renamed.isNotLoaded)
-        let bare = InstalledRow(status: .unmanaged(UnmanagedFolder(folder: "NoToc")), update: nil)
+        let bare = InstalledRow(status: .unmanaged(UnmanagedFolder(folder: "NoToc")), update: nil, flavor: .forever)
         #expect(bare.name == "NoToc" && bare.subtitle == nil && bare.version.isEmpty)
     }
 
@@ -113,11 +113,11 @@ import Testing
         #expect(label(date(2025, 12, 30, 19, 5), now: now) == "Last fetched Dec 30, 2025, 7:05 PM")
     }
 
-    @Test func notCheckedIsNeutralAndDistinctFromNoReleaseJSON() {
-        #expect(SupportLabel.text(for: .unknown, flavor: .forever) == "Not checked")
-        #expect(SupportLabel.help(for: .unknown, flavor: .forever) == "Open this add-on to check Forever support")
-        #expect(SupportLabel.text(for: .needsDownload, flavor: .forever) == "Unknown, no release.json")
-        #expect(SupportLabel.help(for: .needsDownload, flavor: .forever).contains("only be confirmed by installing"))
+    @Test func filterToggleIsLabelledByFamily() {
+        #expect(IncompatibleFilterLabel.title(for: .forever) == "Hide Classic-only")
+        #expect(IncompatibleFilterLabel.title(for: .mainline) == "Hide add-ons without a Retail build")
+        #expect(IncompatibleFilterLabel.title(for: .mists) == "Hide add-ons without a Classic build")
+        #expect(IncompatibleFilterLabel.help(for: .mists).contains("Mists Classic"))
     }
 }
 
@@ -174,6 +174,19 @@ import Testing
             #expect(row.action == inspector, "\(identifier)")
             #expect(row.isInstalled == (expected != .install))
         }
+        // A Retail build on Forever whose update is the Forever build says so.
+        var retailBuild = bags
+        retailBuild.installedFlavorBuild = .mainline
+        let retail = retailBuild
+        try await manager.store.modify(installation) { $0 = [retail, bugSack] }
+        await model.reload()
+        let forever = ResolvedRelease(ref: bags.id, name: "BetterBags", version: "v0.5.14", releaseID: -3, publishedAt: .now,
+                                      downloadURL: URL(string: "https://x")!, assetName: "b.zip")
+        model.apply([bags.id: .available(forever)])
+        #expect(model.installAction(for: bags.id) == .update(ref: bags.id, version: "v0.5.14", available: "Forever build"))
+        #expect(model.managedRows.first { $0.ref == bags.id }?.availableVersion == "Forever build")
+        #expect(model.managedRows.first { $0.ref == bags.id }?.buildText == "Retail build")
+
         // A pinned add-on with an update shows as installed, not as an update.
         var pinned = bugSack
         pinned.pinned = true

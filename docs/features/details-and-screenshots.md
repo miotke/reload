@@ -12,8 +12,8 @@ For any selected add-on, installed or not:
 
 | Part | Contents |
 |---|---|
-| Header | Name, author, summary, support badge for the installation's flavor |
-| Actions | Install, or "Installed v…" with Update / Roll Back / Uninstall, from the managed list ([layout.md](../app/layout.md#installed-state)) |
+| Header | Name, author, summary, the [Games bubbles](../app/layout.md#games) and a sentence on what they mean for the installation |
+| Actions | Install (**Install Retail Build…** for a Retail-only add-on on Forever), or "Installed v…" with Update / Roll Back / Uninstall, from the managed list ([layout.md](../app/layout.md#installed-state)) |
 | Details | Latest version and date, stars, last update, license, topics, GitHub and homepage links |
 | Screenshots | A strip of README images |
 | README | Rendered Markdown |
@@ -49,7 +49,7 @@ Opening an add-on is one of the times the core goes to the network.
 - Details load **250 ms after the selection settles**, so arrow-keying through a table doesn't fetch every row.
 - They're **cancelled when the selection changes**.
 - Results are cached for the 20 most recently viewed add-ons in the session. Failures show inline with **Try Again**.
-- The returned support status updates that row's badge in the tables.
+- The returned support status and available flavors update that row's games in the tables.
 
 ## README
 

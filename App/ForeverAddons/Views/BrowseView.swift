@@ -10,7 +10,8 @@ struct BrowseView: View {
     var model: AppModel
     var state: InstallationModel
 
-    @AppStorage("browseForeverOnly") private var compatibleOnly = true
+    /// "Hide Classic-only" and its per-family siblings; the key predates them.
+    @AppStorage("browseForeverOnly") private var hideIncompatible = true
     @AppStorage("browseHome") private var home: BrowseHome = .popular
     @AppStorage("browseSort") private var sortStorage = ""
     @SceneStorage("browseColumns") private var columns = TableColumnCustomization<BrowseRow>()
@@ -18,7 +19,7 @@ struct BrowseView: View {
 
     private struct QueryKey: Hashable {
         var text: String
-        var compatibleOnly: Bool
+        var hideIncompatible: Bool
         var includeLiveGitHub: Bool
         var installationID: String
     }
@@ -35,7 +36,7 @@ struct BrowseView: View {
 
     /// Filtering and sorting happen in the model, once per change, not in `body`.
     private var options: BrowseOptions {
-        BrowseOptions(query: trimmedQuery, home: home, compatibleOnly: compatibleOnly, sort: sort)
+        BrowseOptions(query: trimmedQuery, home: home, hideIncompatible: hideIncompatible, sort: sort)
     }
 
     var body: some View {
@@ -50,7 +51,7 @@ struct BrowseView: View {
         }
         .onChange(of: options, initial: true) { state.browseOptions = options }
         // `.task(id:)` cancels the previous search whenever the query changes; the sleep is the debounce.
-        .task(id: QueryKey(text: trimmedQuery, compatibleOnly: compatibleOnly, includeLiveGitHub: includeLiveGitHub,
+        .task(id: QueryKey(text: trimmedQuery, hideIncompatible: hideIncompatible, includeLiveGitHub: includeLiveGitHub,
                            installationID: state.installation.id)) {
             let text = trimmedQuery
             guard !text.isEmpty else {
@@ -60,7 +61,7 @@ struct BrowseView: View {
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
             await state.search(SearchQuery(text: text, flavor: state.installation.flavor,
-                                           compatibleOnly: compatibleOnly, includeLiveGitHub: includeLiveGitHub))
+                                           hideIncompatible: hideIncompatible, includeLiveGitHub: includeLiveGitHub))
         }
         .task(id: state.installation.id) {
             await state.loadLastRefresh()
@@ -96,9 +97,9 @@ struct BrowseView: View {
                     }
                 }
             }
-            Toggle("\(state.installation.flavor.displayName) only", isOn: $compatibleOnly)
+            Toggle(IncompatibleFilterLabel.title(for: state.installation.flavor), isOn: $hideIncompatible)
                 .toggleStyle(.checkbox)
-                .help("Hide add-ons verified not to support \(state.installation.flavor.displayName). Unchecked add-ons are shown dimmed.")
+                .help(IncompatibleFilterLabel.help(for: state.installation.flavor))
                 .fixedSize()
         }
         .padding(.horizontal, 12)
@@ -130,6 +131,8 @@ struct BrowseView: View {
             .disabled(state.isRefreshing)
             .help("Refresh now (⌘R)")
             .accessibilityLabel("Refresh")
+            Text("·")
+            GameLegend(flavor: state.installation.flavor)
             if sort != nil {
                 Button(isHome ? "Default Order" : "Sort by Relevance") { sortStorage = "" }
                     .buttonStyle(.link)
@@ -184,16 +187,16 @@ private struct BrowseTable: View {
     var body: some View {
         Table(state.browseRows, selection: $selection, sortOrder: $sortOrder, columnCustomization: $columns) {
             TableColumn("Name", sortUsing: ColumnSort(BrowseColumn.name)) { row in
-                BrowseNameCell(row: row)
+                BrowseNameCell(state: state, row: row)
             }
             .width(min: 180, ideal: 320)
             .customizationID("name")
             .disabledCustomizationBehavior(.visibility)
 
-            TableColumn(state.installation.flavor.displayName, sortUsing: ColumnSort(BrowseColumn.support)) { row in
-                SupportBadge(status: row.support, flavor: state.installation.flavor)
+            TableColumn("Games", sortUsing: ColumnSort(BrowseColumn.games)) { row in
+                GameBubbles(model: row.games)
             }
-            .width(min: 84, ideal: 96, max: 130)
+            .width(min: 66, ideal: 70, max: 100)
             .customizationID("forever")
 
             TableColumn("Stars", sortUsing: ColumnSort(BrowseColumn.stars, order: .reverse)) { row in
@@ -250,6 +253,7 @@ private struct BrowseTable: View {
 }
 
 private struct BrowseNameCell: View {
+    var state: InstallationModel
     var row: BrowseRow
 
     var body: some View {
@@ -267,8 +271,13 @@ private struct BrowseNameCell: View {
                 .foregroundStyle(row.summary == nil ? .tertiary : .secondary)
                 .lineLimit(1)
         }
-        .opacity(SupportBadge.isDimmed(row.support) && !row.isInstalled ? 0.6 : 1)
+        .opacity(row.isDimmed && !row.isInstalled ? 0.6 : 1)
         .help(row.summary ?? row.name)
+        // The table only hosts cells for rows on screen (plus a few around them), so these
+        // track what the user is looking at for the visible-row checks. The Name column can't
+        // be hidden, so every visible row reports.
+        .onAppear { state.browseRowAppeared(row.id) }
+        .onDisappear { state.browseRowDisappeared(row.id) }
     }
 }
 

@@ -53,7 +53,7 @@ final class RefreshStatus {
 struct BrowseOptions: Equatable {
     var query = ""
     var home: BrowseHome = .popular
-    var compatibleOnly = true
+    var hideIncompatible = true
     var sort: ColumnSort<BrowseColumn>?
 }
 
@@ -132,6 +132,11 @@ final class InstallationModel {
     var browseOptions = BrowseOptions() {
         didSet { if browseOptions != oldValue { rebuildBrowseRows() } }
     }
+    /// Browse rows whose cells are on screen, by row ID; not observed, so scrolling re-renders nothing.
+    @ObservationIgnored private var visibleRowIDs: Set<BrowseRow.ID> = []
+    @ObservationIgnored private var visibleCheckTask: Task<Void, Never>?
+    /// How long scrolling must pause before the rows on screen are checked.
+    static let visibleCheckDelay: Duration = .seconds(1)
     private(set) var browseRows: [BrowseRow] = []
     @ObservationIgnored private var browseRowIndex: [BrowseRow.ID: Int] = [:]
 
@@ -189,7 +194,14 @@ final class InstallationModel {
     /// add-on window all ask this, so they can't disagree.
     func installAction(for ref: AddonRef) -> InstallAction {
         let addon = addon(for: ref)
-        return InstallAction(installed: addon, update: addon.flatMap { updateStates[$0.id] })
+        let update = addon.flatMap { updateStates[$0.id] }
+        var action = InstallAction(installed: addon, update: update)
+        // A Retail build being replaced by the installation's own reads "Update to Forever build".
+        if case .update(let ref, let version, _) = action, addon?.installedFlavorBuild != nil,
+           case .available(let release)? = update, release.flavorBuild == nil {
+            action = .update(ref: ref, version: version, available: "\(installation.flavor.displayName) build")
+        }
+        return action
     }
 
     func status(id: AddonStatus.ID?) -> AddonStatus? {
@@ -238,7 +250,7 @@ final class InstallationModel {
         var rows = addons.compactMap { status -> InstalledRow? in
             guard Self.matches(status, query: query) else { return nil }
             let update: UpdateState? = if case .managed(let addon, _) = status { updateStates[addon.id] } else { nil }
-            return InstalledRow(status: status, update: update, now: now)
+            return InstalledRow(status: status, update: update, flavor: installation.flavor, now: now)
         }
         rows.sort(using: installedOptions.sort)
         let managed = rows.filter(\.isManaged)
@@ -262,7 +274,7 @@ final class InstallationModel {
 
     /// A Browse row for `result`, with its action from the managed list.
     func browseRow(for result: SearchResult, now: Date = .now) -> BrowseRow {
-        BrowseRow(result, action: installAction(for: result.id), now: now)
+        BrowseRow(result, flavor: installation.flavor, action: installAction(for: result.id), now: now)
     }
 
     private func rebuildBrowseRows() {
@@ -274,20 +286,18 @@ final class InstallationModel {
         } else {
             results = searchResults
         }
-        // The home lists come back unfiltered, and live patches can turn a search result unsupported.
-        results = results.filter { !browseOptions.compatibleOnly || !Self.hiddenByCompatibleOnly($0.support) }
+        // The home lists come back unfiltered, and live patches can fill in a search result's games.
+        let flavor = installation.flavor
+        if browseOptions.hideIncompatible {
+            results = results.filter { result in
+                addon(for: result.id) != nil || !flavor.hidesAsIncompatible(families: result.families, support: result.support)
+            }
+        }
         var rows = results.map { browseRow(for: $0, now: now) }
         if let sort = browseOptions.sort { rows.sort(using: sort) }
         guard rows != browseRows else { return }
         browseRows = rows
         browseRowIndex = Dictionary(rows.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
-    }
-
-    static func hiddenByCompatibleOnly(_ status: SupportStatus) -> Bool {
-        switch status {
-        case .unsupported, .noReleases: true
-        default: false
-        }
     }
 
     // MARK: Installed
@@ -474,7 +484,7 @@ final class InstallationModel {
     /// An explicit live GitHub search, for the Adopt sheet. Spends one search request (of 10
     /// a minute) unless the answer is stored; never runs on its own.
     func searchGitHub(_ text: String) async -> [SearchResult] {
-        let query = SearchQuery(text: text, flavor: installation.flavor, compatibleOnly: false, includeLiveGitHub: true)
+        let query = SearchQuery(text: text, flavor: installation.flavor, hideIncompatible: false, includeLiveGitHub: true)
         var last: [SearchResult] = []
         for await update in manager.searchUpdates(query, in: installation, installed: addons) {
             last = update.results
@@ -508,6 +518,7 @@ final class InstallationModel {
     /// Consumes the search stream until it finishes or the calling task is cancelled.
     /// Passes the add-ons already loaded, so typing doesn't rescan `AddOns/`.
     func search(_ query: SearchQuery) async {
+        cancelVisibleCheck()
         isSearching = true
         isSearchingGitHub = false
         isSearchComplete = false
@@ -526,6 +537,7 @@ final class InstallationModel {
     }
 
     func clearSearch() {
+        cancelVisibleCheck()
         if !searchResults.isEmpty { searchResults = [] }
         isSearching = false
         isSearchingGitHub = false
@@ -542,8 +554,51 @@ final class InstallationModel {
         browse = content
     }
 
-    /// Installs `ref`, showing download progress on its row, then the installing phase.
-    func install(_ ref: AddonRef, channel: Channel, force: Bool = false) async {
+    // MARK: Visible rows
+
+    /// A Browse cell came on screen. Each change restarts the settle timer.
+    func browseRowAppeared(_ id: BrowseRow.ID) {
+        visibleRowIDs.insert(id)
+        scheduleVisibleCheck()
+    }
+
+    func browseRowDisappeared(_ id: BrowseRow.ID) {
+        visibleRowIDs.remove(id)
+    }
+
+    /// Checks the rows on screen once scrolling has paused for `visibleCheckDelay`.
+    private func scheduleVisibleCheck() {
+        visibleCheckTask?.cancel()
+        visibleCheckTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.visibleCheckDelay)
+            guard !Task.isCancelled, let self else { return }
+            await self.checkVisibleRows()
+        }
+    }
+
+    func cancelVisibleCheck() {
+        visibleCheckTask?.cancel()
+        visibleCheckTask = nil
+    }
+
+    /// Up to `AddonManager.visibleCheckLimit` rows on screen, unchecked ones first; the core skips
+    /// those with a fresh answer. Nothing while a refresh runs: it's checking the same repos.
+    func checkVisibleRows() async {
+        guard !isRefreshing else { return }
+        let refs = Self.visibleCheckTargets(rows: browseRows, visible: visibleRowIDs)
+        guard !refs.isEmpty else { return }
+        await manager.checkVisible(refs, in: installation)
+    }
+
+    nonisolated static func visibleCheckTargets(rows: [BrowseRow], visible: Set<BrowseRow.ID>) -> [AddonRef] {
+        let onScreen = rows.filter { visible.contains($0.id) }
+        let ordered = onScreen.filter { !$0.games.isChecked } + onScreen.filter(\.games.isChecked)
+        return Array(ordered.prefix(AddonManager.visibleCheckLimit).map(\.ref))
+    }
+
+    /// Installs `ref`, showing download progress on its row, then the installing phase. With
+    /// `allowFamilyFallback`, the Retail build of an add-on with no Forever build.
+    func install(_ ref: AddonRef, channel: Channel, force: Bool = false, allowFamilyFallback: Bool = false) async {
         let row = row(ref.description)
         row.error = nil
         row.needsOverwrite = false
@@ -558,7 +613,9 @@ final class InstallationModel {
         }
         let result: Result<InstalledAddon, any Error>
         do {
-            result = .success(try await manager.install(ref, into: installation, channel: channel, force: force) { fraction in
+            result = .success(try await manager.install(
+                ref, into: installation, channel: channel, force: force, allowFamilyFallback: allowFamilyFallback
+            ) { fraction in
                 continuation.yield(fraction)
             })
         } catch {
@@ -622,8 +679,10 @@ final class InstallationModel {
         guard detailLoads[ref] == token else { return }
         detailLoads[ref] = nil
         setDetails(outcome, for: ref)
-        // Opening details refreshes that one repo in the core; show its fresh badge in the tables.
-        if let support = outcome?.details?.support { applySupport([ref: support]) }
+        // Opening details refreshes that one repo in the core; show its fresh games in the tables.
+        if let details = outcome?.details {
+            applyStored([ref: StoredAnswer(support: details.support, availableFlavors: details.availableFlavors)])
+        }
     }
 
     /// Fetches the latest release's notes (one GitHub API call unless stored) into the
@@ -650,12 +709,12 @@ final class InstallationModel {
         for evicted in detailsUse.use(ref) { details[evicted] = nil }
     }
 
-    private func applySupport(_ statuses: [AddonRef: SupportStatus]) {
-        let results = searchResults.patchingSupport(statuses)
+    private func applyStored(_ answers: [AddonRef: StoredAnswer]) {
+        let results = searchResults.patching(answers)
         if results != searchResults { searchResults = results }
         guard var content = browse else { return }
-        content.popular = content.popular.patchingSupport(statuses)
-        content.recent = content.recent.patchingSupport(statuses)
+        content.popular = content.popular.patching(answers)
+        content.recent = content.recent.patching(answers)
         if content.popular != browse?.popular || content.recent != browse?.recent { browse = content }
     }
 
@@ -711,15 +770,19 @@ final class InstallationModel {
         }
     }
 
-    /// Re-reads the stored verdicts of visible rows in `repos` (lower-cased `owner/repo`).
+    /// Re-reads the stored verdicts and available flavors of listed rows in `repos`
+    /// (lower-cased `owner/repo`), including those `checkVisible` just wrote.
     private func patchSupport(for repos: Set<String>) async {
         guard let supportReader, !repos.isEmpty else { return }
-        let visible = Set((searchResults + (browse?.popular ?? []) + (browse?.recent ?? [])).map(\.id))
-        var statuses: [AddonRef: SupportStatus] = [:]
-        for ref in visible where repos.contains(ref.identifier.lowercased()) {
-            statuses[ref] = await supportReader.status(for: ref, flavor: installation.flavor)
+        let listed = Set((searchResults + (browse?.popular ?? []) + (browse?.recent ?? [])).map(\.id))
+        var answers: [AddonRef: StoredAnswer] = [:]
+        for ref in listed where repos.contains(ref.identifier.lowercased()) {
+            let answer = StoredAnswer(
+                support: await supportReader.status(for: ref, flavor: installation.flavor),
+                availableFlavors: await supportReader.availableFlavors(for: ref))
+            if answer.support != nil || answer.availableFlavors != nil { answers[ref] = answer }
         }
-        if !statuses.isEmpty { applySupport(statuses) }
+        if !answers.isEmpty { applyStored(answers) }
     }
 
     /// Re-reads Browse after another process (`addonctl`) changed the metadata database.

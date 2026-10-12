@@ -214,6 +214,7 @@ struct StoredUpdateState: Codable {
         var assetName: String
         var changelog: String?
         var isPrerelease: Bool
+        var flavorBuild: Flavor?
     }
 
     var ref: AddonRef
@@ -232,7 +233,8 @@ struct StoredUpdateState: Codable {
             case .available(let r):
                 StoredUpdateState(ref: ref, kind: "available", release: Release(
                     name: r.name, version: r.version, releaseID: r.releaseID, publishedAt: r.publishedAt,
-                    downloadURL: r.downloadURL, assetName: r.assetName, changelog: r.changelog, isPrerelease: r.isPrerelease))
+                    downloadURL: r.downloadURL, assetName: r.assetName, changelog: r.changelog, isPrerelease: r.isPrerelease,
+                    flavorBuild: r.flavorBuild))
             }
         }
         let encoder = JSONEncoder()
@@ -255,7 +257,8 @@ struct StoredUpdateState: Codable {
                 guard let r = row.release else { continue }
                 out[row.ref] = .available(ResolvedRelease(
                     ref: row.ref, name: r.name, version: r.version, releaseID: r.releaseID, publishedAt: r.publishedAt,
-                    downloadURL: r.downloadURL, assetName: r.assetName, changelog: r.changelog, isPrerelease: r.isPrerelease))
+                    downloadURL: r.downloadURL, assetName: r.assetName, changelog: r.changelog, isPrerelease: r.isPrerelease,
+                    flavorBuild: r.flavorBuild))
             default: continue
             }
         }

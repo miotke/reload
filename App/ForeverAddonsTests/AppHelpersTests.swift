@@ -36,19 +36,23 @@ import Testing
 
     @Test func patchesOnlyChangedRefs() {
         let results = [result("A"), result("B", support: .needsDownload), result("C")]
-        let patched = results.patchingSupport([
-            AddonRef(source: .github, identifier: "o/A"): .supported(version: "1.0"),
-            AddonRef(source: .github, identifier: "o/Z"): .unsupported,
+        let patched = results.patching([
+            AddonRef(source: .github, identifier: "o/A"): StoredAnswer(support: .supported(version: "1.0"), availableFlavors: [.forever]),
+            AddonRef(source: .github, identifier: "o/C"): StoredAnswer(support: nil, availableFlavors: [.mainline]),
+            AddonRef(source: .github, identifier: "o/Z"): StoredAnswer(support: .unsupported),
         ])
         #expect(patched.map(\.support) == [.supported(version: "1.0"), .needsDownload, .unknown])
+        #expect(patched.map(\.availableFlavors) == [[.forever], nil, [.mainline]])
         #expect(patched.map(\.id) == results.map(\.id))
     }
 }
 
 @Suite struct TableSortingTests {
-    func result(_ name: String, stars: Int? = nil, updated: Date? = nil, support: SupportStatus = .unknown) -> BrowseRow {
+    func result(_ name: String, stars: Int? = nil, updated: Date? = nil, support: SupportStatus = .unknown,
+                flavors: Set<Flavor>? = nil) -> BrowseRow {
         BrowseRow(SearchResult(id: AddonRef(source: .github, identifier: "o/\(name)"), name: name, owner: "o",
-                               stars: stars, lastUpdated: updated, support: support, origin: [.catalogue]))
+                               stars: stars, lastUpdated: updated, support: support, availableFlavors: flavors, origin: [.catalogue]),
+                  flavor: .forever)
     }
 
     @Test func sortsByDateNotText() {
@@ -74,9 +78,18 @@ import Testing
         #expect(rows.sorted(using: ColumnSort(BrowseColumn.stars, order: .reverse)).map(\.name) == ["addon9", "Addon10", "Bags"])
     }
 
-    @Test func supportedFirst() {
-        let rows = [result("A", support: .unsupported), result("B", support: .supported(version: "1")), result("C")]
-        #expect(rows.sorted(using: ColumnSort(BrowseColumn.support)).map(\.name) == ["B", "C", "A"])
+    @Test func gamesSortByOwnFamilyThenCount() {
+        let rows = [
+            result("Retail", flavors: [.mainline]),
+            result("Unchecked"),
+            result("All", flavors: [.mainline, .forever, .mists]),
+            result("Forever", flavors: [.forever]),
+            result("RetailClassic", flavors: [.mainline, .vanilla]),
+        ]
+        #expect(rows.sorted(using: ColumnSort(BrowseColumn.games)).map(\.name) == ["All", "Forever", "RetailClassic", "Retail", "Unchecked"])
+        #expect(rows.sorted(using: ColumnSort(BrowseColumn.games, order: .reverse)).map(\.name) == ["Retail", "RetailClassic", "Forever", "All", "Unchecked"])
+        // The old support column's stored sort still parses.
+        #expect(ColumnSort<BrowseColumn>(storageValue: "support.asc") == ColumnSort(.games))
     }
 
     @Test func storageRoundTrips() {
@@ -93,7 +106,7 @@ import Testing
         let addon = InstalledAddon(
             id: AddonRef(source: .github, identifier: "o/\(name)"), name: name, folders: [name], version: version,
             releaseID: 1, assetName: "a.zip", publishedAt: .now, installedAt: installedAt, pinned: pinned)
-        return InstalledRow(status: .managed(addon, missingFolders: missing), update: update)
+        return InstalledRow(status: .managed(addon, missingFolders: missing), update: update, flavor: .forever)
     }
 
     @Test func installedVersionsSortNumerically() {
@@ -197,5 +210,72 @@ import Testing
 
     @Test func unterminatedFenceKeepsCode() {
         #expect(MarkdownParser.blocks(from: "```\ncode") == [.code("code")])
+    }
+}
+
+@Suite struct GameBubblesTests {
+    let autoPotion: Set<Flavor> = [.mists, .mainline, .wrath, .cata, .vanilla, .tbc, .forever]
+
+    @Test func autoPotionHasAllThree() throws {
+        let model = GameBubblesModel(availableFlavors: autoPotion, flavor: .forever)
+        let bubbles = try #require(model.bubbles)
+        #expect(bubbles.map(\.family) == [.retail, .forever, .classic])
+        #expect(bubbles.allSatisfy { $0.isPresent })
+        #expect(bubbles.map(\.isOwn) == [false, true, false])
+        #expect(bubbles[2].help == "Classic: Era, TBC Anniversary, Wrath, Cata, Mists")
+        #expect(bubbles[1].help == "Forever build")
+        #expect(model.accessibilityLabel == "Games: Retail, Forever, Classic")
+        #expect(model.ownFamilyPresent && model.familyCount == 3)
+    }
+
+    @Test func retailOnlyOnForeverExplainsTheCheckbox() throws {
+        let model = GameBubblesModel(availableFlavors: [.mainline, .vanilla], flavor: .forever)
+        let bubbles = try #require(model.bubbles)
+        #expect(bubbles.map(\.isPresent) == [true, false, true])
+        #expect(bubbles[0].help == "Retail build: may work on Forever, which lists it as out of date until you tick Load out of date AddOns")
+        #expect(bubbles[1].help == "No Forever build")
+        #expect(bubbles[2].help == "Classic: Era")
+        #expect(!model.ownFamilyPresent)
+        // On Retail the R bubble is plain, and it's the installation's own.
+        let retail = try #require(GameBubblesModel(availableFlavors: [.mainline], flavor: .mainline).bubbles)
+        #expect(retail[0].help == "Retail build" && retail[0].isOwn)
+    }
+
+    @Test func notCheckedIsADash() {
+        let model = GameBubblesModel(availableFlavors: nil, flavor: .forever)
+        #expect(model.bubbles == nil && !model.isChecked)
+        #expect(model.uncheckedHelp.hasPrefix("Not checked yet"))
+        #expect(GameBubblesModel(availableFlavors: nil, flavor: .forever, support: .needsDownload).uncheckedHelp.contains("no release.json"))
+        #expect(GameBubblesModel(availableFlavors: nil, flavor: .forever, support: .noReleases).uncheckedHelp == "This repository has no GitHub releases")
+    }
+
+    @Test func retailBuildIsOfferedOnlyWhenItHelps() {
+        #expect(RetailBuildOffer.isOffered(availableFlavors: [.mainline], flavor: .forever))
+        #expect(!RetailBuildOffer.isOffered(availableFlavors: [.mainline, .forever], flavor: .forever))
+        #expect(!RetailBuildOffer.isOffered(availableFlavors: [.vanilla], flavor: .forever))
+        #expect(!RetailBuildOffer.isOffered(availableFlavors: nil, flavor: .forever))
+        #expect(!RetailBuildOffer.isOffered(availableFlavors: [.mainline], flavor: .mists))
+        #expect(RetailBuildOffer.explanation(for: .forever).contains("Load out of date AddOns"))
+    }
+
+    @Test func browseRowsPrecomputeGamesAndDimming() {
+        let row = BrowseRow(SearchResult(id: AddonRef(source: .github, identifier: "o/R"), name: "R", owner: "o",
+                                         support: .unsupported, availableFlavors: [.mainline], origin: [.catalogue]), flavor: .forever)
+        #expect(row.games.isChecked && row.isDimmed)
+        let own = BrowseRow(SearchResult(id: AddonRef(source: .github, identifier: "o/F"), name: "F", owner: "o",
+                                         support: .supported(version: "1"), availableFlavors: [.forever], origin: [.catalogue]), flavor: .forever)
+        #expect(!own.isDimmed)
+    }
+
+    @Test func visibleTargetsPreferUncheckedAndCapAtTwenty() {
+        let rows = (0..<30).map { i in
+            BrowseRow(SearchResult(id: AddonRef(source: .github, identifier: "o/r\(i)"), name: "r\(i)", owner: "o",
+                                   availableFlavors: i < 5 ? [.forever] : nil, origin: [.catalogue]), flavor: .forever)
+        }
+        let visible = Set(rows.prefix(25).map(\.id))
+        let targets = InstallationModel.visibleCheckTargets(rows: rows, visible: visible)
+        #expect(targets.count == 20)
+        #expect(targets.first?.identifier == "o/r5", "unchecked rows go first")
+        #expect(!targets.contains { $0.identifier == "o/r29" }, "only rows on screen")
     }
 }

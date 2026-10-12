@@ -1,35 +1,86 @@
 import AddonKit
 import SwiftUI
 
-/// Support badge for search results, naming the installation's game.
-struct SupportBadge: View {
-    var status: SupportStatus
-    var flavor: Flavor
+/// The R / F / C bubbles (docs/app/layout.md#games). Reads only its pre-computed model, so
+/// it's cheap in table cells and never touches the environment.
+struct GameBubbles: View {
+    var model: GameBubblesModel
 
     var body: some View {
-        // Not checked is an absence of information, not a verdict, so it gets no capsule.
-        let isPlain = status == .unknown
-        Text(SupportLabel.text(for: status, flavor: flavor))
-            .font(.caption.weight(isPlain ? .regular : .medium))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(isPlain ? Color.clear : color.opacity(0.12), in: Capsule())
-            .help(SupportLabel.help(for: status, flavor: flavor))
-            .accessibilityLabel(SupportLabel.help(for: status, flavor: flavor))
+        if let bubbles = model.bubbles {
+            HStack(spacing: 3) {
+                ForEach(bubbles) { bubble in
+                    GameBubble(family: bubble.family, isPresent: bubble.isPresent, isOwn: bubble.isOwn)
+                        .help(bubble.help)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(model.accessibilityLabel)
+        } else {
+            Text("—")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .help(model.uncheckedHelp)
+                .accessibilityLabel(model.accessibilityLabel)
+        }
     }
+}
 
-    private var color: Color {
-        switch status {
-        case .supported: .green
-        case .checking, .unknown, .needsDownload: .secondary
-        case .unsupported, .noReleases: .orange
+/// One capsule. Present: tinted, or filled for the installation's own family; absent: a faint
+/// outline in the same slot.
+struct GameBubble: View {
+    var family: GameFamily
+    var isPresent: Bool
+    var isOwn: Bool
+
+    static func color(_ family: GameFamily) -> Color {
+        switch family {
+        case .retail: .blue
+        case .forever: .teal
+        case .classic: .orange
         }
     }
 
-    /// Results whose support isn't confirmed are shown dimmed.
-    static func isDimmed(_ status: SupportStatus) -> Bool {
-        if case .supported = status { false } else if case .checking = status { false } else { true }
+    var body: some View {
+        let color = Self.color(family)
+        Text(family.letter)
+            .font(.caption2.weight(isOwn && isPresent ? .bold : .semibold))
+            .foregroundStyle(isPresent ? (isOwn ? AnyShapeStyle(.white) : AnyShapeStyle(color)) : AnyShapeStyle(.quaternary))
+            .frame(width: 18, height: 15)
+            .background {
+                if isPresent {
+                    Capsule().fill(color.opacity(isOwn ? 0.9 : 0.18))
+                }
+            }
+            .overlay {
+                if !isPresent { Capsule().strokeBorder(.quaternary, lineWidth: 1) }
+            }
+    }
+}
+
+/// "R Retail · F Forever · C Classic" in the Browse status bar; letters only when narrow.
+struct GameLegend: View {
+    var flavor: Flavor
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                ForEach(GameFamily.allCases, id: \.self) { family in
+                    HStack(spacing: 3) {
+                        GameBubble(family: family, isPresent: true, isOwn: family == flavor.family)
+                        Text(family.displayName)
+                    }
+                }
+            }
+            HStack(spacing: 3) {
+                ForEach(GameFamily.allCases, id: \.self) { family in
+                    GameBubble(family: family, isPresent: true, isOwn: family == flavor.family)
+                }
+            }
+            .help("R Retail · F Forever · C Classic")
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Games: R Retail, F Forever, C Classic")
     }
 }
 

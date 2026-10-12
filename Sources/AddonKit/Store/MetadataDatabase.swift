@@ -518,6 +518,32 @@ public actor MetadataDatabase {
             recorded_at REAL NOT NULL
         ) WITHOUT ROWID;
         """,
+        // 5: every flavor a repo's latest release ships (comma-separated `Flavor` raw values;
+        // NULL = not known), the tag it describes and where it came from: `release_json`, or
+        // `inspection` of an installed zip. Backfilled from the release.json files stored by
+        // tag, mapping packager names the way `Flavor.from(releaseJSONName:)` does.
+        """
+        ALTER TABLE repo_meta ADD COLUMN available_flavors TEXT;
+        ALTER TABLE repo_meta ADD COLUMN flavors_tag TEXT;
+        ALTER TABLE repo_meta ADD COLUMN flavors_source TEXT;
+        UPDATE repo_meta SET
+            available_flavors = (
+                SELECT coalesce(group_concat(DISTINCT CASE lower(json_extract(m.value, '$.flavor'))
+                    WHEN 'mainline' THEN 'mainline' WHEN 'retail' THEN 'mainline'
+                    WHEN 'forever' THEN 'forever' WHEN 'camelot' THEN 'forever'
+                    WHEN 'classic' THEN 'vanilla' WHEN 'vanilla' THEN 'vanilla'
+                    WHEN 'bcc' THEN 'tbc' WHEN 'tbc' THEN 'tbc'
+                    WHEN 'wrath' THEN 'wrath' WHEN 'titan' THEN 'titan'
+                    WHEN 'cata' THEN 'cata' WHEN 'mists' THEN 'mists' END), '')
+                FROM release_json r, json_each(r.json, '$.releases') rel, json_each(rel.value, '$.metadata') m
+                WHERE r.full_name = repo_meta.full_name AND r.tag = repo_meta.latest_tag
+                    AND NOT json_extract(rel.value, '$.nolib')),
+            flavors_tag = latest_tag,
+            flavors_source = 'release_json'
+        WHERE latest_tag IS NOT NULL AND EXISTS (
+            SELECT 1 FROM release_json r
+            WHERE r.full_name = repo_meta.full_name AND r.tag = repo_meta.latest_tag AND r.json IS NOT NULL);
+        """,
     ]
 }
 

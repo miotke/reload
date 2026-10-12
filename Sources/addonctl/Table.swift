@@ -50,15 +50,24 @@ enum Format {
         }
     }
 
-    static func support(_ status: SupportStatus, style: Style) -> String {
-        switch status {
-        case .supported(let version): style.green("✓ \(version)")
-        case .unsupported: style.dim("— not yet")
-        case .noReleases: style.dim("— no releases")
-        case .needsDownload: style.yellow("? needs download")
-        case .checking: style.dim("… checking")
-        case .unknown: style.dim("· not checked")
-        }
+    /// The GAMES column: `R F C` in fixed positions, `·` for a family with no build, the
+    /// installation's own family in bold, and `—` when nobody has checked yet.
+    static func games(_ flavors: Set<Flavor>?, flavor: Flavor, style: Style) -> String {
+        guard let families = flavors?.families else { return style.dim("—") }
+        return GameFamily.allCases.map { family in
+            guard families.contains(family) else { return style.dim("·") }
+            let letter = switch family {
+            case .retail: style.blue(family.letter)
+            case .forever: style.cyan(family.letter)
+            case .classic: style.yellow(family.letter)
+            }
+            return family == flavor.family ? style.bold(letter) : letter
+        }.joined(separator: " ")
+    }
+
+    /// "Retail build" for an add-on installed as another game's build, else nil.
+    static func build(_ addon: InstalledAddon) -> String? {
+        addon.installedFlavorBuild.map { "\($0.family.displayName) build" }
     }
 
     /// Display name for a ref: `owner/repo` for GitHub, `source:id` otherwise.
@@ -75,30 +84,31 @@ enum Format {
             [
                 result.name,
                 style.dim(Format.ref(result.id)),
-                support(result.support, style: style),
+                games(result.availableFlavors, flavor: flavor, style: style),
                 relative(result.lastUpdated, now: now),
                 result.installed != nil ? style.cyan("(installed)") : "",
             ]
         }
-        return Table(headers: ["NAME", "REPO", flavor.displayName.uppercased(), "UPDATED", ""], rows: rows).render(style: style)
+        return Table(headers: ["NAME", "REPO", "GAMES", "UPDATED", ""], rows: rows).render(style: style)
     }
 
-    static func listTable(_ statuses: [AddonStatus], flavor: Flavor? = nil, style: Style) -> String {
+    /// `games` holds each row's available flavors by `AddonStatus.id`; missing means not checked.
+    static func listTable(_ statuses: [AddonStatus], flavor: Flavor, games: [String: Set<Flavor>] = [:], style: Style) -> String {
         let rows = statuses.map { status -> [String] in
+            let gamesCell = Format.games(games[status.id], flavor: flavor, style: style)
             switch status {
             case .managed(let addon, let missing):
-                var state = addon.pinned ? style.yellow("pinned") : ""
-                if !missing.isEmpty {
-                    let note = style.red("missing: \(missing.joined(separator: ", "))")
-                    state = state.isEmpty ? note : state + ", " + note
-                }
-                return [addon.name, addon.version, style.dim(ref(addon.id)), addon.channel.rawValue, state]
+                var notes: [String] = []
+                if addon.pinned { notes.append(style.yellow("pinned")) }
+                if let build = build(addon) { notes.append(style.yellow(build)) }
+                if !missing.isEmpty { notes.append(style.red("missing: \(missing.joined(separator: ", "))")) }
+                return [addon.name, addon.version, style.dim(ref(addon.id)), gamesCell, addon.channel.rawValue, notes.joined(separator: ", ")]
             case .unmanaged(let unmanaged):
                 let source = unmanaged.suggestedRef.map { style.dim("→ \(ref($0))?") } ?? style.dim("—")
-                return [unmanagedName(unmanaged), unmanaged.version ?? "—", source, "—", unmanagedState(unmanaged, flavor: flavor, style: style)]
+                return [unmanagedName(unmanaged), unmanaged.version ?? "—", source, gamesCell, "—", unmanagedState(unmanaged, flavor: flavor, style: style)]
             }
         }
-        return Table(headers: ["NAME", "VERSION", "SOURCE", "CHANNEL", "STATE"], rows: rows).render(style: style)
+        return Table(headers: ["NAME", "VERSION", "SOURCE", "GAMES", "CHANNEL", "STATE"], rows: rows).render(style: style)
     }
 
     /// The loaded TOC's title, with the folder (or group size) when that says more.

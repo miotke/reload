@@ -9,7 +9,7 @@ Code: `App/ForeverAddons/Models/AppModel.swift`, `Models/InstallationModel.swift
 ```mermaid
 flowchart LR
     W1[App's own DB writes<br/>refresh, details, live search] --> CH[MetadataDatabase.changes]
-    CH --> P[Patch Browse badges<br/>at most every 500 ms]
+    CH --> P[Patch Browse games<br/>at most every 500 ms]
     W2[addonctl DB writes] --> DV{data_version changed<br/>on activation?}
     DV -- yes --> RM[Reload metadata<br/>for every installation]
     W3[Install store writes<br/>app or CLI] --> SW[Store watcher<br/>DispatchSource]
@@ -18,15 +18,15 @@ flowchart LR
 
 | Change | Detected by | What reloads |
 |---|---|---|
-| The app's own metadata writes | `MetadataDatabase.changes()` | Badges on the rows currently shown |
+| The app's own metadata writes (refresh, details, live search, visible-row checks) | `MetadataDatabase.changes()` | Games and verdicts on the rows currently shown |
 | `addonctl` metadata writes | `PRAGMA data_version`, compared on app activation | Metadata for every installation model |
 | Install store writes (app or CLI) | the store watcher | The add-on list |
 
-## Live badges during a refresh
+## Live games during a refresh
 
 - `InstallationModel` listens to `changes()` for the `support`, `repo_meta` and `catalogue` tables.
 - Changed repos are collected and patched in **at most twice a second** (`livePatchInterval`, 500 ms), because a refresh writes one verdict per repo.
-- Only rows on screen are patched: the search results and the Browse home lists. Each one reads its stored verdict back through `SupportCache`.
+- Only rows on screen are patched: the search results and the Browse home lists. Each one reads its stored verdict and available flavors back through `SupportCache` (`StoredAnswer`, applied with `patching`).
 - If a catalogue change touches a repo on the home lists, or a change carries no repo list, the Browse lists are re-read.
 - When the refresh finishes, Browse is re-read once in full.
 

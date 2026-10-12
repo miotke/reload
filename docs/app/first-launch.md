@@ -32,7 +32,7 @@ flowchart TD
 `refresh` emits `RefreshProgress` through its phases (catalogue, updates, support), then `.finished` ([phases](../features/refresh.md#flow)). The app uses `fraction` for the bar.
 
 - `.finished` carries the update states, which replace the Installed statuses.
-- During the support phase Browse badges update live from database changes ([live-data.md](live-data.md)), with one full Browse re-read at the end.
+- During the support phase Browse games update live from database changes ([live-data.md](live-data.md)), with one full Browse re-read at the end.
 - Progress lives in `RefreshStatus`, observed only by the sidebar bar and the seeding sheet.
 
 ### Sidebar progress

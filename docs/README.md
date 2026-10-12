@@ -32,7 +32,7 @@ flowchart LR
 | [core.md](architecture/core.md) | you need the `AddonManager` API, the component map or the source layout |
 | [data-storage.md](architecture/data-storage.md) | you need to know where a file lives, how the install store locks, or the SQLite schema, migrations and change stream |
 | [concurrency.md](architecture/concurrency.md) | you're adding shared state, an actor, or code that must run off the main thread |
-| [flavors.md](architecture/flavors.md) | you need the per-game flavor table (Forever, Retail, the classics), TOC suffix rules or `release.json` / TOC parsing |
+| [flavors.md](architecture/flavors.md) | you need the per-game flavor table (Forever, Retail, the classics), game families (R / F / C), TOC suffix rules or `release.json` / TOC parsing |
 | [errors.md](architecture/errors.md) | you're adding or handling an `AddonError`, or mapping one to a CLI exit code |
 
 ## features/
