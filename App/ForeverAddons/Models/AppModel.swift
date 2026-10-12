@@ -41,7 +41,11 @@ final class AppModel {
 
     private(set) var installations: [Installation] = []
     var selectedInstallationID: Installation.ID? {
-        didSet { selectedAddonID = nil }
+        didSet {
+            selectedAddonID = nil
+            selectedBrowseRef = nil
+            if oldValue != selectedInstallationID { scheduleAutoRefresh() }
+        }
     }
     private(set) var isLoadingInstallations = false
     private(set) var isScanning = false
@@ -51,20 +55,37 @@ final class AppModel {
     var tab: DetailTab = .installed
     /// Shared by both tabs: filters Installed, queries Browse.
     var searchText = ""
-    var selectedAddonID: AddonStatus.ID?
+    /// Selection in the Installed tab. Selecting a row opens the inspector.
+    var selectedAddonID: AddonStatus.ID? {
+        didSet { if selectedAddonID != nil { showInspector = true } }
+    }
+    /// Selection in the Browse tab.
+    var selectedBrowseRef: AddonRef? {
+        didSet { if selectedBrowseRef != nil { showInspector = true } }
+    }
     var showInspector = true
     var banner: Banner?
     /// Unmanaged folder being adopted (drives the Adopt sheet).
     var adoptTarget: AdoptTarget?
 
+    /// The first-launch "Gathering add-on details" sheet.
+    var isSeedingPresented = false
+    private(set) var seeding: InstallationModel?
+
     private var didInitialLoad = false
     @ObservationIgnored private var storeWatcher: DirectoryWatcher?
+    /// Remembers that the first refresh completed. Nil on sandboxed data, so a temporary data
+    /// folder never marks the real app as seeded; there `lastRefresh` alone decides.
+    @ObservationIgnored private let seedDefaults: UserDefaults?
+    static let didSeedKey = "didSeedAddonDetails"
 
     /// `offersCommandLineTool`: whether to show the one-time offer to install `addonctl`.
-    init(manager: any AddonManaging, offersCommandLineTool: Bool = false) {
+    /// `usesStandardDefaults`: whether first-launch state may be remembered in user defaults.
+    init(manager: any AddonManaging, offersCommandLineTool: Bool = false, usesStandardDefaults: Bool = false) {
         self.manager = manager
         self.addonManager = manager as? AddonManager
         self.commandLineTool = CommandLineToolModel(mayOffer: offersCommandLineTool)
+        self.seedDefaults = usesStandardDefaults ? .standard : nil
     }
 
     var selectedInstallation: Installation? {
@@ -92,14 +113,88 @@ final class AppModel {
 
     // MARK: Actions
 
-    func initialLoad(checkForUpdates: Bool) async {
+    /// Loads installations and add-ons, then either seeds metadata behind the first-launch
+    /// sheet or starts a throttled background refresh. The CLI offer comes after the sheet.
+    func initialLoad() async {
         guard !didInitialLoad else { return }
         didInitialLoad = true
         await loadInstallations()
         watchStore()
-        guard let current else { return }
-        await current.reload()
-        if checkForUpdates { await current.checkForUpdates() }
+        scheduleAutoRefresh()
+        if let current {
+            await current.reload()
+            if await needsSeeding(current) {
+                seed(current)
+                return
+            }
+            refreshInBackground(current)
+        }
+        offerCommandLineTool()
+    }
+
+    /// No refresh has ever completed: the catalogue, update states and support badges are all empty.
+    private func needsSeeding(_ state: InstallationModel) async -> Bool {
+        if seedDefaults?.bool(forKey: Self.didSeedKey) == true { return false }
+        return await manager.lastRefresh(in: state.installation) == nil
+    }
+
+    private func seed(_ state: InstallationModel) {
+        seeding = state
+        isSeedingPresented = true
+        Task {
+            await state.startRefresh(force: true).value
+            seedDefaults?.set(true, forKey: Self.didSeedKey)
+            isSeedingPresented = false
+        }
+    }
+
+    /// The seeding sheet closed, finished or sent to the background.
+    func seedingSheetDidClose() {
+        seeding = nil
+        offerCommandLineTool()
+    }
+
+    private func offerCommandLineTool() {
+        Task {
+            // Let the window (or the closing sheet) settle before presenting another sheet.
+            try? await Task.sleep(for: .seconds(1))
+            commandLineTool.offerIfNeeded()
+        }
+    }
+
+    /// Whether launch, activation and switching installations may start a refresh.
+    private var refreshesAutomatically: Bool {
+        UserDefaults.standard.object(forKey: SettingsKey.checkForUpdatesOnLaunch) as? Bool ?? true
+    }
+
+    /// A non-forced refresh: the core skips it if the last one was recent, so this is cheap to
+    /// call on launch, activation and installation switches.
+    func refreshInBackground(_ state: InstallationModel? = nil) {
+        guard didInitialLoad, !isSeedingPresented, refreshesAutomatically,
+              let state = state ?? current else { return }
+        state.startRefresh(force: false)
+    }
+
+    static let autoRefreshInterval: Duration = .seconds(2 * 60 * 60)
+    @ObservationIgnored private var autoRefreshTask: Task<Void, Never>?
+
+    /// Refreshes the selected installation every 2 hours while the app runs. One task, restarted
+    /// when the selection changes; a tick is skipped if a refresh is already running.
+    func scheduleAutoRefresh() {
+        autoRefreshTask?.cancel()
+        guard didInitialLoad, let id = selectedInstallationID else { return }
+        autoRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.autoRefreshInterval)
+                guard !Task.isCancelled, let self, let state = self.current, state.installation.id == id else { return }
+                if !state.isRefreshing { self.refreshInBackground(state) }
+            }
+        }
+    }
+
+    func stopAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
     }
 
     /// Reloads (debounced) whenever the store folder changes, e.g. when `addonctl` installs
@@ -177,15 +272,33 @@ final class AppModel {
                 installations.append(installation)
             }
             selectedInstallationID = installation.id
-            await model(for: installation).reload()
+            let state = model(for: installation)
+            await state.reload()
+            if !isSeedingPresented, await needsSeeding(state) {
+                seed(state)
+            } else {
+                refreshInBackground(state)
+            }
         } catch {
             showError(error.localizedDescription)
         }
     }
 
+    /// Check for Updates (⌘R): a full refresh, ignoring the core's throttle.
     func checkForUpdates() {
-        guard let current else { return }
-        Task { await current.checkForUpdates() }
+        current?.startRefresh(force: true)
+    }
+
+    /// The installation whose refresh is running, for the sidebar's progress bar. Throttled
+    /// refreshes that finish at once never report a phase, so they don't flash it.
+    var visibleRefresh: (installation: Installation, progress: RefreshProgress)? {
+        for installation in installations {
+            let state = model(for: installation)
+            if let progress = state.refreshProgress, progress.phase != .finished {
+                return (installation, progress)
+            }
+        }
+        return nil
     }
 
     func updateAll() {

@@ -18,6 +18,9 @@ struct AppEnvironment {
     /// Only a normal launch may offer to install the CLI (the offer is remembered in user defaults).
     var offersCommandLineTool: Bool { mode == .standard }
 
+    /// Sandboxed data mustn't record first-launch state (e.g. seeding) in the real defaults.
+    var usesStandardDefaults: Bool { mode == .standard }
+
     static func current(
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> AppEnvironment {

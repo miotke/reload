@@ -88,6 +88,12 @@ targets:
       - path: ForeverAddonsTests
       - path: ForeverAddons/Support/CLIInstaller.swift
       - path: ForeverAddons/Support/DirectoryWatcher.swift
+      - path: ForeverAddons/Support/AddonFormatting.swift
+      - path: ForeverAddons/Support/TableSorting.swift
+      - path: ForeverAddons/Support/MarkdownBlocks.swift
+    dependencies:
+      - package: AddonKit
+        product: AddonKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.ForeverAddonsTests
