@@ -10,6 +10,11 @@ Native macOS add-on manager for World of Warcraft: Forever. A SwiftUI app (`App/
 - **One topic per file, about 40–150 lines.** Split a file when it grows past that. Don't create files so small that one question needs five of them.
 - Every new file gets a line in `docs/README.md`.
 - **Update the relevant doc in the same commit as the code change.**
+- **Keep the "Where things live" tables current.**
+  - Location: `docs/architecture/core.md` (core and CLI) and `docs/app/project.md` (app).
+  - Each row maps a responsibility to its file, e.g. "Browse filtering → `App/ForeverAddons/Models/BrowseModel.swift`".
+  - Any commit that adds, moves, renames, splits or deletes a source file, or moves a responsibility between files, updates the matching row in the same commit.
+  - Read these tables first to find code.
 - **After merging app changes into `main`, record the decisions:**
   - architecture, network and performance choices as `docs/decisions/NNNN-short-title.md` (context, decision, alternatives, consequences)
   - updated numbers in `docs/network/` and `docs/performance/`
