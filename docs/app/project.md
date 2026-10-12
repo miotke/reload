@@ -80,8 +80,10 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | Adopt sheet | `App/ForeverAddons/Views/AdoptSheet.swift` |
 | Add-on window | `App/ForeverAddons/Views/AddonWindow.swift` |
 | First-launch seeding sheet | `App/ForeverAddons/Views/SeedingSheet.swift` |
-| Settings | `App/ForeverAddons/Views/SettingsView.swift` |
-| CLI offer sheet and Settings section | `App/ForeverAddons/Views/CommandLineToolViews.swift` |
+| Settings scene: tabs, General and Advanced tabs, `settingsTab()` sizing | `App/ForeverAddons/Views/SettingsView.swift` |
+| Settings ▸ Appearance: appearance cards, app icon grid | `App/ForeverAddons/Views/AppearanceSettings.swift` |
+| Settings ▸ GitHub: token field and token source | `App/ForeverAddons/Views/GitHubSettings.swift` |
+| CLI offer sheet, Settings ▸ Command Line tab and section | `App/ForeverAddons/Views/CommandLineToolViews.swift` |
 | Shared views: game bubbles and legend, activity, errors, refresh bar, banner | `App/ForeverAddons/Views/Components.swift` |
 | README rendering | `App/ForeverAddons/Views/MarkdownView.swift` |
 | Screenshot strip and viewer | `App/ForeverAddons/Views/ScreenshotViews.swift` |
@@ -90,7 +92,8 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | Sidebar sections (`LibrarySection`, `SidebarItem`), section filters, `LibraryCounts`, search prompt and Browse query per section | `App/ForeverAddons/Support/SidebarSections.swift` |
 | `DayLabel`, `FetchLabel`, `GameBubblesModel`, filter labels, `UpdateOffer.label`, Retail build wording | `App/ForeverAddons/Support/AddonFormatting.swift` |
 | Adopt targets, removal requests, `AdoptForm`, adoption preview state | `App/ForeverAddons/Support/UnmanagedSupport.swift` |
-| Settings keys, ⌘F search focus, small extensions, `RecentKeys` | `App/ForeverAddons/Support/AppSupport.swift` |
+| Settings keys, appearance choice, ⌘F search focus, small extensions, `RecentKeys` | `App/ForeverAddons/Support/AppSupport.swift` |
+| Settings tabs, app icon choice, first-launch reset, GitHub token source and model | `App/ForeverAddons/Support/SettingsSupport.swift` |
 | Store folder watcher | `App/ForeverAddons/Support/DirectoryWatcher.swift` |
 | Linking `addonctl` into `/usr/local/bin` | `App/ForeverAddons/Support/CLIInstaller.swift` |
 | Markdown parsing into blocks (off the main actor) | `App/ForeverAddons/Support/MarkdownBlocks.swift` |
@@ -102,10 +105,4 @@ The Keychain wrapper lives in AddonKit (`KeychainStore`), shared with the CLI.
 
 ## Settings
 
-| Setting | Key / storage |
-|---|---|
-| GitHub token | Keychain (never in the JSON store) |
-| Default channel | `defaultChannel` |
-| Check for updates automatically | `checkForUpdatesOnLaunch` |
-| Show update count in the menu bar | `showMenuBarExtra` |
-| Command-Line Tool | [cli-install.md](cli-install.md) |
+Tabs, keys and the app icon: [settings.md](settings.md).

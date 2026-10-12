@@ -1,100 +1,185 @@
 import AddonKit
+import AppKit
 import SwiftUI
 
+/// The Settings scene: toolbar tabs, each a grouped `Form` sized to its content, so the
+/// window resizes per tab and takes the tab's name as its title (docs/app/settings.md).
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    @AppStorage(SettingsKey.settingsTab) private var tab: SettingsTab = .general
+    @AppStorage(SettingsKey.appIcon) private var appIcon: AppIconChoice = .classic
+    @State private var github = GitHubTokenModel(keychain: KeychainStore())
+
+    var body: some View {
+        @Bindable var model = model
+        TabView(selection: $tab) {
+            Tab(SettingsTab.general.title, systemImage: SettingsTab.general.systemImage, value: .general) {
+                GeneralSettingsTab(installations: model.installations, selectedInstallationID: $model.selectedInstallationID)
+            }
+            Tab(SettingsTab.appearance.title, systemImage: SettingsTab.appearance.systemImage, value: .appearance) {
+                AppearanceSettingsTab()
+            }
+            Tab(SettingsTab.github.title, systemImage: SettingsTab.github.systemImage, value: .github) {
+                GitHubSettingsTab(token: github) { Task { await model.manager.tokenDidChange() } }
+            }
+            Tab(SettingsTab.commandLine.title, systemImage: SettingsTab.commandLine.systemImage, value: .commandLine) {
+                CommandLineSettingsTab(tool: model.commandLineTool)
+            }
+            Tab(SettingsTab.advanced.title, systemImage: SettingsTab.advanced.systemImage, value: .advanced) {
+                AdvancedSettingsTab(directories: AppEnvironment.directories(),
+                                    canResetFirstLaunch: model.remembersFirstLaunchSteps,
+                                    resetFirstLaunch: model.resetFirstLaunchSteps)
+            }
+        }
+        // The main window applies it at launch; this covers changes with no main window open.
+        .onChange(of: appIcon) { appIcon.apply() }
+    }
+}
+
+extension View {
+    /// Every tab: a grouped form at the window's width, as tall as its content.
+    func settingsTab() -> some View {
+        formStyle(.grouped)
+            .scrollDisabled(true)
+            .frame(width: SettingsLayout.width)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+enum SettingsLayout {
+    static let width: CGFloat = 520
+}
+
+struct GeneralSettingsTab: View {
+    var installations: [Installation]
+    @Binding var selectedInstallationID: Installation.ID?
+
     @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
     @AppStorage(SettingsKey.checkForUpdatesOnLaunch) private var checkForUpdatesOnLaunch = true
     @AppStorage(SettingsKey.showMenuBarExtra) private var showMenuBarExtra = false
-    @AppStorage(SettingsKey.appearance) private var appearance: AppAppearance = .system
 
-    @State private var token = ""
-    @State private var hasStoredToken = false
-    @State private var tokenMessage: String?
-    @State private var tokenError: String?
-
-    private let keychain = KeychainStore()
+    private static let checkHelp = "On launch, when the app becomes active, and every 2 hours. Check for Updates (⌘R) always works."
 
     var body: some View {
         Form {
-            Section {
-                SecureField("Personal access token", text: $token, prompt: Text("ghp_…"))
-                HStack {
-                    if let tokenError {
-                        RowErrorText(message: tokenError)
-                    } else if let tokenMessage {
-                        Text(tokenMessage).font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Remove", role: .destructive, action: removeToken)
-                        .disabled(!hasStoredToken)
-                    Button("Save", action: saveToken)
-                        .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            } header: {
-                Text("GitHub")
-            } footer: {
-                Text("Optional. A token raises GitHub's rate limits for search and update checks. It's stored in your Keychain and needs no scopes.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Section("Updates") {
                 Picker("Default channel", selection: $defaultChannel) {
                     ForEach(Channel.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
-                Toggle("Check for updates automatically", isOn: $checkForUpdatesOnLaunch)
-                    .help("On launch, when the app becomes active, and every 2 hours. Check for Updates (⌘R) always works.")
+                Toggle(isOn: $checkForUpdatesOnLaunch) {
+                    Text("Check for updates automatically")
+                    Text(Self.checkHelp)
+                }
+                .help(Self.checkHelp)
             }
 
-            Section("Appearance") {
-                Picker("Appearance", selection: $appearance) {
-                    ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
+            if installations.count > 1 {
+                Section {
+                    Picker("Default installation", selection: $selectedInstallationID) {
+                        ForEach(installations) { installation in
+                            Text(installation.displayName).tag(Optional(installation.id))
+                        }
+                    }
+                } header: {
+                    Text("Installation")
+                } footer: {
+                    SettingsFootnote("The game the main window shows. Also in the window's title menu.")
                 }
-                .help("Also in View ▸ Appearance")
             }
 
             Section("Menu Bar") {
                 Toggle("Show update count in the menu bar", isOn: $showMenuBarExtra)
             }
-
-            CommandLineToolSection(model: model)
         }
-        .formStyle(.grouped)
-        .frame(width: 480)
-        .fixedSize(horizontal: false, vertical: true)
-        .onAppear(perform: loadToken)
+        .settingsTab()
+    }
+}
+
+struct AdvancedSettingsTab: View {
+    var directories: AppDirectories
+    var canResetFirstLaunch: Bool
+    var resetFirstLaunch: () -> Void
+
+    @State private var isConfirmingReset = false
+    @State private var didReset = false
+
+    var body: some View {
+        Form {
+            Section("Folders") {
+                FolderRow(title: "Data folder", url: directories.applicationSupport)
+                FolderRow(title: "Caches folder", url: directories.caches)
+            }
+
+            Section {
+                LabeledContent {
+                    Button("Reset…") { isConfirmingReset = true }
+                        .disabled(!canResetFirstLaunch)
+                } label: {
+                    Text("Reset first-launch steps")
+                    Text(resetDetail)
+                }
+            } header: {
+                Text("First Launch")
+            }
+        }
+        .settingsTab()
+        .confirmationDialog("Reset first-launch steps?", isPresented: $isConfirmingReset) {
+            Button("Reset") {
+                resetFirstLaunch()
+                didReset = true
+            }
+        } message: {
+            Text("The next time ForeverAddons opens, it gathers add-on details again and offers to install addonctl.")
+        }
     }
 
-    private func loadToken() {
-        let stored = keychain.get()
-        hasStoredToken = stored != nil
-        token = stored ?? ""
-        tokenMessage = stored == nil ? "No token saved." : "Token saved in Keychain."
+    private var resetDetail: String {
+        if !canResetFirstLaunch { return "Not remembered when ADDONS_DATA_DIR is set, so there's nothing to reset." }
+        if didReset { return "Done. They'll appear the next time ForeverAddons opens." }
+        return "Shows the add-on details sheet and the addonctl offer again on the next launch."
     }
+}
 
-    private func saveToken() {
-        do {
-            try keychain.set(token.trimmingCharacters(in: .whitespacesAndNewlines))
-            tokenError = nil
-            hasStoredToken = true
-            tokenMessage = "Token saved in Keychain."
-            Task { await model.manager.tokenDidChange() }
-        } catch {
-            tokenError = error.localizedDescription
+/// A folder with its path and a button that opens it in Finder.
+private struct FolderRow: View {
+    var title: String
+    var url: URL
+
+    var body: some View {
+        LabeledContent {
+            Button("Show in Finder", action: show)
+                .help("Show \(title.lowercased()) in Finder")
+        } label: {
+            Text(title)
+            Text(url.path(percentEncoded: false))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
         }
     }
 
-    private func removeToken() {
-        do {
-            try keychain.delete()
-            token = ""
-            tokenError = nil
-            hasStoredToken = false
-            tokenMessage = "Token removed."
-            Task { await model.manager.tokenDidChange() }
-        } catch {
-            tokenError = error.localizedDescription
+    private func show() {
+        let url = url
+        Task {
+            // A fresh install may not have created its caches yet.
+            try? await Task.detached { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true) }.value
+            NSWorkspace.shared.open(url)
         }
+    }
+}
+
+/// Caption text under a settings section.
+struct SettingsFootnote: View {
+    var text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

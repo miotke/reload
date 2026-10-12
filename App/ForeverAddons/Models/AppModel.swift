@@ -83,6 +83,14 @@ final class AppModel {
         self.defaults = usesStandardDefaults ? .standard : nil
     }
 
+    /// False on sandboxed data, where first-launch steps aren't remembered, so there's nothing to reset.
+    var remembersFirstLaunchSteps: Bool { defaults != nil }
+
+    /// Shows the seeding sheet and the `addonctl` offer again on the next launch.
+    func resetFirstLaunchSteps() {
+        if let defaults { FirstLaunchSteps.reset(in: defaults) }
+    }
+
     var selectedInstallation: Installation? {
         installations.first { $0.id == selectedInstallationID }
     }
