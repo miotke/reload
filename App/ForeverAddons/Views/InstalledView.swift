@@ -7,7 +7,9 @@ import SwiftUI
 struct InstalledView: View {
     var model: AppModel
     @Environment(\.openWindow) private var openWindow
-    var state: InstallationModel
+    var installed: InstalledModel
+    var queue: UpdateQueue
+    var inspector: InspectorModel
 
     @AppStorage("installedSort") private var sortStorage = ColumnSort(InstalledColumn.name).storageValue
     @SceneStorage("installedColumns") private var columns = TableColumnCustomization<InstalledRow>()
@@ -29,8 +31,8 @@ struct InstalledView: View {
     private var options: InstalledOptions { InstalledOptions(query: query, sort: sort) }
 
     var body: some View {
-        @Bindable var model = model
-        Table(of: InstalledRow.self, selection: $model.selectedAddonID, sortOrder: sortOrder,
+        @Bindable var inspector = inspector
+        Table(of: InstalledRow.self, selection: $inspector.selectedAddonID, sortOrder: sortOrder,
               columnCustomization: $columns) {
             TableColumn("Name", sortUsing: ColumnSort(InstalledColumn.name)) { row in
                 InstalledNameCell(row: row)
@@ -46,73 +48,77 @@ struct InstalledView: View {
             .customizationID("version")
 
             TableColumn("Channel", sortUsing: ColumnSort(InstalledColumn.channel)) { row in
-                Text(row.channel?.title ?? "—").foregroundStyle(.secondary).lineLimit(1)
+                ChannelCell(row: row)
             }
             .width(min: 60, ideal: 80, max: 110)
             .customizationID("channel")
 
             TableColumn("Status", sortUsing: ColumnSort(InstalledColumn.status)) { row in
-                StatusCell(row: row, flavor: state.installation.flavor)
+                StatusCell(row: row, flavor: installed.installation.flavor)
             }
-            .width(min: 90, ideal: 130, max: 180)
+            // Wide enough for "Not loaded by Forever" and the classics' longer names.
+            .width(min: 90, ideal: 160, max: 220)
             .customizationID("status")
 
             TableColumn("Installed", sortUsing: ColumnSort(InstalledColumn.installed, order: .reverse)) { row in
-                Text(row.installedText).foregroundStyle(.secondary).lineLimit(1)
+                InstalledDateCell(row: row)
             }
             .width(min: 70, ideal: 96, max: 130)
             .customizationID("installed")
 
             TableColumn("") { row in
-                InstalledActionCell(model: model, state: state, row: row, rowState: state.row(row.id))
+                InstalledActionCell(queue: queue, row: row, rowState: queue.row(row.id)) {
+                    model.adoptTarget = installed.status(id: row.id).flatMap(AdoptTarget.init)
+                }
             }
             .width(min: 84, ideal: 100, max: 160)
             .customizationID("action")
             .disabledCustomizationBehavior(.visibility)
         } rows: {
-            if !state.managedRows.isEmpty {
+            if !installed.managedRows.isEmpty {
                 Section("Managed") {
-                    ForEach(state.managedRows) { TableRow($0) }
+                    ForEach(installed.managedRows) { TableRow($0) }
                 }
             }
-            if !state.unmanagedRows.isEmpty {
+            if !installed.unmanagedRows.isEmpty {
                 Section("Unmanaged") {
-                    ForEach(state.unmanagedRows) { TableRow($0) }
+                    ForEach(installed.unmanagedRows) { TableRow($0) }
                 }
             }
         }
         .contextMenu(forSelectionType: AddonStatus.ID.self) { ids in
-            if let id = ids.first, let status = state.status(id: id) {
-                InstalledContextMenu(model: model, state: state, status: status, openWindow: openWindow)
+            if let id = ids.first, let status = installed.status(id: id) {
+                InstalledContextMenu(model: model, installed: installed, queue: queue, inspector: inspector,
+                                     status: status, openWindow: openWindow)
             }
         } primaryAction: { ids in
             // Double-click or Return. Unmanaged folders have no details to open.
             guard let id = ids.first else { return }
-            if let ref = AddonRef(rowID: id), state.addon(for: ref) != nil {
-                openWindow(id: AddonWindowID.sceneID, value: AddonWindowID(ref: ref, installationID: state.installation.id))
+            if let ref = AddonRef(rowID: id), installed.addon(for: ref) != nil {
+                openWindow(id: AddonWindowID.sceneID, value: AddonWindowID(ref: ref, installationID: installed.installation.id))
             } else {
-                model.selectedAddonID = id
+                inspector.selectedAddonID = id
                 model.showInspector = true
             }
         }
         .overlay { emptyState }
-        .onChange(of: options, initial: true) { state.installedOptions = options }
+        .onChange(of: options, initial: true) { installed.options = options }
     }
 
     @ViewBuilder private var emptyState: some View {
-        if state.addons.isEmpty {
-            if state.isLoading || !state.hasLoaded {
+        if installed.addons.isEmpty {
+            if installed.isLoading || !installed.hasLoaded {
                 ProgressView()
             } else {
                 ContentUnavailableView {
                     Label("No Add-ons", systemImage: "puzzlepiece.extension")
                 } description: {
-                    Text("Nothing is installed in \(state.installation.addonsDirectory.path(percentEncoded: false)) yet.")
+                    Text("Nothing is installed in \(installed.installation.addonsDirectory.path(percentEncoded: false)) yet.")
                 } actions: {
                     Button("Browse Add-ons") { model.tab = .browse }
                 }
             }
-        } else if state.managedRows.isEmpty && state.unmanagedRows.isEmpty {
+        } else if installed.managedRows.isEmpty && installed.unmanagedRows.isEmpty {
             ContentUnavailableView.search(text: query)
         }
     }
@@ -120,7 +126,7 @@ struct InstalledView: View {
 
 // MARK: - Cells
 
-private struct InstalledNameCell: View {
+struct InstalledNameCell: View {
     var row: InstalledRow
 
     var body: some View {
@@ -134,7 +140,7 @@ private struct InstalledNameCell: View {
     }
 }
 
-private struct VersionCell: View {
+struct VersionCell: View {
     var row: InstalledRow
 
     var body: some View {
@@ -155,7 +161,7 @@ private struct VersionCell: View {
     }
 }
 
-private struct StatusCell: View {
+struct StatusCell: View {
     var row: InstalledRow
     var flavor: Flavor
 
@@ -195,11 +201,28 @@ private struct StatusCell: View {
     }
 }
 
-private struct InstalledActionCell: View {
-    var model: AppModel
-    var state: InstallationModel
+struct ChannelCell: View {
+    var row: InstalledRow
+
+    var body: some View {
+        Text(row.channel?.title ?? "—").foregroundStyle(.secondary).lineLimit(1)
+    }
+}
+
+struct InstalledDateCell: View {
+    var row: InstalledRow
+
+    var body: some View {
+        Text(row.installedText).foregroundStyle(.secondary).lineLimit(1)
+    }
+}
+
+struct InstalledActionCell: View {
+    var queue: UpdateQueue
     var row: InstalledRow
     var rowState: RowState
+    /// Opens the Adopt sheet for an unmanaged row.
+    var adopt: () -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -211,12 +234,12 @@ private struct InstalledActionCell: View {
             } else if let ref = row.ref {
                 if row.availableVersion != nil {
                     Button(rowState.error == nil ? "Update" : "Retry") {
-                        Task { await state.update([ref]) }
+                        Task { await queue.update([ref]) }
                     }
-                    .disabled(state.isUpdatingAll)
+                    .disabled(queue.isUpdatingAll)
                 }
             } else {
-                Button("Adopt…") { model.adoptTarget = state.status(id: row.id).flatMap(AdoptTarget.init) }
+                Button("Adopt…", action: adopt)
                     .help("Start managing this folder from its GitHub repository")
             }
         }
@@ -230,17 +253,19 @@ private struct InstalledActionCell: View {
 /// Hosted in an AppKit menu, so it takes everything as properties rather than from the environment.
 private struct InstalledContextMenu: View {
     var model: AppModel
-    var state: InstallationModel
+    var installed: InstalledModel
+    var queue: UpdateQueue
+    var inspector: InspectorModel
     var status: AddonStatus
     var openWindow: OpenWindowAction
 
     var body: some View {
         if case .managed(let addon, _) = status {
-            if state.availableRelease(for: addon.id) != nil, !addon.pinned {
-                Button("Update") { Task { await state.update([addon.id]) } }
+            if installed.availableRelease(for: addon.id) != nil, !addon.pinned {
+                Button("Update") { Task { await queue.update([addon.id]) } }
             }
             Button(addon.pinned ? "Unpin" : "Pin") {
-                Task { await state.setPinned(!addon.pinned, for: addon.id) }
+                Task { await queue.setPinned(!addon.pinned, for: addon.id) }
             }
             if let url = addon.id.webURL {
                 Link("Open on \(addon.id.sourceName)", destination: url)
@@ -256,18 +281,18 @@ private struct InstalledContextMenu: View {
         }
         Divider()
         Button("Show Details") {
-            model.selectedAddonID = status.id
+            inspector.selectedAddonID = status.id
             model.showInspector = true
         }
         if case .managed(let addon, _) = status {
             Button("Open in New Window") {
-                openWindow(id: AddonWindowID.sceneID, value: AddonWindowID(ref: addon.id, installationID: state.installation.id))
+                openWindow(id: AddonWindowID.sceneID, value: AddonWindowID(ref: addon.id, installationID: installed.installation.id))
             }
         }
     }
 
     private func showInFinder(_ folders: [String]) {
-        let urls = folders.map { state.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
+        let urls = folders.map { installed.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
         NSWorkspace.shared.activateFileViewerSelecting(urls)
     }
 }

@@ -11,18 +11,20 @@ struct InspectorPane: View {
         Group {
             switch model.tab {
             case .installed:
-                switch state.status(id: model.selectedAddonID) {
+                switch state.installed.status(id: state.inspector.selectedAddonID) {
                 case .managed(let addon, let missing):
                     AddonDetailView(state: state, ref: addon.id, missingFolders: missing)
                         .id(addon.id)
                 case .unmanaged(let unmanaged):
-                    UnmanagedInspector(model: model, state: state, unmanaged: unmanaged)
+                    UnmanagedInspector(queue: state.queue, inspector: state.inspector, unmanaged: unmanaged,
+                                       adopt: { model.adoptTarget = AdoptTarget(unmanaged) },
+                                       moveToTrash: { model.pendingRemoval = .unmanaged(unmanaged) })
                         .id(unmanaged.folder)
                 case nil:
                     noSelection("Select an add-on to see its details.")
                 }
             case .browse:
-                if let id = model.selectedBrowseID, let ref = AddonRef(rowID: id) {
+                if let id = state.inspector.selectedBrowseID, let ref = AddonRef(rowID: id) {
                     AddonDetailView(state: state, ref: ref, missingFolders: [])
                         .id(ref)
                 } else {
@@ -40,7 +42,8 @@ struct InspectorPane: View {
 
 /// Details for one add-on, installed or not: what Browse showed, the core's `AddonDetails`
 /// (stats, links, screenshots, read-me) and, when installed, the install's own state and actions.
-/// Shown in the inspector and, full size, in an add-on's own window.
+/// Shown in the inspector and, full size, in an add-on's own window. It combines all four of
+/// the installation's models, so it takes `InstallationModel` and reads each part directly.
 struct AddonDetailView: View {
     enum Style { case inspector, window }
 
@@ -51,18 +54,18 @@ struct AddonDetailView: View {
 
     /// The installed record's row when installed: a search result's case can differ.
     private var id: String { (installed?.id ?? ref).description }
-    private var installed: InstalledAddon? { state.addon(for: ref) }
-    private var result: BrowseRow? { state.browseRow(id: id) }
-    private var loaded: AddonDetails? { state.details[ref]?.details }
+    private var installed: InstalledAddon? { state.installed.addon(for: ref) }
+    private var result: BrowseRow? { state.browse.row(id: id) }
+    private var loaded: AddonDetails? { state.inspector.details[ref]?.details }
 
     var body: some View {
-        let rowState = state.row(id)
+        let rowState = state.queue.row(id)
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 RowProgress(rowState: rowState)
-                InspectorActions(state: state, ref: ref, installed: installed, rowState: rowState,
-                                 availableFlavors: availableFlavors, name: name)
+                InspectorActions(installedModel: state.installed, queue: state.queue, ref: ref, installed: installed,
+                                 rowState: rowState, availableFlavors: availableFlavors, name: name)
                 about
                 detailsStatus
                 if let loaded {
@@ -96,7 +99,7 @@ struct AddonDetailView: View {
                 try? await Task.sleep(for: .milliseconds(250))
                 guard !Task.isCancelled else { return }
             }
-            await state.loadDetails(for: ref)
+            await state.inspector.loadDetails(for: ref)
         }
     }
 
@@ -166,7 +169,7 @@ struct AddonDetailView: View {
     }
 
     @ViewBuilder private var detailsStatus: some View {
-        switch state.details[ref] {
+        switch state.inspector.details[ref] {
         case .loading?, nil:
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
@@ -176,7 +179,7 @@ struct AddonDetailView: View {
         case .failed(let message)?:
             VStack(alignment: .leading, spacing: 6) {
                 RowErrorText(message: "Couldn't load details: \(message)")
-                Button("Try Again") { Task { await state.loadDetails(for: ref, force: true) } }
+                Button("Try Again") { Task { await state.inspector.loadDetails(for: ref, force: true) } }
                     .controlSize(.small)
             }
         case .loaded?:
@@ -185,7 +188,7 @@ struct AddonDetailView: View {
     }
 
     @ViewBuilder private var readme: some View {
-        if case .loaded(_, let blocks)? = state.details[ref], !blocks.isEmpty {
+        if case .loaded(_, let blocks)? = state.inspector.details[ref], !blocks.isEmpty {
             section("Read Me") {
                 MarkdownView(blocks: blocks).font(.callout)
             }
@@ -204,7 +207,7 @@ struct AddonDetailView: View {
                             .help("\(state.installation.flavor.displayName) lists it as out of date until you tick Load out of date AddOns")
                     }
                 }
-                if let release = state.availableRelease(for: ref) {
+                if let release = state.installed.availableRelease(for: ref) {
                     row("Available") { Text(release.version).monospacedDigit().foregroundStyle(.tint) }
                 }
                 row("Released") { Text(DayLabel.string(for: addon.publishedAt)) }
@@ -212,7 +215,7 @@ struct AddonDetailView: View {
                 row("Channel") {
                     Picker("Channel", selection: Binding(
                         get: { addon.channel },
-                        set: { channel in Task { await state.setChannel(channel, for: addon.id) } }
+                        set: { channel in Task { await state.queue.setChannel(channel, for: addon.id) } }
                     )) {
                         ForEach(Channel.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
@@ -222,7 +225,7 @@ struct AddonDetailView: View {
                 row("Pinned") {
                     Toggle("Never update automatically", isOn: Binding(
                         get: { addon.pinned },
-                        set: { pinned in Task { await state.setPinned(pinned, for: addon.id) } }
+                        set: { pinned in Task { await state.queue.setPinned(pinned, for: addon.id) } }
                     ))
                     .toggleStyle(.checkbox)
                 }
@@ -254,13 +257,13 @@ struct AddonDetailView: View {
     /// update check's release. A quota-free check has no notes; when the update is the
     /// latest release, they can be loaded on demand.
     @ViewBuilder private func installedChangelog(_ addon: InstalledAddon) -> some View {
-        if let release = state.availableRelease(for: ref) {
+        if let release = state.installed.availableRelease(for: ref) {
             let isLatest = loaded?.latestVersion == release.version
             notes(title: "What's New in \(release.version)",
                   markdown: release.changelog ?? (isLatest ? loaded?.latestChangelog : nil),
                   version: release.version, loadable: isLatest)
         }
-        notes(title: state.availableRelease(for: ref) == nil ? "Changelog" : "Installed (\(addon.version))",
+        notes(title: state.installed.availableRelease(for: ref) == nil ? "Changelog" : "Installed (\(addon.version))",
               markdown: addon.changelog, version: addon.version)
     }
 
@@ -270,7 +273,7 @@ struct AddonDetailView: View {
             if let markdown, !markdown.isEmpty {
                 MarkdownText(markdown: markdown).font(.callout)
             } else if markdown == nil, loadable {
-                ReleaseNotesButton(state: state, ref: ref)
+                ReleaseNotesButton(inspector: state.inspector, ref: ref)
             } else {
                 Text("No release notes for \(version).").foregroundStyle(.secondary).font(.callout)
             }
@@ -298,7 +301,7 @@ struct AddonDetailView: View {
 /// Loads the latest release's notes on request: they cost a GitHub API call, so opening an
 /// add-on doesn't fetch them.
 private struct ReleaseNotesButton: View {
-    var state: InstallationModel
+    var inspector: InspectorModel
     var ref: AddonRef
 
     @State private var isLoading = false
@@ -322,7 +325,7 @@ private struct ReleaseNotesButton: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            try await state.loadReleaseNotes(for: ref)
+            try await inspector.loadReleaseNotes(for: ref)
             error = nil
         } catch {
             self.error = "Couldn't load release notes: \(error.localizedDescription)"
@@ -343,7 +346,8 @@ struct RowProgress: View {
 /// Install / Update / Roll Back / Uninstall. Separate so download ticks re-render only this.
 private struct InspectorActions: View {
     @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
-    var state: InstallationModel
+    var installedModel: InstalledModel
+    var queue: UpdateQueue
     var ref: AddonRef
     var installed: InstalledAddon?
     var rowState: RowState
@@ -356,14 +360,15 @@ private struct InspectorActions: View {
 
     var body: some View {
         let busy = rowState.activity != nil
-        let action = state.installAction(for: ref)
+        let action = installedModel.installAction(for: ref, availableFlavors: availableFlavors)
+        let flavor = queue.installation.flavor
         HStack {
             if let installed, let installedRef = action.installedRef {
                 Label("Installed \(installed.version)", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.secondary)
                     .labelStyle(.titleAndIcon)
-                if case .update(_, _, let available) = action {
-                    Button("Update to \(available)") { Task { await state.update([installedRef]) } }
+                if case .update(_, _, let offer) = action {
+                    Button("Update to \(offer.label)") { Task { await queue.update([installedRef]) } }
                         .buttonStyle(.borderedProminent)
                         .disabled(busy)
                 }
@@ -372,7 +377,7 @@ private struct InspectorActions: View {
                         .disabled(busy)
                         .help("Reinstall \(previous.version)")
                         .confirmationDialog("Roll back \(installed.name) to \(previous.version)?", isPresented: $confirmRollback) {
-                            Button("Roll Back") { Task { await state.rollback(installedRef) } }
+                            Button("Roll Back") { Task { await queue.rollback(installedRef) } }
                         } message: {
                             Text("Reinstalls \(previous.version) from the local download cache and pins \(installed.name) so it isn't updated again automatically.")
                         }
@@ -381,36 +386,36 @@ private struct InspectorActions: View {
                 Button("Uninstall…", role: .destructive) { confirmUninstall = true }
                     .disabled(busy)
                     .confirmationDialog("Uninstall \(installed.name)?", isPresented: $confirmUninstall) {
-                        Button("Uninstall", role: .destructive) { Task { await state.uninstall(installedRef) } }
+                        Button("Uninstall", role: .destructive) { Task { await queue.uninstall(installedRef) } }
                     } message: {
                         Text("Removes \(installed.folders.joined(separator: ", ")) from Interface/AddOns. Saved settings are kept.")
                     }
             } else if rowState.needsOverwrite {
                 Button("Overwrite Existing Folder", role: .destructive) {
-                    Task { await state.install(ref, channel: defaultChannel, force: true) }
+                    Task { await queue.install(ref, channel: defaultChannel, force: true) }
                 }
                 .disabled(busy)
-            } else if RetailBuildOffer.isOffered(availableFlavors: availableFlavors, flavor: state.installation.flavor) {
+            } else if case .installFallbackBuild = action {
                 Button("Install Retail Build…") { confirmRetailBuild = true }
                     .buttonStyle(.borderedProminent)
                     .disabled(busy)
-                    .help("No \(state.installation.flavor.displayName) build yet; the Retail build may work")
+                    .help("No \(flavor.displayName) build yet; the Retail build may work")
             } else {
-                Button("Install") { Task { await state.install(ref, channel: defaultChannel) } }
+                Button("Install") { Task { await queue.install(ref, channel: defaultChannel) } }
                     .buttonStyle(.borderedProminent)
                     .disabled(busy)
             }
         }
         .sheet(isPresented: $confirmRetailBuild) {
-            RetailBuildSheet(name: name, flavor: state.installation.flavor) {
-                Task { await state.install(ref, channel: defaultChannel, allowFamilyFallback: true) }
+            RetailBuildSheet(name: name, flavor: queue.installation.flavor) {
+                Task { await queue.install(ref, channel: defaultChannel, allowFamilyFallback: true) }
             }
         }
     }
 }
 
 /// Confirms installing the Retail build on Forever, and explains the out-of-date checkbox.
-private struct RetailBuildSheet: View {
+struct RetailBuildSheet: View {
     var name: String
     var flavor: Flavor
     var install: () -> Void

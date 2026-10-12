@@ -33,11 +33,23 @@ docs/                    all documentation (README.md is the index)
 | CLI release build | `swift build -c release --product addonctl` |
 | App build | `xcodebuild -project App/ForeverAddons.xcodeproj -scheme ForeverAddons -configuration Debug -destination 'platform=macOS' -derivedDataPath build/DerivedData build` |
 | App tests | the same command with `test` instead of `build` |
+| UI snapshots | `scripts/snapshots.sh` ([below](#snapshots)) |
 | Regenerate Xcode project | `cd App && xcodegen generate` (commit the result) |
 
 Or open `App/ForeverAddons.xcodeproj` in Xcode, choose the **ForeverAddons** scheme and **My Mac**, and press ⌘R. Targets and the embedded CLI: [app/project.md](app/project.md).
 
 Run the app and the tests before saying something works. Report failures plainly.
+
+## Snapshots
+
+`scripts/snapshots.sh` renders the app's key views to `build/snapshots/<name>-<light|dark>.png` (gitignored), so you can see the UI without launching the app. It runs `SnapshotTests` (`xcodebuild test -only-testing:ForeverAddonsTests/SnapshotTests`).
+
+- **Agents must view the PNGs (the Read tool shows images) after every UI change**, in both modes, and fix clipping, wrong states or poor contrast before saying the change works.
+- Covered: Browse rows in each state (installed, update, not installed, Retail-only, Classic-only, not checked), the games bubbles with the status bar's legend and "Last fetched", Installed rows (managed, update, pinned, Retail build, unmanaged and a Questie-like group), the inspector (installed, not installed, Retail-only with **Install Retail Build…**, unmanaged with a suggestion), the Retail build sheet, the adopt sheet and the seeding sheet.
+- Data comes from `Fixtures` and a test-only `FixtureManager` (`App/ForeverAddonsTests/Snapshots/`); nothing touches disk or the network, and none of it is in the app target ([decision 0007](decisions/0007-real-data-only.md)).
+- Views are drawn in an offscreen `NSHostingView`, not `ImageRenderer`: `ImageRenderer` leaves scroll views blank and draws borderless and link buttons as yellow placeholders. `Table` doesn't render either way, so rows are the real cell views stacked at the column widths.
+- Controls draw as in an inactive app, so prominent buttons are grey rather than the accent colour.
+- A test passes when rendering succeeds; nothing is compared against a reference image.
 
 ## Testing without touching your real setup
 

@@ -20,16 +20,13 @@ struct Banner: Identifiable, Equatable {
 @Observable @MainActor
 final class AppModel {
     let manager: any AddonManaging
-    /// The concrete manager when running on real data (for detection); nil on mock data.
-    let addonManager: AddonManager?
     /// Installing the bundled `addonctl` (first-launch offer and Settings).
     let commandLineTool: CommandLineToolModel
 
     private(set) var installations: [Installation] = []
     var selectedInstallationID: Installation.ID? {
         didSet {
-            selectedAddonID = nil
-            selectedBrowseID = nil
+            for model in models.values { model.inspector.clearSelection() }
             if oldValue != selectedInstallationID { scheduleAutoRefresh() }
         }
     }
@@ -41,14 +38,7 @@ final class AppModel {
     var tab: DetailTab = .installed
     /// Shared by both tabs: filters Installed, queries Browse.
     var searchText = ""
-    /// Selection in the Installed tab. Selecting a row opens the inspector.
-    var selectedAddonID: AddonStatus.ID? {
-        didSet { if selectedAddonID != nil { showInspector = true } }
-    }
-    /// Selection in the Browse tab.
-    var selectedBrowseID: BrowseRow.ID? {
-        didSet { if selectedBrowseID != nil { showInspector = true } }
-    }
+    /// Selecting a row in either tab (`InspectorModel`'s selection) opens the inspector.
     var showInspector = true
     var banner: Banner?
     /// Unmanaged folder being adopted (drives the Adopt sheet).
@@ -62,8 +52,8 @@ final class AppModel {
         guard let state = current else { return }
         Task {
             switch request {
-            case .managed(let addon): await state.uninstall(addon.id)
-            case .unmanaged(let folder): await state.removeUnmanaged(folder.folders, id: request.id)
+            case .managed(let addon): await state.queue.uninstall(addon.id)
+            case .unmanaged(let folder): await state.queue.removeUnmanaged(folder.folders, id: request.id)
             }
         }
     }
@@ -83,7 +73,6 @@ final class AppModel {
     /// `usesStandardDefaults`: whether first-launch state may be remembered in user defaults.
     init(manager: any AddonManaging, offersCommandLineTool: Bool = false, usesStandardDefaults: Bool = false) {
         self.manager = manager
-        self.addonManager = manager as? AddonManager
         self.commandLineTool = CommandLineToolModel(mayOffer: offersCommandLineTool)
         self.seedDefaults = usesStandardDefaults ? .standard : nil
     }
@@ -102,14 +91,15 @@ final class AppModel {
         let model = InstallationModel(installation: installation, manager: manager) { [weak self] message in
             self?.showError(message)
         }
-        model.didReload = { [weak self] in self?.recordStoreFingerprint() }
+        model.installed.didReload = { [weak self] in self?.recordStoreFingerprint() }
+        model.inspector.didSelect = { [weak self] in self?.showInspector = true }
         models[installation.id] = model
         return model
     }
 
     /// Total updates across all known installations (menu bar extra).
     var totalUpdateCount: Int {
-        models.values.reduce(0) { $0 + $1.updateCount }
+        models.values.reduce(0) { $0 + $1.installed.updateCount }
     }
 
     // MARK: Actions
@@ -124,7 +114,7 @@ final class AppModel {
         watchStore()
         scheduleAutoRefresh()
         if let current {
-            await current.reload()
+            await current.installed.reload()
             if await needsSeeding(current) {
                 seed(current)
                 return
@@ -144,7 +134,7 @@ final class AppModel {
         seeding = state
         isSeedingPresented = true
         Task {
-            await state.startRefresh(force: true).value
+            await state.queue.startRefresh(force: true).value
             seedDefaults?.set(true, forKey: Self.didSeedKey)
             isSeedingPresented = false
         }
@@ -174,7 +164,7 @@ final class AppModel {
     func refreshInBackground(_ state: InstallationModel? = nil) {
         guard didInitialLoad, !isSeedingPresented, refreshesAutomatically,
               let state = state ?? current else { return }
-        state.startRefresh(force: false)
+        state.queue.startRefresh(force: false)
     }
 
     static let autoRefreshInterval: Duration = .seconds(2 * 60 * 60)
@@ -189,7 +179,7 @@ final class AppModel {
             while !Task.isCancelled {
                 try? await Task.sleep(for: Self.autoRefreshInterval)
                 guard !Task.isCancelled, let self, let state = self.current, state.installation.id == id else { return }
-                if !state.isRefreshing { self.refreshInBackground(state) }
+                if !state.queue.isRefreshing { self.refreshInBackground(state) }
             }
         }
     }
@@ -202,8 +192,8 @@ final class AppModel {
     /// Reloads (debounced) whenever the store folder changes, e.g. when `addonctl` installs
     /// or updates something while the app is open (docs/app/live-data.md).
     func watchStore() {
-        guard storeWatcher == nil, let directory = addonManager?.store.storeDirectory else { return }
-        let watcher = DirectoryWatcher(url: directory) { [weak self] in
+        guard storeWatcher == nil else { return }
+        let watcher = DirectoryWatcher(url: manager.storeDirectory) { [weak self] in
             Task { @MainActor in await self?.storeDidChange() }
         }
         watcher.start()
@@ -215,13 +205,11 @@ final class AppModel {
     /// Remembers the store as of the latest reload, so the watcher event caused by the app's
     /// own write (which that reload already reflects) can be ignored.
     private func recordStoreFingerprint() {
-        guard let directory = addonManager?.store.storeDirectory else { return }
-        storeFingerprint = DirectoryWatcher.fingerprint(of: directory)
+        storeFingerprint = DirectoryWatcher.fingerprint(of: manager.storeDirectory)
     }
 
     private func storeDidChange() async {
-        if let directory = addonManager?.store.storeDirectory,
-           DirectoryWatcher.fingerprint(of: directory) == storeFingerprint { return }
+        if DirectoryWatcher.fingerprint(of: manager.storeDirectory) == storeFingerprint { return }
         await reload()
     }
 
@@ -234,24 +222,24 @@ final class AppModel {
         // Drop models for installations that disappeared.
         let ids = Set(installations.map(\.id))
         models = models.filter { ids.contains($0.key) }
-        await current?.reload()
+        await current?.installed.reload()
     }
 
     @ObservationIgnored private var lastDataVersion: Int64?
 
     /// Changes whenever another process (`addonctl`) writes to the metadata database.
     private func dataVersion() async -> Int64? {
-        try? await addonManager?.database.dataVersion()
+        await manager.metadataVersion()
     }
 
     /// On activation: re-reads metadata only if something else wrote it meanwhile. The app's
-    /// own writes reach the models through `MetadataDatabase.changes()`.
+    /// own writes reach the models through `metadataChanges()`.
     func reloadMetadataIfChanged() async {
         guard didInitialLoad, let version = await dataVersion() else { return }
         let previous = lastDataVersion
         lastDataVersion = version
         guard let previous, previous != version else { return }
-        for model in models.values { await model.reloadMetadata() }
+        for model in models.values { await model.browse.reloadMetadata() }
     }
 
     func loadInstallations() async {
@@ -279,7 +267,7 @@ final class AppModel {
             if installations.isEmpty {
                 banner = Banner(message: "No World of Warcraft Forever installation found. Use Add Installation… to choose its folder.", isError: false)
             } else {
-                await current?.reload()
+                await current?.installed.reload()
             }
         } catch {
             showError(error.localizedDescription)
@@ -308,7 +296,7 @@ final class AppModel {
             }
             selectedInstallationID = installation.id
             let state = model(for: installation)
-            await state.reload()
+            await state.installed.reload()
             if !isSeedingPresented, await needsSeeding(state) {
                 seed(state)
             } else {
@@ -321,7 +309,7 @@ final class AppModel {
 
     /// Check for Updates (⌘R): a full refresh, ignoring the core's throttle.
     func checkForUpdates() {
-        current?.startRefresh(force: true)
+        current?.queue.startRefresh(force: true)
     }
 
     /// The installation whose refresh is running, for the sidebar's progress bar. Throttled
@@ -329,7 +317,7 @@ final class AppModel {
     var visibleRefresh: (installation: Installation, progress: RefreshProgress)? {
         for installation in installations {
             let state = model(for: installation)
-            if let progress = state.refresh.visibleProgress {
+            if let progress = state.queue.refresh.visibleProgress {
                 return (installation, progress)
             }
         }
@@ -338,7 +326,7 @@ final class AppModel {
 
     func updateAll() {
         guard let current else { return }
-        Task { await current.updateAll() }
+        Task { await current.queue.updateAll() }
     }
 
     func showError(_ message: String) {
@@ -348,7 +336,7 @@ final class AppModel {
     /// Jump from a Browse row to the add-on in the Installed tab.
     func reveal(_ ref: AddonRef) {
         tab = .installed
-        selectedAddonID = ref.description
+        current?.inspector.selectedAddonID = ref.description
         showInspector = true
     }
 }

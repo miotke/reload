@@ -37,10 +37,10 @@ struct ForeverAddonsApp: App {
             CommandMenu("Add-ons") {
                 Button("Check for Updates") { model.checkForUpdates() }
                     .keyboardShortcut("r", modifiers: .command)
-                    .disabled(model.current == nil || model.current?.isRefreshing == true)
+                    .disabled(model.current == nil || model.current?.queue.isRefreshing == true)
                 Button("Update All") { model.updateAll() }
                     .keyboardShortcut("u", modifiers: [.command, .shift])
-                    .disabled((model.current?.updateCount ?? 0) == 0 || model.current?.isUpdatingAll == true)
+                    .disabled((model.current?.installed.updateCount ?? 0) == 0 || model.current?.queue.isUpdatingAll == true)
                 Divider()
                 Button(model.showInspector ? "Hide Inspector" : "Show Inspector") { model.showInspector.toggle() }
                     .keyboardShortcut("i", modifiers: [.command, .option])

@@ -37,9 +37,9 @@ import Testing
     @Test func patchesOnlyChangedRefs() {
         let results = [result("A"), result("B", support: .needsDownload), result("C")]
         let patched = results.patching([
-            AddonRef(source: .github, identifier: "o/A"): StoredAnswer(support: .supported(version: "1.0"), availableFlavors: [.forever]),
-            AddonRef(source: .github, identifier: "o/C"): StoredAnswer(support: nil, availableFlavors: [.mainline]),
-            AddonRef(source: .github, identifier: "o/Z"): StoredAnswer(support: .unsupported),
+            AddonRef(source: .github, identifier: "o/A"): StoredAvailability(support: .supported(version: "1.0"), availableFlavors: [.forever]),
+            AddonRef(source: .github, identifier: "o/C"): StoredAvailability(support: nil, availableFlavors: [.mainline]),
+            AddonRef(source: .github, identifier: "o/Z"): StoredAvailability(support: .unsupported, availableFlavors: nil),
         ])
         #expect(patched.map(\.support) == [.supported(version: "1.0"), .needsDownload, .unknown])
         #expect(patched.map(\.availableFlavors) == [[.forever], nil, [.mainline]])
@@ -249,12 +249,9 @@ import Testing
         #expect(GameBubblesModel(availableFlavors: nil, flavor: .forever, support: .noReleases).uncheckedHelp == "This repository has no GitHub releases")
     }
 
-    @Test func retailBuildIsOfferedOnlyWhenItHelps() {
-        #expect(RetailBuildOffer.isOffered(availableFlavors: [.mainline], flavor: .forever))
-        #expect(!RetailBuildOffer.isOffered(availableFlavors: [.mainline, .forever], flavor: .forever))
-        #expect(!RetailBuildOffer.isOffered(availableFlavors: [.vanilla], flavor: .forever))
-        #expect(!RetailBuildOffer.isOffered(availableFlavors: nil, flavor: .forever))
-        #expect(!RetailBuildOffer.isOffered(availableFlavors: [.mainline], flavor: .mists))
+    @Test func retailBuildWording() {
+        #expect(UpdateOffer.ownBuild(.forever).label == "Forever build")
+        #expect(UpdateOffer.version("v1.3").label == "v1.3")
         #expect(RetailBuildOffer.explanation(for: .forever).contains("Load out of date AddOns"))
     }
 
@@ -273,7 +270,7 @@ import Testing
                                    availableFlavors: i < 5 ? [.forever] : nil, origin: [.catalogue]), flavor: .forever)
         }
         let visible = Set(rows.prefix(25).map(\.id))
-        let targets = InstallationModel.visibleCheckTargets(rows: rows, visible: visible)
+        let targets = BrowseModel.visibleCheckTargets(rows: rows, visible: visible)
         #expect(targets.count == 20)
         #expect(targets.first?.identifier == "o/r5", "unchecked rows go first")
         #expect(!targets.contains { $0.identifier == "o/r29" }, "only rows on screen")

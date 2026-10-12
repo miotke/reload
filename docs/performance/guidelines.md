@@ -38,7 +38,7 @@ Each rule comes from `.claude/CLAUDE.md` or a number in [measurements.md](measur
 ## Tables and lists
 
 - **Sort and filter in the model, never in `body`.**
-- `Table`s use **stable IDs** and rows of **pre-formatted strings** (`BrowseRow`, `InstalledRow` are flat `Equatable` values built in `InstallationModel`).
+- `Table`s use **stable IDs** and rows of **pre-formatted strings** (`BrowseRow`, `InstalledRow` are flat `Equatable` values built in `InstalledModel` and `BrowseModel`).
 - **No `ViewThatFits` or `GeometryReader` in cells.** They lay out every row more than once.
 - Debounce work triggered by selection (details wait 250 ms).
 

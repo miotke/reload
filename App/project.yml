@@ -80,24 +80,19 @@ targets:
         SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
         # The entry point is an `@main` type (SwiftPM infers this flag; Xcode doesn't).
         OTHER_SWIFT_FLAGS: "$(inherited) -parse-as-library"
-  # Not hosted: compiles the testable app sources directly, so tests never launch the app
-  # (which would use the real AddonManager).
+  # Not hosted: compiles the app sources (all but the `@main` entry point) into the bundle,
+  # so tests never launch the app (which would use the real AddonManager), and
+  # SnapshotTests can render its views over test-only data.
   ForeverAddonsTests:
     type: bundle.unit-test
     platform: macOS
     sources:
       - path: ForeverAddonsTests
-      - path: ForeverAddons/Support/CLIInstaller.swift
-      - path: ForeverAddons/Support/DirectoryWatcher.swift
-      - path: ForeverAddons/Support/AddonFormatting.swift
-      - path: ForeverAddons/Support/TableSorting.swift
-      - path: ForeverAddons/Support/TableRows.swift
-      - path: ForeverAddons/Support/UnmanagedSupport.swift
-      - path: ForeverAddons/Support/MarkdownBlocks.swift
-      - path: ForeverAddons/Support/AppSupport.swift
-      - path: ForeverAddons/Support/AppEnvironment.swift
-      - path: ForeverAddons/Support/ScreenshotLoader.swift
-      - path: ForeverAddons/Models/InstallationModel.swift
+      - path: ForeverAddons
+        excludes:
+          - ForeverAddonsApp.swift
+          - Info.plist
+          - Assets.xcassets
     dependencies:
       - package: AddonKit
         product: AddonKit

@@ -6,16 +6,19 @@ import SwiftUI
 /// repository and why, Adopt and Move to Trash, and the suggestion's catalogue details
 /// (`details(for:in:)`, no API quota) (docs/app/layout.md).
 struct UnmanagedInspector: View {
-    var model: AppModel
-    var state: InstallationModel
+    var queue: UpdateQueue
+    var inspector: InspectorModel
     var unmanaged: UnmanagedFolder
+    /// Open the Adopt sheet and the Move to Trash confirmation, both hosted by the window.
+    var adopt: () -> Void
+    var moveToTrash: () -> Void
 
-    private var flavor: Flavor { state.installation.flavor }
+    private var flavor: Flavor { inspector.installation.flavor }
     private var toc: Toc? { unmanaged.toc }
     private var suggestion: AdoptionCandidate? { unmanaged.suggestion }
 
     var body: some View {
-        let rowState = state.row(AddonStatus.unmanagedID(unmanaged.folder))
+        let rowState = queue.row(AddonStatus.unmanagedID(unmanaged.folder))
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -25,10 +28,10 @@ struct UnmanagedInspector: View {
                 }
                 RowProgress(rowState: rowState)
                 HStack {
-                    Button("Adopt…") { model.adoptTarget = AdoptTarget(unmanaged) }
+                    Button("Adopt…", action: adopt)
                         .buttonStyle(.borderedProminent)
                     Spacer()
-                    Button("Move to Trash…", role: .destructive) { model.pendingRemoval = .unmanaged(unmanaged) }
+                    Button("Move to Trash…", role: .destructive, action: moveToTrash)
                 }
                 .disabled(rowState.activity != nil)
 
@@ -54,7 +57,7 @@ struct UnmanagedInspector: View {
                     Text(notes).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Button("Show in Finder", systemImage: "folder") {
-                    let urls = unmanaged.folders.map { state.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
+                    let urls = unmanaged.folders.map { inspector.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
                     NSWorkspace.shared.activateFileViewerSelecting(urls)
                 }
                 .buttonStyle(.link)
@@ -70,7 +73,7 @@ struct UnmanagedInspector: View {
             guard let ref = suggestion?.ref else { return }
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            await state.loadDetails(for: ref)
+            await inspector.loadDetails(for: ref)
         }
     }
 
@@ -92,13 +95,13 @@ struct UnmanagedInspector: View {
                 Text("Nothing in the TOC files or the catalogue points to a repository. Adopt lets you enter one or search GitHub.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-            Text("ForeverAddons didn't install \(unmanaged.isGroup ? "these folders" : "this folder"), so it won't update \(unmanaged.isGroup ? "them" : "it"). Adopt to manage it from its GitHub repository.")
+            Text("ForeverAddons didn't install \(unmanaged.isGroup ? "these folders" : "this folder"), so it won't update \(unmanaged.isGroup ? "them" : "it"). Adopt to manage \(unmanaged.isGroup ? "them" : "it") from its GitHub repository.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 
     @ViewBuilder private func details(for ref: AddonRef) -> some View {
-        switch state.details[ref] {
+        switch inspector.details[ref] {
         case .loaded(let details, let readme)?:
             if let summary = details.summary {
                 Text(summary).font(.callout).fixedSize(horizontal: false, vertical: true)

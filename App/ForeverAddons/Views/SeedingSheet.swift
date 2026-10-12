@@ -5,8 +5,9 @@ import SwiftUI
 /// installed add-ons, so the tables don't open half-empty. Closes itself when the refresh
 /// finishes; after a few seconds it can be sent to the background, where the sidebar shows it.
 struct SeedingSheet: View {
-    var model: AppModel
-    var state: InstallationModel
+    var refresh: RefreshStatus
+    var flavor: Flavor
+    var continueInBackground: () -> Void
 
     @State private var canContinueInBackground = false
 
@@ -21,7 +22,7 @@ struct SeedingSheet: View {
                         .font(.title3.weight(.semibold))
                     Text("""
                         ForeverAddons is downloading the add-on catalogue and checking your add-ons \
-                        for updates and \(state.installation.flavor.displayName) support. This takes longer the first time.
+                        for updates and \(flavor.displayName) support. This takes longer the first time.
                         """)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -29,14 +30,14 @@ struct SeedingSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                ProgressView(value: state.refresh.progress?.fraction ?? 0)
+                ProgressView(value: refresh.progress?.fraction ?? 0)
                     .progressViewStyle(.linear)
                 HStack {
-                    Text(state.refresh.progress?.displayMessage ?? "Starting…")
+                    Text(refresh.progress?.displayMessage ?? "Starting…")
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Spacer()
-                    if let progress = state.refresh.progress, progress.total > 0 {
+                    if let progress = refresh.progress, progress.total > 0 {
                         Text("\(progress.completed) of \(progress.total)")
                             .monospacedDigit()
                     }
@@ -48,7 +49,7 @@ struct SeedingSheet: View {
             HStack {
                 Spacer()
                 // Always laid out so the sheet doesn't jump when it appears.
-                Button("Continue in Background") { model.isSeedingPresented = false }
+                Button("Continue in Background", action: continueInBackground)
                     .opacity(canContinueInBackground ? 1 : 0)
                     .disabled(!canContinueInBackground)
             }

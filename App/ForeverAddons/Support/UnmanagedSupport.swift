@@ -64,35 +64,33 @@ enum RemovalRequest: Identifiable, Equatable {
     }
 }
 
-/// The Adopt sheet's decisions, given what's typed and what the preview found.
-enum AdoptForm {
-    /// Accepts `owner/repo`, `github:owner/repo` or a `github.com/owner/repo` URL.
-    static func parse(_ text: String) -> AddonRef? {
-        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        for prefix in ["github:", "https://", "http://", "www.", "github.com/"] where trimmed.lowercased().hasPrefix(prefix) {
-            trimmed = String(trimmed.dropFirst(prefix.count))
-        }
-        if trimmed.hasSuffix(".git") { trimmed = String(trimmed.dropLast(4)) }
-        let parts = trimmed.split(separator: "/", omittingEmptySubsequences: true)
-        guard parts.count == 2, parts.allSatisfy({ !$0.contains(" ") }) else { return nil }
-        return AddonRef(source: .github, identifier: "\(parts[0])/\(parts[1])")
-    }
+/// The Adopt sheet's check of the chosen repository (`UpdateQueue.adoptionPreview`).
+enum AdoptionPreviewState: Equatable {
+    case loading
+    case ready(AdoptionPreview)
+    /// No release has a build for the installation's flavor.
+    case noBuild
+    case failed(String)
+}
 
+/// The Adopt sheet's form state, given what's typed and what the preview found. Parsing
+/// (`AddonRef(parsing:)`), repo identity (`isSameRepo`) and conflicts (`canAdopt`) are the core's.
+enum AdoptForm {
     /// Why the field holds this repo: a candidate's reason, the search, or the user.
     static func reason(for text: String, candidates: [AdoptionCandidate], searched: Set<AddonRef>) -> String? {
-        guard let ref = parse(text) else { return nil }
-        if let candidate = candidates.first(where: { same($0.ref, ref) }) { return candidate.reason }
-        if searched.contains(where: { same($0, ref) }) { return "Picked from a GitHub search" }
+        guard let ref = AddonRef(parsing: text) else { return nil }
+        if let candidate = candidates.first(where: { $0.ref.isSameRepo(as: ref) }) { return candidate.reason }
+        if searched.contains(where: { $0.isSameRepo(as: ref) }) { return "Picked from a GitHub search" }
         return "Entered by hand"
     }
 
     /// Adopt needs a valid ref; a finished preview of that ref can still rule it out.
     static func canAdopt(text: String, previewed: AddonRef?, preview: AdoptionPreviewState?, isBusy: Bool) -> Bool {
-        guard let ref = parse(text), !isBusy else { return false }
-        guard let previewed, same(previewed, ref), let preview else { return true }
+        guard let ref = AddonRef(parsing: text), !isBusy else { return false }
+        guard let previewed, previewed.isSameRepo(as: ref), let preview else { return true }
         switch preview {
         case .noBuild: return false
-        case .ready(let found): return found.conflicts.isEmpty
+        case .ready(let found): return found.canAdopt
         case .loading, .failed: return true
         }
     }
@@ -100,10 +98,6 @@ enum AdoptForm {
     /// What to search GitHub for: the typed text unless it's already a ref, else the title.
     static func searchText(field: String, title: String) -> String {
         let trimmed = field.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty || parse(trimmed) != nil ? title : trimmed
-    }
-
-    static func same(_ a: AddonRef, _ b: AddonRef) -> Bool {
-        a.source == b.source && a.identifier.caseInsensitiveCompare(b.identifier) == .orderedSame
+        return trimmed.isEmpty || AddonRef(parsing: trimmed) != nil ? title : trimmed
     }
 }

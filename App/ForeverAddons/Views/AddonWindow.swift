@@ -22,14 +22,14 @@ struct AddonWindow: View {
         Group {
             if let id, let installation {
                 let state = model.model(for: installation)
-                let missing: [String] = if case .managed(_, let missing)? = state.status(id: id.ref.description) { missing } else { [] }
+                let missing: [String] = if case .managed(_, let missing)? = state.installed.status(id: id.ref.description) { missing } else { [] }
                 let details = AddonDetailView(state: state, ref: id.ref, missingFolders: missing, style: .window)
                 details
                     .navigationTitle(details.name)
                     .navigationSubtitle(installation.displayName)
                     .task(id: installation.id) {
                         // The Installed table may never have loaded this installation.
-                        if !state.hasLoaded { await state.reload() }
+                        if !state.installed.hasLoaded { await state.installed.reload() }
                     }
             } else if model.isLoadingInstallations || model.installations.isEmpty {
                 ProgressView()
