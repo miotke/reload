@@ -11,16 +11,19 @@ public actor AddonManager: AddonManaging {
     let downloader: Downloader
     let keychain: KeychainStore
     let environment: [String: String]
+    /// Catalogue, support verdicts, details and refresh state (docs/search.md).
+    public nonisolated let database: MetadataDatabase
     let catalogue: CatalogueSource
     let supportCache: SupportCache
     /// Used only for `parse`, which never touches the network or the token.
     let parser: GitHubSource
 
-    private var github: GitHubSource
-    private var searchCoordinator: SearchCoordinator
+    let github: GitHubSource
+    let githubSearch: GitHubSearchProvider
+    let searchCoordinator: SearchCoordinator
     /// Automatic detection runs at most once per process; later scans are explicit.
     private var didAutoDetect = false
-    private var retryDelay: (@Sendable (Int, TimeInterval?) -> Duration)?
+    var now: @Sendable () -> Date = Date.init
 
     /// Add-ons checked or updated at once.
     static let maxConcurrentOperations = 4
@@ -41,20 +44,24 @@ public actor AddonManager: AddonManaging {
         self.keychain = keychain
         self.environment = environment
         self.store = InstallStore(directories: directories)
-        self.downloader = Downloader(cachesDirectory: directories.caches, transport: downloadTransport)
-        self.catalogue = CatalogueSource(http: http, cacheDirectory: directories.caches)
-        self.supportCache = SupportCache(directory: directories.caches)
+        let downloader = Downloader(cachesDirectory: directories.caches, transport: downloadTransport)
+        self.downloader = downloader
+        // If the file can't be opened (disk full, permissions), work from memory this session.
+        let database = (try? MetadataDatabase(directories: directories)) ?? (try! MetadataDatabase.inMemory())
+        self.database = database
+        self.catalogue = CatalogueSource(http: http, database: database)
+        self.supportCache = SupportCache(database: database)
         self.parser = GitHubSource(http: http)
 
-        let token = Self.token(environment: environment, keychain: keychain)
-        let github = GitHubSource(http: http, token: token, cacheDirectory: directories.caches)
-        self.github = github
-        self.searchCoordinator = SearchCoordinator(
-            catalogue: catalogue,
-            github: GitHubSearchProvider(http: http, token: token),
-            support: github,
-            supportCache: supportCache
+        // The Keychain is read on first GitHub use, not here: init runs on the main thread at
+        // launch and a Keychain prompt would block it.
+        let tokenProvider: @Sendable () -> String? = { Self.token(environment: environment, keychain: keychain) }
+        self.github = GitHubSource(
+            http: http, cacheDirectory: directories.caches, database: database, tokenProvider: tokenProvider,
+            archiveURL: { downloader.archiveURL(for: $0) }
         )
+        self.githubSearch = GitHubSearchProvider(http: http, database: database, tokenProvider: tokenProvider)
+        self.searchCoordinator = SearchCoordinator(catalogue: catalogue, github: githubSearch, supportCache: supportCache)
     }
 
     /// `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (docs/design.md §9.1).
@@ -67,22 +74,21 @@ public actor AddonManager: AddonManaging {
         return keychain.get()
     }
 
+    /// Picks up a new token, keeping ETags, cached release.json files and rate-limit state.
     public func tokenDidChange() async {
         let token = Self.token(environment: environment, keychain: keychain)
-        github = GitHubSource(http: http, token: token, cacheDirectory: directories.caches)
-        if let retryDelay { await github.setRetryDelay(retryDelay) }
-        searchCoordinator = SearchCoordinator(
-            catalogue: catalogue,
-            github: GitHubSearchProvider(http: http, token: token),
-            support: github,
-            supportCache: supportCache
-        )
+        await github.setToken(token)
+        await githubSearch.setToken(token)
     }
 
     /// Tests skip the backoff sleeps between github.com retries.
     func setRetryDelay(_ delay: @escaping @Sendable (Int, TimeInterval?) -> Duration) async {
-        retryDelay = delay
         await github.setRetryDelay(delay)
+    }
+
+    func setClock(_ clock: @escaping @Sendable () -> Date) async {
+        now = clock
+        await github.setClock(clock)
     }
 
     /// Remaining GitHub API calls and when the limit resets, as last reported by GitHub.
@@ -155,18 +161,33 @@ public actor AddonManager: AddonManaging {
 
     // MARK: - Search
 
+    /// Reconciles the installation with disk first; pass `installed` to skip that per query.
     public nonisolated func search(_ query: SearchQuery, in installation: Installation) -> AsyncStream<[SearchResult]> {
         AsyncStream { continuation in
             let task = Task {
                 let installed = (try? await self.addons(in: installation)) ?? []
-                let coordinator = await self.searchCoordinator
-                for await results in coordinator.search(query, installed: installed) {
+                for await results in self.searchCoordinator.search(query, installed: installed) {
                     continuation.yield(results)
                 }
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    /// Search with the caller's current add-on list, so typing doesn't rescan `AddOns/`.
+    public nonisolated func search(_ query: SearchQuery, in installation: Installation, installed: [AddonStatus]) -> AsyncStream<[SearchResult]> {
+        searchCoordinator.search(query, installed: installed)
+    }
+
+    /// Like `search(_:in:installed:)`, but also reports when a GitHub live search is running.
+    public nonisolated func searchUpdates(_ query: SearchQuery, in installation: Installation, installed: [AddonStatus]) -> AsyncStream<SearchUpdate> {
+        searchCoordinator.searchUpdates(query, installed: installed)
+    }
+
+    /// The stored catalogue row for `ref` (including repos found by live search). Local only.
+    public func catalogueEntry(for ref: AddonRef) async -> CatalogueEntry? {
+        await catalogue.entry(for: ref)
     }
 
     public func browse(in installation: Installation) async -> BrowseContent {

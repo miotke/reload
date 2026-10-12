@@ -365,8 +365,6 @@ public actor MetadataDatabase {
         CREATE INDEX catalogue_last_updated ON catalogue(last_updated DESC);
         CREATE INDEX catalogue_seen_at ON catalogue(seen_at);
 
-        CREATE VIRTUAL TABLE catalogue_fts USING fts5(full_name UNINDEXED, tokens, tokenize = 'unicode61');
-
         CREATE TABLE catalogue_state (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             etag TEXT,
@@ -428,4 +426,37 @@ public actor MetadataDatabase {
         );
         """,
     ]
+}
+
+// MARK: - Rate limits
+
+/// GitHub rate-limit state for one resource (`core` or `search`), shared by the app and CLI.
+public struct RateLimitState: Sendable, Hashable {
+    public var remaining: Int?
+    public var resetAt: Date?
+
+    public init(remaining: Int? = nil, resetAt: Date? = nil) {
+        self.remaining = remaining
+        self.resetAt = resetAt
+    }
+
+    /// True while no calls are left and the window hasn't reset.
+    public func isExhausted(at now: Date) -> Bool {
+        remaining == 0 && (resetAt.map { $0 > now } ?? false)
+    }
+}
+
+extension MetadataDatabase {
+    public func rateLimit(_ resource: String) -> RateLimitState? {
+        guard let row = try? query("SELECT remaining, reset_at FROM rate_limit WHERE resource = ?", resource).first else { return nil }
+        return RateLimitState(remaining: row.int(0), resetAt: row.date(1))
+    }
+
+    public func setRateLimit(_ resource: String, _ state: RateLimitState, at date: Date) {
+        _ = try? execute("""
+            INSERT INTO rate_limit(resource, remaining, reset_at, updated_at) VALUES (?, ?, ?, ?)
+            ON CONFLICT(resource) DO UPDATE SET remaining = excluded.remaining, reset_at = excluded.reset_at, updated_at = excluded.updated_at
+            WHERE (rate_limit.remaining, rate_limit.reset_at) IS NOT (excluded.remaining, excluded.reset_at)
+            """, resource, state.remaining, state.resetAt, date)
+    }
 }

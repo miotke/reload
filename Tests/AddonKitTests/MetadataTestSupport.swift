@@ -48,6 +48,10 @@ final class RedirectingHTTPClient: HTTPClient, Sendable {
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        try await data(for: request, followRedirects: true)
+    }
+
+    func data(for request: URLRequest, followRedirects: Bool) async throws -> (Data, HTTPURLResponse) {
         state.withLock {
             $0.inFlight += 1
             $0.peakInFlight = max($0.peakInFlight, $0.inFlight)
@@ -65,6 +69,9 @@ final class RedirectingHTTPClient: HTTPClient, Sendable {
             }
             switch route {
             case .redirect(let target):
+                guard followRedirects else {
+                    return (Data(), HTTPURLResponse(url: url, statusCode: 302, httpVersion: nil, headerFields: ["Location": target])!)
+                }
                 url = URL(string: target)!
             case .respond(let status, let headers, let body):
                 let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: headers)!

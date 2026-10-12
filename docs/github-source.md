@@ -36,38 +36,52 @@ It uses the TOC file the game client itself would load:
 
 The same check runs on an add-on folder already on disk, which adopting uses.
 
+## Quota-free resolve (stable channel)
+
+`webResolve(_:flavor:)` resolves the latest stable release without the API when its `release.json` names a build for the flavor. The download URL is built as `github.com/{owner}/{repo}/releases/download/{tag}/{filename}`, so installing or updating BigWigs, DBM and other packager-built add-ons costs no API quota.
+
+- It returns nil, and the caller falls back to the API resolve above, when the latest release has no `release.json` or lacks the flavor (an older release might still have it).
+- Such a release has no real release ID or date: `releaseID` is a negative hash of `owner/repo@tag` and `publishedAt` is the time of the check. `InstalledAddon.isUpdate` compares **tags** whenever either side has a synthetic ID, so a re-resolve never shows a false "update available".
+- The prerelease channel always uses the API: `releases/latest` excludes prereleases.
+
 ## Requests
 
 | What | Where | Counts against API quota |
 |---|---|---|
-| Release list | `api.github.com/repos/{owner}/{repo}/releases?per_page=10` | Yes |
+| Release list | `api.github.com/repos/{owner}/{repo}/releases?per_page=10` | Yes, including a 304 when unauthenticated |
 | `release.json`, zips | each asset's `browser_download_url` | No |
-| Latest stable tag | `HEAD github.com/{owner}/{repo}/releases/latest` (redirects to `…/releases/tag/{tag}`) | No |
-| Latest release's `release.json` | `github.com/{owner}/{repo}/releases/download/{tag}/release.json` | No |
+| Latest stable tag | `HEAD github.com/{owner}/{repo}/releases/latest`, redirect **not followed**; the tag is read from `Location: …/releases/tag/{tag}` | No |
+| A tag's `release.json` or asset | `github.com/{owner}/{repo}/releases/download/{tag}/{file}` | No |
+| README fallback | `api.github.com/repos/{owner}/{repo}/readme` (only with a token) | Yes |
 
-- **Headers:** `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28` and the app's User-Agent. `Authorization: Bearer` is added only when a token is set, and never on asset downloads.
-- **ETags:** the caller's ETag is sent as `If-None-Match`, and a 304 returns `.notModified`. Without a caller ETag, the source still revalidates its own in-memory cache.
+- **Headers:** `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28` and the app's User-Agent. `Authorization: Bearer` is added only when a token is set, and never on github.com or asset requests.
+- **ETags:** the caller's ETag is sent as `If-None-Match`, and a 304 returns `.notModified`. Without a caller ETag, the source still revalidates its own in-memory copy (the last 64 repos).
 - **Errors:**
   - 404 → `notFound`
-  - 403 or 429 with no remaining quota (or a `retry-after` header) → `rateLimited(resetAt:)`
+  - 403 or 429 with no remaining quota, a `retry-after` header, or a "secondary rate limit" message → `rateLimited(resetAt:)`; with neither header it waits at least 60 s
   - any other non-2xx status → `http`
-- **Rate limit:** `rateLimit()` reports the latest `x-ratelimit-remaining` and reset time. Without a token, GitHub allows 60 calls per hour. `quotaIsComfortable()` is true above 30 calls left (or before any call); optional API calls such as the README fallback wait for it.
-- **github.com requests** (the free routes) never send the token. A 429 or 5xx is retried twice with backoff (2 s, 4 s, or the `Retry-After`). A 429 that persists, or asks to wait more than 30 s, pauses every github.com request until it's over.
+- **Rate limit:** `rateLimit()` reports the latest remaining count and reset time. It's stored in the database (`rate_limit`, resource `core`), so the app and CLI share it, and no API request is sent while it says 0 calls are left before the reset. Without a token, GitHub allows 60 calls per hour. `quotaIsComfortable()` is true above 30 calls left (or when nothing is known); optional API calls wait for it.
+- **github.com requests** never send the token. A 429 or 5xx is retried twice with jittered backoff (about 2 s, 4 s, or the `Retry-After`). A 429 that persists or asks to wait more than 30 s, or any 403, pauses every github.com request until it's over (at least 60 s for a 403).
 
 ### Caches
 
 | What | Where |
 |---|---|
-| Decoded `release.json` | in memory and at `<caches>/github/release-json/<asset id>.json` |
-| Inspected zips | `<caches>/downloads/github/<asset id>-<name>` |
+| Decoded `release.json` (API path) | in memory and at `<caches>/github/release-json/<asset id>.json` |
+| `release.json` by tag (github.com path) | in memory; the stored verdict's tag avoids refetching it across launches |
+| Inspected zips | the `Downloader`'s archive path, so the install reuses them and pruning cleans them up |
 
-## Support checks (for search)
+At most 2 candidate zips are inspected per release without a `release.json`, and at most 3 releases.
 
-`support(for:flavor:)` (the `SupportChecking` protocol) costs **no API quota**. It looks only at the latest stable release:
+## Support checks
+
+`check(_:flavor:)` (and `support(for:flavor:)`, the `SupportChecking` protocol) costs **no API quota**. It looks only at the latest stable release:
 
 ```mermaid
 flowchart LR
-    A[HEAD releases/latest] -- 302 to releases/tag/T --> B[GET releases/download/T/release.json]
+    A[HEAD releases/latest] -- 302 to releases/tag/T --> V{Stored verdict<br/>made against T?}
+    V -- yes --> R[reuse it]
+    V -- no --> B[GET releases/download/T/release.json]
     A -- 302 to /releases --> N[.noReleases]
     A -- 404 --> N
     B -- has forever --> S[.supported version: T]
@@ -75,19 +89,18 @@ flowchart LR
     B -- 404 --> D[.needsDownload]
 ```
 
-| Outcome | `SupportStatus` |
-|---|---|
-| Latest release's `release.json` lists Forever | `.supported(version: tag)` |
-| It lists only other flavors | `.unsupported` |
-| No releases, or the repo is gone | `.noReleases` |
-| Latest release has no `release.json` | `.needsDownload` |
-| github.com failed and the API fallback couldn't answer | `.unknown` (never cached) |
+| Outcome | `SupportStatus` | Stored |
+|---|---|---|
+| Latest release's `release.json` lists Forever | `.supported(version: tag)` | 24 h before it's re-checked |
+| It lists only other flavors | `.unsupported` | 24 h |
+| No releases, or the repo is gone | `.noReleases` | 24 h (a negative result) |
+| Latest release has no `release.json` | `.needsDownload` | 24 h |
+| Anything else failed | `.unknown` | 15 min as an `error` row, never shown |
 
-- `latestTag(for:)` is the first step on its own. Answers are reused for 10 minutes, so a refresh's update and support phases share one request per repo.
-- `release.json` is cached on disk per tag (`<caches>/github/release-json/tags/`), so rechecking an unchanged repo is a single `HEAD`.
-- If github.com fails for another reason, the old API path, `apiSupport(for:flavor:)`, is used while quota is comfortable. It also looks past the latest release, and keeps a 10-call reserve.
-
-Results are cached in memory for 6 hours, and persistently by the metadata database (see [search.md](search.md)).
+- An unchanged tag means one `HEAD` and no `release.json` download.
+- `latestTag(for:)` is the first step on its own. Answers are reused for 10 minutes, so a refresh's update and support phases share one request per repo; update checks pass `maxAge: 0`.
+- If github.com fails for a reason other than pushing back (429/403), `apiSupport(for:flavor:)`, the old API path, answers while quota is comfortable. It also looks past the latest release, and keeps a 10-call reserve.
+- `background: true` requests stay off constrained networks.
 
 ## Parsing refs
 

@@ -71,8 +71,11 @@ import Testing
     }
 
     @Test func systemSQLiteHasFTS5() async throws {
+        // Search ranking stays in the in-memory `SearchIndex` (FTS5 can't reproduce its
+        // tiers); this documents that FTS5 is there if that changes.
         let db = try MetadataDatabase.inMemory()
-        try await db.execute("INSERT INTO catalogue_fts(full_name, tokens) VALUES (?, ?)", "a/b", "deadly boss mods")
-        #expect(try await db.query("SELECT full_name FROM catalogue_fts WHERE catalogue_fts MATCH ?", #""bos"*"#).first?.string(0) == "a/b")
+        try await db.executeScript("CREATE VIRTUAL TABLE fts USING fts5(full_name UNINDEXED, tokens)")
+        try await db.execute("INSERT INTO fts(full_name, tokens) VALUES (?, ?)", "a/b", "deadly boss mods")
+        #expect(try await db.query("SELECT full_name FROM fts WHERE fts MATCH ?", #""bos"*"#).first?.string(0) == "a/b")
     }
 }

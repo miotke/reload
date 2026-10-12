@@ -2,65 +2,24 @@ import Foundation
 import Testing
 @testable import AddonKit
 
-/// Scripted `SupportChecking` that records calls and peak concurrency.
-final class MockSupportChecker: SupportChecking, @unchecked Sendable {
-    private let lock = NSLock()
-    private var statuses: [String: SupportStatus]
-    private let fallback: SupportStatus
-    private let delay: Duration
-    private var _calls: [AddonRef] = []
-    private var _current = 0
-    private var _peak = 0
-    private var _cancelled = 0
-
-    init(_ statuses: [String: SupportStatus] = [:], fallback: SupportStatus = .needsDownload, delay: Duration = .milliseconds(5)) {
-        self.statuses = statuses
-        self.fallback = fallback
-        self.delay = delay
-    }
-
-    var calls: [AddonRef] { lock.withLock { _calls } }
-    var peakConcurrency: Int { lock.withLock { _peak } }
-    var cancelledCount: Int { lock.withLock { _cancelled } }
-
-    func support(for ref: AddonRef, flavor: Flavor) async -> SupportStatus {
-        lock.withLock {
-            _calls.append(ref)
-            _current += 1
-            _peak = max(_peak, _current)
-        }
-        let cancelled: Bool
-        do {
-            try await Task.sleep(for: delay)
-            cancelled = false
-        } catch {
-            cancelled = true
-        }
-        return lock.withLock {
-            _current -= 1
-            if cancelled { _cancelled += 1; return .unknown }
-            return statuses[ref.identifier] ?? fallback
-        }
-    }
-}
-
 private struct Harness {
     let http = StubHTTPClient()
-    let checker: MockSupportChecker
+    let database: MetadataDatabase
+    let catalogue: CatalogueSource
     let cache: SupportCache
     let coordinator: SearchCoordinator
 
-    init(checker: MockSupportChecker = MockSupportChecker(), withGitHub: Bool = true) throws {
-        let dir = try makeTempDirectory()
+    init(withGitHub: Bool = true, liveDelay: Duration = .zero) async throws {
         http.stub(CatalogueSource.defaultURL.absoluteString, body: try fixtureData("search/addons.csv"))
-        self.checker = checker
-        cache = SupportCache(directory: dir)
+        database = try MetadataDatabase.inMemory()
+        catalogue = CatalogueSource(http: http, database: database)
+        cache = SupportCache(database: database)
         coordinator = SearchCoordinator(
-            catalogue: CatalogueSource(http: http, cacheDirectory: dir),
-            github: withGitHub ? GitHubSearchProvider(http: http) : nil,
-            support: checker,
+            catalogue: catalogue,
+            github: withGitHub ? GitHubSearchProvider(http: http, database: database) : nil,
             supportCache: cache
         )
+        await coordinator.setLiveSearchDelay(liveDelay)
     }
 
     var githubRequests: [URLRequest] {
@@ -79,15 +38,31 @@ private struct Harness {
         }
         return emissions
     }
+
+    func updates(_ query: SearchQuery) async -> [SearchUpdate] {
+        var out: [SearchUpdate] = []
+        for await update in coordinator.searchUpdates(query, installed: []) { out.append(update) }
+        return out
+    }
 }
 
 private func ids(_ results: [SearchResult]) -> [String] { results.map(\.id.identifier) }
+
+private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: Bool)] = [
+    ("funkydude/BugSack", 120, false, false),
+    ("x/BugSackSkin", 3, false, false),
+    ("x/Old", 3, true, false),
+    ("y/BugSackFork", 1, false, true),
+    ("z/BugSackExtras", 2, false, false),
+    ("w/BugSackLDB", 1, false, false),
+    ("v/BugSackTheme", 1, false, false),
+]
 
 @Suite struct SearchCoordinatorTests {
     let bigWigsRef = AddonRef(source: .github, identifier: "BigWigsMods/BigWigs")
 
     @Test func installedFirstThenCatalogueMergedByRef() async throws {
-        let h = try Harness(withGitHub: false)
+        let h = try await Harness(withGitHub: false)
         let installed: [AddonStatus] = [
             .managed(sampleInstalledAddon("BigWigsMods/BigWigs", name: "BigWigs", folders: ["BigWigs"]), missingFolders: []),
             .managed(sampleInstalledAddon("someone/WigsHelper", name: "WigsHelper", folders: ["WigsHelper"]), missingFolders: []),
@@ -99,11 +74,10 @@ private func ids(_ results: [SearchResult]) -> [String] { results.map(\.id.ident
         #expect(first.first?.installed?.name == "BigWigs")
         #expect(first.first?.summary != nil)
         #expect(Set(ids(first)).count == first.count, "results are deduped")
-        #expect(first.filter { $0.id == bigWigsRef }.count == 1)
     }
 
     @Test func catalogueResultsForInstalledAddonsAreMarked() async throws {
-        let h = try Harness(withGitHub: false)
+        let h = try await Harness(withGitHub: false)
         let installed: [AddonStatus] = [
             .managed(sampleInstalledAddon("funkydude/BugSack", name: "Bug Sack Renamed", folders: ["BugSack"]), missingFolders: []),
         ]
@@ -114,37 +88,36 @@ private func ids(_ results: [SearchResult]) -> [String] { results.map(\.id.ident
         #expect(bugsack.origin.contains(.installed))
     }
 
-    @Test func verifiesTopResultsWithAtMostTwoConcurrentChecks() async throws {
-        let checker = MockSupportChecker(["BigWigsMods/BigWigs": .supported(version: "v400")], delay: .milliseconds(10))
-        let h = try Harness(checker: checker, withGitHub: false)
+    @Test func searchIsLocalOnceTheCatalogueIsStored() async throws {
+        let h = try await Harness()
+        _ = await h.collect(SearchQuery(text: "bigwigs"))
+        #expect(h.http.requests.count == 1, "only the first-ever catalogue download")
         let emissions = await h.collect(SearchQuery(text: "bigwigs"))
-        let first = try #require(emissions.first)
-        #expect(first.count > SearchCoordinator.verificationLimit)
-        #expect(first.prefix(SearchCoordinator.verificationLimit).allSatisfy { $0.support == .checking })
-        #expect(first.dropFirst(SearchCoordinator.verificationLimit).allSatisfy { $0.support == .unknown })
-
-        #expect(checker.calls.count == SearchCoordinator.verificationLimit)
-        #expect(checker.peakConcurrency == 2)
-        // One emission up front plus one per landed check.
-        #expect(emissions.count == 1 + SearchCoordinator.verificationLimit)
-        let last = try #require(emissions.last)
-        #expect(last.first?.support == .supported(version: "v400"))
-        #expect(last.prefix(SearchCoordinator.verificationLimit).allSatisfy { $0.support != .checking })
-
-        // Verdicts are stored.
-        #expect(await h.cache.status(for: bigWigsRef) == .supported(version: "v400"))
+        #expect(emissions.count == 1)
+        #expect(h.http.requests.count == 1)
+        #expect(emissions[0].allSatisfy { $0.support != .checking })
     }
 
-    @Test func cachedStatusesAreAppliedAndNotRechecked() async throws {
-        let h = try Harness(withGitHub: false)
+    @Test func storedVerdictsAreApplied() async throws {
+        let h = try await Harness(withGitHub: false)
         await h.cache.set(.supported(version: "v1"), for: bigWigsRef)
-        let emissions = await h.collect(SearchQuery(text: "bigwigs"))
-        #expect(emissions.first?.first { $0.id == bigWigsRef }?.support == .supported(version: "v1"))
-        #expect(!h.checker.calls.contains(bigWigsRef))
+        let first = try #require(await h.collect(SearchQuery(text: "bigwigs")).first)
+        #expect(first.first { $0.id == bigWigsRef }?.support == .supported(version: "v1"))
     }
 
-    @Test func cachedSupportBreaksTiesInRanking() async throws {
-        let h = try Harness(withGitHub: false)
+    @Test func catalogueRowsWithoutReleaseJSONNeedADownload() async throws {
+        let h = try await Harness(withGitHub: false)
+        let entries = try await h.catalogue.entries()
+        let without = try #require(entries.first { !$0.hasReleaseJSON })
+        let with = try #require(entries.first { $0.hasReleaseJSON })
+        let results = try #require(await h.collect(SearchQuery(text: without.fullName, foreverOnly: false)).first)
+        #expect(results.first { $0.id == without.ref }?.support == .needsDownload)
+        let others = try #require(await h.collect(SearchQuery(text: with.fullName, foreverOnly: false)).first)
+        #expect(others.first { $0.id == with.ref }?.support == .unknown)
+    }
+
+    @Test func storedSupportBreaksTiesInRanking() async throws {
+        let h = try await Harness(withGitHub: false)
         let classic = AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Classic")
         await h.cache.set(.supported(version: "v1"), for: classic)
         let first = try #require(await h.collect(SearchQuery(text: "bigwigs")).first)
@@ -153,26 +126,23 @@ private func ids(_ results: [SearchResult]) -> [String] { results.map(\.id.ident
     }
 
     @Test func foreverOnlyHidesVerifiedUnsupported() async throws {
-        let statuses: [String: SupportStatus] = [
-            "BigWigsMods/BigWigs_Classic": .unsupported,
-            "BigWigsMods/BigWigs_Legion": .noReleases,
-            "BigWigsMods/BigWigs_Voice": .needsDownload,
-        ]
-        let on = try Harness(checker: MockSupportChecker(statuses, fallback: .unknown), withGitHub: false)
-        let shown = try #require(await on.collect(SearchQuery(text: "bigwigs", foreverOnly: true)).last)
+        let h = try await Harness(withGitHub: false)
+        await h.cache.set(.unsupported, for: AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Classic"))
+        await h.cache.set(.noReleases, for: AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Legion"))
+        await h.cache.set(.needsDownload, for: AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Voice"))
+        let shown = try #require(await h.collect(SearchQuery(text: "bigwigs", foreverOnly: true)).last)
         #expect(!ids(shown).contains("BigWigsMods/BigWigs_Classic"))
         #expect(!ids(shown).contains("BigWigsMods/BigWigs_Legion"))
         #expect(ids(shown).contains("BigWigsMods/BigWigs_Voice"))
         #expect(ids(shown).contains("BigWigsMods/BigWigs"))
 
-        let off = try Harness(checker: MockSupportChecker(statuses, fallback: .unknown), withGitHub: false)
-        let all = try #require(await off.collect(SearchQuery(text: "bigwigs", foreverOnly: false)).last)
+        let all = try #require(await h.collect(SearchQuery(text: "bigwigs", foreverOnly: false)).last)
         #expect(ids(all).contains("BigWigsMods/BigWigs_Classic"))
         #expect(all.first { $0.id.identifier == "BigWigsMods/BigWigs_Legion" }?.support == .noReleases)
     }
 
     @Test func foreverOnlyKeepsInstalledEvenIfUnsupported() async throws {
-        let h = try Harness(withGitHub: false)
+        let h = try await Harness(withGitHub: false)
         await h.cache.set(.unsupported, for: bigWigsRef)
         let installed: [AddonStatus] = [
             .managed(sampleInstalledAddon("BigWigsMods/BigWigs", name: "BigWigs", folders: ["BigWigs"]), missingFolders: []),
@@ -182,7 +152,7 @@ private func ids(_ results: [SearchResult]) -> [String] { results.map(\.id.ident
     }
 
     @Test func directReferenceComesFirstAndMergesWithCatalogue() async throws {
-        let h = try Harness()
+        let h = try await Harness()
         let first = try #require(await h.collect(SearchQuery(text: "https://github.com/BigWigsMods/BigWigs")).first)
         let top = try #require(first.first)
         #expect(top.id == bigWigsRef)
@@ -192,44 +162,77 @@ private func ids(_ results: [SearchResult]) -> [String] { results.map(\.id.ident
         #expect(h.githubRequests.isEmpty, "direct references don't trigger live search")
     }
 
-    @Test func unknownDirectReferenceStillProducesAResult() async throws {
-        let h = try Harness(checker: MockSupportChecker(fallback: .supported(version: "1.0")))
+    @Test func unknownDirectReferenceStaysUnknown() async throws {
+        let h = try await Harness()
         let emissions = await h.collect(SearchQuery(text: "someone/BrandNewAddon"))
-        let first = try #require(emissions.first)
-        #expect(ids(first) == ["someone/BrandNewAddon"])
-        #expect(first[0].origin == [.direct])
-        #expect(first[0].owner == "someone")
-        #expect(first[0].support == .checking)
-        #expect(emissions.last?.first?.support == .supported(version: "1.0"))
+        #expect(emissions.count == 1)
+        #expect(ids(emissions[0]) == ["someone/BrandNewAddon"])
+        #expect(emissions[0][0].origin == [.direct])
+        #expect(emissions[0][0].support == .unknown)
+        #expect(h.githubRequests.isEmpty)
     }
 
-    @Test func fewCatalogueMatchesTriggerGitHubLiveSearch() async throws {
-        let h = try Harness()
-        h.stubGitHub("bugsack", body: githubSearchBody([
-            ("funkydude/BugSack", 120, false, false),
-            ("x/BugSackSkin", 3, false, false),
-            ("x/Old", 3, true, false),
-            ("y/BugSackFork", 1, false, true),
-            ("z/BugSackExtras", 2, false, false),
-            ("w/BugSackLDB", 1, false, false),
-            ("v/BugSackTheme", 1, false, false),
-        ]))
+    @Test func fewLocalMatchesAskGitHubOnceAndRemember() async throws {
+        let h = try await Harness()
+        h.stubGitHub("bugsack", body: githubSearchBody(bugsackLive))
         let emissions = await h.collect(SearchQuery(text: "bugsack"))
-        let first = try #require(emissions.first)
-        #expect(ids(first) == ["funkydude/BugSack"])
+        #expect(ids(try #require(emissions.first)) == ["funkydude/BugSack"])
 
         let last = try #require(emissions.last)
         #expect(ids(last) == ["funkydude/BugSack", "x/BugSackSkin", "z/BugSackExtras", "w/BugSackLDB", "v/BugSackTheme"])
-        let bugsack = last[0]
-        #expect(bugsack.origin == [.catalogue, .github])
-        #expect(bugsack.stars == 120)
+        #expect(last[0].origin == [.catalogue, .github])
+        #expect(last[0].stars == 120)
+        #expect(last.dropFirst().allSatisfy { $0.support == .unknown })
+        // The automatic fallback is a single request (no topic fallbacks).
         #expect(h.githubRequests.count == 1)
-        // Live results get verified too.
-        #expect(Set(h.checker.calls.map(\.identifier)) == Set(ids(last)))
+
+        // The live repos are now in the local catalogue: no request the second time.
+        let again = try #require(await h.collect(SearchQuery(text: "BugSack ")).last)
+        #expect(Set(ids(again)).isSuperset(of: ["x/BugSackSkin", "v/BugSackTheme"]))
+        #expect(h.githubRequests.count == 1)
     }
 
-    @Test func manyCatalogueMatchesSkipGitHubUnlessAsked() async throws {
-        let h = try Harness()
+    @Test func emptyLiveAnswersAreRemembered() async throws {
+        let h = try await Harness()
+        h.stubGitHub("zzqx", body: githubSearchBody([String]()))
+        _ = await h.collect(SearchQuery(text: "zzqx"))
+        _ = await h.collect(SearchQuery(text: "ZZQX"))
+        #expect(h.githubRequests.count == 1)
+    }
+
+    @Test func shortQueriesNeverFallBack() async throws {
+        let h = try await Harness()
+        _ = await h.collect(SearchQuery(text: "zq"))
+        #expect(h.githubRequests.isEmpty)
+    }
+
+    @Test func updatesReportTheGitHubFallback() async throws {
+        let h = try await Harness()
+        h.stubGitHub("bugsack", body: githubSearchBody(bugsackLive))
+        let updates = await h.updates(SearchQuery(text: "bugsack"))
+        #expect(updates.map(\.isSearchingGitHub) == [false, true, false])
+        #expect(updates.map(\.isComplete) == [false, false, true])
+        #expect(updates.last?.results.count == 5)
+
+        let local = await h.updates(SearchQuery(text: "bigwigs"))
+        #expect(local.count == 1)
+        #expect(local[0].isComplete && !local[0].isSearchingGitHub)
+    }
+
+    @Test func cancellingDuringTheDelaySkipsGitHub() async throws {
+        let h = try await Harness(liveDelay: .seconds(30))
+        h.stubGitHub("bugsack", body: githubSearchBody(bugsackLive))
+        let coordinator = h.coordinator
+        let consumer = Task {
+            for await _ in coordinator.search(SearchQuery(text: "bugsack"), installed: []) { break }
+        }
+        _ = await consumer.value
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(h.githubRequests.isEmpty)
+    }
+
+    @Test func manyLocalMatchesSkipGitHubUnlessAsked() async throws {
+        let h = try await Harness()
         _ = await h.collect(SearchQuery(text: "bigwigs"))
         #expect(h.githubRequests.isEmpty)
 
@@ -240,49 +243,31 @@ private func ids(_ results: [SearchResult]) -> [String] { results.map(\.id.ident
         #expect(ids(last).contains("a/4"))
     }
 
-    @Test func gitHubRateLimitDoesNotFailTheStream() async throws {
-        let h = try Harness()
-        h.stubGitHub("bugsack", status: 403, headers: ["X-RateLimit-Remaining": "0"], body: Data())
+    @Test func rateLimitIsQuietSharedAndRespected() async throws {
+        let h = try await Harness()
+        h.stubGitHub("bugsack", status: 403, headers: ["X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "\(Int(Date().timeIntervalSince1970) + 600)"], body: Data())
         let emissions = await h.collect(SearchQuery(text: "bugsack"))
         #expect(ids(try #require(emissions.last)) == ["funkydude/BugSack"])
         #expect(h.githubRequests.count == 1)
-    }
+        #expect(await h.database.rateLimit("search")?.remaining == 0)
 
-    @Test func cancellingTheConsumerCancelsChecks() async throws {
-        let checker = MockSupportChecker(delay: .seconds(30))
-        let h = try Harness(checker: checker, withGitHub: false)
-        let coordinator = h.coordinator
-        let consumer = Task {
-            for await _ in coordinator.search(SearchQuery(text: "bigwigs"), installed: []) {}
-        }
-        var deadline = ContinuousClock.now + .seconds(5)
-        while checker.calls.count < 2, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        consumer.cancel()
-
-        deadline = ContinuousClock.now + .seconds(5)
-        while checker.cancelledCount < 2, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        #expect(checker.cancelledCount == 2)
-        #expect(checker.calls.count == 2)
-        #expect(await h.cache.statuses().isEmpty)
+        // Until the reset, other queries don't even try.
+        _ = await h.collect(SearchQuery(text: "qqzzqq"))
+        #expect(h.githubRequests.count == 1)
     }
 
     @Test func emptyQueryEmitsNothing() async throws {
-        let h = try Harness()
+        let h = try await Harness()
         let emissions = await h.collect(SearchQuery(text: "   "))
         #expect(emissions == [[]])
         #expect(h.http.requests.isEmpty)
     }
 
     @Test func catalogueFailureStillSearchesInstalled() async throws {
-        let dir = try makeTempDirectory()
-        let http = StubHTTPClient()   // catalogue 404s
+        let database = try MetadataDatabase.inMemory()
         let coordinator = SearchCoordinator(
-            catalogue: CatalogueSource(http: http, cacheDirectory: dir), github: nil,
-            support: MockSupportChecker(), supportCache: SupportCache(directory: dir)
+            catalogue: CatalogueSource(http: StubHTTPClient(), database: database), github: nil,
+            supportCache: SupportCache(database: database)
         )
         let installed: [AddonStatus] = [
             .managed(sampleInstalledAddon("BigWigsMods/BigWigs", name: "BigWigs", folders: ["BigWigs"]), missingFolders: []),
@@ -293,7 +278,8 @@ private func ids(_ results: [SearchResult]) -> [String] { results.map(\.id.ident
     }
 
     @Test func browse() async throws {
-        let h = try Harness()
+        let h = try await Harness()
+        _ = try await h.catalogue.entries()
         await h.cache.set(.supported(version: "1"), for: bigWigsRef)
         await h.cache.set(.supported(version: "2"), for: AddonRef(source: .github, identifier: "funkydude/BugSack"))
         await h.cache.set(.unsupported, for: AddonRef(source: .github, identifier: "Cidan/BetterBags"))
@@ -308,12 +294,13 @@ private func ids(_ results: [SearchResult]) -> [String] { results.map(\.id.ident
         let dates = browse.recent.compactMap(\.lastUpdated)
         #expect(dates == dates.sorted(by: >))
         #expect(!ids(browse.recent).contains("Cidan/BetterBags"))
+        #expect(h.githubRequests.isEmpty)
 
         #expect(browse.categories.map(\.title) == ["Boss mods", "Bags", "UI", "Quests", "Maps", "Auction", "Combat"])
     }
 
     @Test func browseSortsPopularByStarsOnceKnown() async throws {
-        let h = try Harness()
+        let h = try await Harness()
         h.stubGitHub("zzqx", body: githubSearchBody([("BigWigsMods/BigWigs", 900, false, false), ("funkydude/BugSack", 50, false, false)]))
         _ = await h.collect(SearchQuery(text: "zzqx"))
         await h.cache.set(.supported(version: "1"), for: bigWigsRef)

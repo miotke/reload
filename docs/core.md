@@ -19,7 +19,9 @@ flowchart TB
     Search --> Cat[CatalogueSource]
     Search --> GHS[GitHubSearchProvider]
     Search --> SC[SupportCache]
-    Search -. support checks .-> GH
+    Cat --> DB[(metadata.sqlite)]
+    SC --> DB
+    GH --> DB
 ```
 
 | Component | Doc |
@@ -53,7 +55,7 @@ Sources/AddonKit/
 |---|---|
 | Installations | `installations()`, `detectInstallations()`, `addInstallation(at:)`, `removeInstallation(_:)` |
 | Add-ons | `addons(in:)` (managed + unmanaged, reconciled with disk), `installedAddons(in:)`, `lookup(_:in:)` |
-| Search | `search(_:in:)` → `AsyncStream<[SearchResult]>`, `browse(in:)` |
+| Search | `search(_:in:)` and `search(_:in:installed:)` → `AsyncStream<[SearchResult]>`, `searchUpdates(_:in:installed:)` → `AsyncStream<SearchUpdate>`, `browse(in:)`, `catalogueEntry(for:)` |
 | Install | `resolve(_:for:channel:)`, `install(_:into:channel:force:progress:)`, `adopt(folder:as:in:)` |
 | Updates | `checkForUpdates(in:)`, `update(_:in:)` → `AsyncStream<OperationEvent>` |
 | Changes | `uninstall`, `rollback`, `setPinned`, `setChannel` |
@@ -73,7 +75,9 @@ Sources/AddonKit/
 - **`lookup` order:** a GitHub ref or URL first, then an installed add-on's name, repo or folder, then an exact catalogue name. More than one result means the input was ambiguous.
 - **GitHub token:**
   - It comes from `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (service `com.andrewmiotke.ForeverAddons`, account `github-token`).
-  - Call `tokenDidChange()` after changing the Keychain item.
+  - It's read on the first GitHub call, not when `AddonManager` is created, so app launch never waits on a Keychain prompt.
+  - Call `tokenDidChange()` after changing the Keychain item. It swaps the token in place; ETags, cached `release.json` files and the rate-limit state are kept.
+- **One URL session** for the core: 20 s request timeout, no waiting for connectivity, no HTTP cache (ETags are explicit), User-Agent `ForeverAddons/<version> (+https://github.com/miotke/swift-addons)`. Background work (refresh) sets `allowsConstrainedNetworkAccess = false` per request, so it stays off Low Data Mode networks.
 
 ## Flavors
 

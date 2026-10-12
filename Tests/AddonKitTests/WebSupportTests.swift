@@ -53,7 +53,9 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
         let source = await source(http)
         #expect(try await source.latestTag(for: ref) == "release/1.0")
         #expect(try await source.latestTag(for: AddonRef(source: .github, identifier: "O/R")) == "release/1.0")
-        #expect(http.requests.count == 2) // one redirect hop
+        // One HEAD, and the redirect isn't followed (that would download the release page).
+        #expect(http.urls == ["https://github.com/o/r/releases/latest"])
+        #expect(http.requests.first?.httpMethod == "HEAD")
     }
 
     @Test func tagParsing() {
@@ -64,14 +66,52 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
             == "https://github.com/o/r/releases/download/a%2Fb%20c/release.json")
     }
 
-    @Test func releaseJSONIsCachedOnDiskByTag() async throws {
-        let dir = try makeTempDirectory()
+    @Test func unchangedTagReusesTheStoredVerdict() async throws {
+        let database = try MetadataDatabase.inMemory()
         let http = RedirectingHTTPClient()
         http.publishLatest("o/r", tag: "v1")
-        #expect(await source(http, cache: dir).support(for: ref, flavor: .forever) == .supported(version: "v1"))
+        let first = GitHubSource(http: http, database: database)
+        let check = await first.check(ref, flavor: .forever)
+        #expect(check == SupportCheck(status: .supported(version: "v1"), tag: "v1"))
+        await SupportCache(database: database).set(check.status, for: ref, tag: check.tag)
+
+        // A new process: the tag is unchanged, so release.json isn't fetched again.
         http.reset()
-        #expect(await source(http, cache: dir).support(for: ref, flavor: .forever) == .supported(version: "v1"))
-        #expect(http.urls == ["https://github.com/o/r/releases/latest", "https://github.com/o/r/releases/tag/v1"])
+        #expect(await GitHubSource(http: http, database: database).support(for: ref, flavor: .forever) == .supported(version: "v1"))
+        #expect(http.urls == ["https://github.com/o/r/releases/latest"])
+
+        // A new tag means a new release.json.
+        http.publishLatest("o/r", tag: "v2", flavors: ["mainline"])
+        http.reset()
+        #expect(await GitHubSource(http: http, database: database).support(for: ref, flavor: .forever) == .unsupported)
+        #expect(http.urls.contains { $0.hasSuffix("/v2/release.json") })
+    }
+
+    @Test func webResolveBuildsTheAssetURLWithoutTheAPI() async throws {
+        let http = RedirectingHTTPClient()
+        http.publishLatest("o/r", tag: "v3")
+        let release = try #require(try await source(http).webResolve(ref, flavor: .forever))
+        #expect(release.version == "v3")
+        #expect(release.assetName == "Addon-v3.zip")
+        #expect(release.downloadURL.absoluteString == "https://github.com/o/r/releases/download/v3/Addon-v3.zip")
+        #expect(release.releaseID < 0)
+        #expect(release.releaseID == GitHubSource.syntheticReleaseID(ref: ref, tag: "v3"))
+        #expect(http.apiRequests.isEmpty)
+
+        // Without the flavor (or without release.json) only the API can decide.
+        http.publishLatest("o/r", tag: "v4", flavors: ["mainline"])
+        #expect(try await source(http).webResolve(ref, flavor: .forever) == nil)
+    }
+
+    @Test func tagComparisonForQuotaFreeReleases() {
+        let installed = sampleInstalledAddon("o/r", name: "R", folders: ["R"])   // v1, id 1
+        var release = ResolvedRelease(
+            ref: ref, name: "R", version: "v1", releaseID: GitHubSource.syntheticReleaseID(ref: ref, tag: "v1"),
+            publishedAt: .now, downloadURL: URL(string: "https://x")!, assetName: "R.zip"
+        )
+        #expect(!installed.isUpdate(release), "same tag, newer fake date: not an update")
+        release.version = "v2"
+        #expect(installed.isUpdate(release))
     }
 
     @Test func retriesServerErrorsThenSucceeds() async throws {
