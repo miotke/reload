@@ -29,6 +29,7 @@ extension AddonManager {
             notes = try? await releaseNotes(for: ref, in: installation)
         }
         let storedPublishedAt = await supportCache.latestPublishedAt(for: ref)
+        let publishedAt = notes?.publishedAt ?? storedPublishedAt
 
         return AddonDetails(
             ref: ref,
@@ -37,11 +38,12 @@ extension AddonManager {
             summary: entry?.description,
             repositoryURL: URL(string: "https://github.com/\(owner)/\(repo)")!,
             stars: stars,
-            lastUpdated: entry?.lastUpdated,
+            // The latest release, like the browse tables; the catalogue's date is a weekly snapshot.
+            lastUpdated: publishedAt ?? entry?.lastUpdated,
             readme: stored?.readme,
             screenshots: stored?.screenshots ?? [],
             latestVersion: latest.tag ?? stored?.latestVersion,
-            latestPublishedAt: notes?.publishedAt ?? storedPublishedAt,
+            latestPublishedAt: publishedAt,
             latestChangelog: notes?.markdown,
             support: latest.status,
             availableFlavors: latest.availableFlavors,

@@ -95,6 +95,17 @@ import Testing
         return h
     }
 
+    @Test func updatedIsTheLatestReleaseNotTheCatalogueSnapshot() async throws {
+        let h = try await ManagerHarness()
+        h.http.stub(CatalogueSource.defaultURL.absoluteString, text: catalogueCSV([("A/Alpha", "Alpha", "2026-09-01T00:00:00Z", true)]))
+        _ = try await h.manager.catalogue.refresh(force: true)
+        h.http.publishLatest("A/Alpha", tag: "v2", uploadedAt: "Fri, 09 Oct 2026 14:21:37 GMT")
+        let details = try await h.manager.details(for: ref, in: h.installation)
+        let expected = try Date("2026-10-09T14:21:37Z", strategy: .iso8601)
+        #expect(details.lastUpdated == expected)
+        #expect(details.latestPublishedAt == expected)
+    }
+
     @Test func gathersCatalogueReadmeScreenshotsAndSupport() async throws {
         let h = try await makeHarness()
         let details = try await h.manager.details(for: ref, in: h.installation)

@@ -145,7 +145,8 @@ struct AddonDetailView: View {
             if let stars {
                 row("Stars") { Text(stars.formatted()).monospacedDigit() }
             }
-            if let updated {
+            // The Latest row already shows the release date.
+            if let updated, loaded?.latestPublishedAt == nil {
                 row("Updated") { Text(DayLabel.string(for: updated)) }
             }
             if let license = loaded?.license {

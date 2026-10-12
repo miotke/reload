@@ -27,7 +27,8 @@ Opening an add-on is one of the times the core goes to the network.
 
 | Field | Source |
 |---|---|
-| name, owner, summary, last updated | the `catalogue` row (also for repos found by live search), else the installed record or repo name |
+| name, owner, summary | the `catalogue` row (also for repos found by live search), else the installed record or repo name |
+| last updated | the latest release's date (`repo_meta.latest_published_at`); the catalogue's date only when that's unknown. The inspector hides the row when the Latest row already shows the date |
 | stars | `repo_meta`, from live search results |
 | support, latest version | `latestRelease`: `.revalidateIfStale` when the details are stale, the stored verdict otherwise (quota-free) |
 | README | raw.githubusercontent.com, see [README](#readme) |
