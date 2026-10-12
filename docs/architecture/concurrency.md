@@ -41,6 +41,8 @@ The main actor only updates UI. Everything else runs elsewhere:
 | Image decoding | `ScreenshotLoader`, ImageIO off the main actor |
 | Privileged CLI install | `osascript` subprocess off the main thread ([cli-install.md](../app/cli-install.md)) |
 
+In the app, views below a scene root get `AppModel` as a property, never from `@Environment`; AppKit-hosted cells and menus can lose the environment during row rebuilds ([decision 0015](../decisions/0015-environment-only-at-scene-roots.md)).
+
 Progress streams use `AsyncStream` with `bufferingNewest` and tick at most 10–20 times a second. More in [performance/guidelines.md](../performance/guidelines.md).
 
 ## Cancellation

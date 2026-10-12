@@ -35,6 +35,8 @@ One launch, one search and one category click add up to 56 of the 60 calls allow
 | Refresh every 2 hours | about 5 + N (N = installed and changed repos) | 0 |
 | First launch | about 1,000 (~25 s at concurrency 4) | 0 |
 | Prerelease channel | release list | 1 per add-on |
+| Update / Update All in the app | the zips only | 0 (installs the releases the last check found) |
+| CLI `update`, nothing new | one quota-free check per add-on | 0 for add-ons with `release.json` |
 
 Re-measure and replace this table with real numbers on the next network audit. How: [decision 0009](../decisions/0009-local-first-search.md), [decision 0010](../decisions/0010-quota-free-endpoints.md), [decision 0011](../decisions/0011-single-cache-owner.md).
 

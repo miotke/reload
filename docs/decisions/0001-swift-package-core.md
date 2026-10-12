@@ -34,7 +34,7 @@ If each front end had its own logic, they would drift: different release choices
 - `swift test` covers the core and the CLI without Xcode.
 - The app and the CLI stay equal; new features land in `AddonKit` first.
 - The store must be safe across processes, which led to `flock` locking ([0004](0004-transactional-installer.md)).
-- The app must notice CLI changes, so it watches the store folder ([app/layout.md](../app/layout.md#live-updates-from-addonctl)).
+- The app must notice CLI changes, so it watches the store folder ([app/layout.md](../app/live-data.md#live-updates-from-addonctl-installs)).
 - Every dependency of `AddonManager` is injectable, so tests never touch real folders or the network.
 
 ## See also

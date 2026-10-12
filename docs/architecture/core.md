@@ -90,7 +90,7 @@ Sources/AddonKit/
 - **Update checks are mostly quota-free.** For the stable channel, the latest tag comes from github.com: an unchanged tag is up to date, and a new tag whose `release.json` has the flavor is the update, both without an API call. Only when neither decides, or for the prerelease channel, does the API resolve run (with the stored ETag). See [release-selection.md](../features/release-selection.md#quota-free-resolve-stable-channel).
 - **Updating:**
   - `update([])` updates every add-on. Each one is checked as above first, and only installed if an update is available. Pinned and up-to-date add-ons come back as `.skipped`.
-  - `update(releases:in:)` installs releases the caller already resolved (the app's `.available(release)` states) without resolving again.
+  - `update(releases:in:)` (on `AddonManaging`) installs releases the caller already resolved (the app's `.available(release)` states) without resolving again. An empty list does nothing.
   - Up to 4 add-ons are updated at once.
   - One failure doesn't stop the others.
 - **`lookup` order:** a GitHub ref or URL first, then an installed add-on's name, repo or folder, then an exact catalogue name. More than one result means the input was ambiguous.

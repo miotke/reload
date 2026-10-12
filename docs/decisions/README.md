@@ -23,6 +23,7 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0012](0012-inspector-and-tables.md) | Inspector inside the detail column; sortable `Table`s | Accepted | 2026-10-11 |
 | [0013](0013-screenshot-loading.md) | Screenshot loading: disk cache, thumbnail decode, full size in the viewer | Accepted | 2026-10-11 |
 | [0014](0014-docs-layout.md) | Docs as small topic files, an index and decision records | Accepted | 2026-10-11 |
+| [0015](0015-environment-only-at-scene-roots.md) | Read `AppModel` from the environment only at scene roots | Accepted | 2026-10-11 |
 
 ## By area
 
@@ -31,7 +32,7 @@ Each record explains one decision: its context, what was decided, the alternativ
 | Architecture | 0001, 0004, 0005, 0008 |
 | Sources and Forever support | 0002, 0003 |
 | Network | 0009, 0010, 0011 |
-| App | 0006, 0007, 0012, 0013 |
+| App | 0006, 0007, 0012, 0013, 0015 |
 | Docs | 0014 |
 
 ## Writing a new record

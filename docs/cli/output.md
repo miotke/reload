@@ -44,11 +44,20 @@ $ addonctl update
 |---|---|
 | `ReleaseJSON` | all `ResolvedRelease` fields including `reasoning` |
 | `SupportJSON` | `{"status": "supported", "version": …}` |
-| `UpdateStateJSON` | `{"state": "available", "release": …}` |
+| `UpdateStateJSON` | `{"state": "available", "version": …, "release": …}`; `release` may be missing (only `version` known), and `state` can be `unknown` |
 | `SearchResultJSON` | a search result |
 | `AddonStatusJSON` | `{"kind": "managed"\|"unmanaged", …}` |
 
 - Batch commands report `installed` / `updated` / `removed` plus `failed: [{ref, code, message}]`.
+
+Per-command documents:
+
+| Command | Top-level fields |
+|---|---|
+| `search` | `query`, `searchedGitHub`, `results` |
+| `info` | the add-on plus `support`, `latestVersion`, `latestPublishedAt`, `readmePath`, `screenshots` (a count), `detailsFetchedAt`, `detailsError`, `lastUpdated`, `changelog`, `updateState`; `latest` (a `ReleaseJSON`) only for prereleases |
+| `refresh` | `installation`, `skipped`, `lastRefresh`, `updates[]` |
+| `cache info` | cache sizes plus `metadataDatabase` |
 - `export` prints the [`addons.json`](config.md#addonsjson) itself.
 
 ## Errors

@@ -87,4 +87,15 @@ Known quirk: "bag" ranks the Bagnon plugins above BetterBags, because a name sta
 - **Recently updated:** catalogue entries with the newest update dates.
 - **Categories:** Boss mods, Bags, UI, Quests, Maps, Auction and Combat. Each is a saved keyword query from `SearchAliases.categories`; clicking one runs that search.
 
-Results that are already installed are marked. How the app shows these lists: [app/layout.md](../app/layout.md#browse-table).
+Results that are already installed are marked.
+
+## In the app
+
+- Browse calls `searchUpdates(_:in:installed:)` and shows each `SearchUpdate` as it arrives.
+- "Searching GitHub…" shows only while the update says `isSearchingGitHub`; "No results" only after the update with `isComplete`.
+- **Forever only** filters search results as well as the home lists.
+- Badges fill in live during a refresh ([app/live-data.md](../app/live-data.md)). Table layout: [app/layout.md](../app/layout.md#browse-table).
+
+## In the CLI
+
+`addonctl search` uses the same layers and stored verdicts and prints a note on stderr when it asks GitHub ([cli/commands.md](../cli/commands.md#search)).

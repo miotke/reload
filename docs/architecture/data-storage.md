@@ -29,7 +29,7 @@ Nothing is ever written into the game folder except the add-on folders themselve
   - Every write takes an exclusive `flock` on `installations/.lock`, re-reads the file inside the lock, and writes atomically.
   - `withLock` and `modify` hold the lock across a whole read-modify-write. The lock is reentrant within one store.
   - Reads skip the lock, because writes are atomic renames.
-- `storeDirectory` is public so the app can watch it and reload when the CLI changes something ([app/layout.md](../app/layout.md#live-updates-from-addonctl)).
+- `storeDirectory` is public so the app can watch it and reload when the CLI changes something ([app/layout.md](../app/live-data.md#live-updates-from-addonctl-installs)).
 - **`reconcile`** compares the records with disk. Managed add-ons with missing folders come back as `.managed(addon, missingFolders:)`. Folders nobody owns (excluding `Blizzard_*` and hidden files) come back as `.unmanaged(folder:toc:suggestedRef:)`, with the repo from the TOC's `X-Website` suggested when it points at GitHub.
 
 ## Metadata database
