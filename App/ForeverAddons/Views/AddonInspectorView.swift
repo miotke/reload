@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The trailing pane: details for whatever is selected in the current tab.
 struct InspectorPane: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
     var state: InstallationModel
 
     var body: some View {
@@ -13,17 +13,17 @@ struct InspectorPane: View {
             case .installed:
                 switch state.status(id: model.selectedAddonID) {
                 case .managed(let addon, let missing):
-                    AddonInspector(state: state, ref: addon.id, missingFolders: missing)
+                    AddonDetailView(state: state, ref: addon.id, missingFolders: missing)
                         .id(addon.id)
                 case .unmanaged(let folder, let toc, let suggested):
-                    UnmanagedInspector(state: state, folder: folder, toc: toc, suggestedRef: suggested)
+                    UnmanagedInspector(model: model, state: state, folder: folder, toc: toc, suggestedRef: suggested)
                         .id(folder)
                 case nil:
                     noSelection("Select an add-on to see its details.")
                 }
             case .browse:
                 if let id = model.selectedBrowseID, let ref = AddonRef(rowID: id) {
-                    AddonInspector(state: state, ref: ref, missingFolders: [])
+                    AddonDetailView(state: state, ref: ref, missingFolders: [])
                         .id(ref)
                 } else {
                     noSelection("Select an add-on to see its details, screenshots and read-me.")
@@ -40,10 +40,14 @@ struct InspectorPane: View {
 
 /// Details for one add-on, installed or not: what Browse showed, the core's `AddonDetails`
 /// (stats, links, screenshots, read-me) and, when installed, the install's own state and actions.
-private struct AddonInspector: View {
+/// Shown in the inspector and, full size, in an add-on's own window.
+struct AddonDetailView: View {
+    enum Style { case inspector, window }
+
     var state: InstallationModel
     var ref: AddonRef
     var missingFolders: [String]
+    var style: Style = .inspector
 
     private var id: String { ref.description }
     private var installed: InstalledAddon? { state.addon(for: ref) }
@@ -63,7 +67,12 @@ private struct AddonInspector: View {
                     // The core already drops badges, SVGs and tiny icons.
                     let screenshots = Array(loaded.screenshots.prefix(ScreenshotLoader.maxImagesPerAddon))
                     if !screenshots.isEmpty {
-                        section("Screenshots") { ScreenshotGallery(urls: screenshots) }
+                        section("Screenshots") {
+                            switch style {
+                            case .inspector: ScreenshotGallery(urls: screenshots)
+                            case .window: ScreenshotGallery(urls: screenshots, thumbnail: CGSize(width: 320, height: 200))
+                            }
+                        }
                     }
                 }
                 if let installed {
@@ -77,28 +86,30 @@ private struct AddonInspector: View {
                 }
                 readme
             }
-            .padding()
+            .padding(.all, style == .window ? 24 : nil)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         // Debounced so arrow-keying through a table doesn't fetch every row; changing the
         // selection cancels this task and with it the load.
         .task(id: ref) {
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else { return }
+            if style == .inspector {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+            }
             await state.loadDetails(for: ref)
         }
     }
 
     // MARK: Header & actions
 
-    private var name: String { installed?.name ?? result?.name ?? loaded?.name ?? ref.identifier }
+    var name: String { installed?.name ?? result?.name ?? loaded?.name ?? ref.identifier }
     private var owner: String? { result?.owner ?? loaded?.owner }
     private var summary: String? { result?.summary ?? loaded?.summary }
     private var support: SupportStatus? { loaded?.support ?? result?.support }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(name).font(.title2.weight(.semibold)).textSelection(.enabled)
+            Text(name).font((style == .window ? Font.largeTitle : .title2).weight(.semibold)).textSelection(.enabled)
             HStack(spacing: 8) {
                 if let owner { Text("by \(owner)").foregroundStyle(.secondary) }
                 if let support { SupportBadge(status: support) }
@@ -330,7 +341,7 @@ private struct InspectorActions: View {
 }
 
 private struct UnmanagedInspector: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
     var state: InstallationModel
     var folder: String
     var toc: Toc?

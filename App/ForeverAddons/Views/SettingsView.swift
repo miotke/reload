@@ -50,7 +50,7 @@ struct SettingsView: View {
                 Toggle("Show update count in the menu bar", isOn: $showMenuBarExtra)
             }
 
-            CommandLineToolSection()
+            CommandLineToolSection(model: model)
         }
         .formStyle(.grouped)
         .frame(width: 480)

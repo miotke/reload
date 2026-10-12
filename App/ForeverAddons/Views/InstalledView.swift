@@ -5,7 +5,8 @@ import SwiftUI
 /// Managed add-ons with update status, plus unmanaged folders that can be adopted (docs/design.md §8).
 /// A sortable table; managed and unmanaged rows are sorted within their own sections.
 struct InstalledView: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
+    @Environment(\.openWindow) private var openWindow
     var state: InstallationModel
 
     @AppStorage("installedSort") private var sortStorage = ColumnSort(InstalledColumn.name).storageValue
@@ -63,7 +64,7 @@ struct InstalledView: View {
             .customizationID("installed")
 
             TableColumn("") { row in
-                InstalledActionCell(state: state, row: row, rowState: state.row(row.id))
+                InstalledActionCell(model: model, state: state, row: row, rowState: state.row(row.id))
             }
             .width(min: 84, ideal: 100, max: 160)
             .customizationID("action")
@@ -82,10 +83,14 @@ struct InstalledView: View {
         }
         .contextMenu(forSelectionType: AddonStatus.ID.self) { ids in
             if let id = ids.first, let status = state.status(id: id) {
-                InstalledContextMenu(state: state, status: status)
+                InstalledContextMenu(model: model, state: state, status: status, openWindow: openWindow)
             }
         } primaryAction: { ids in
-            if let id = ids.first {
+            // Double-click or Return. Unmanaged folders have no details to open.
+            guard let id = ids.first else { return }
+            if let ref = AddonRef(rowID: id), state.addon(for: ref) != nil {
+                openWindow(id: AddonWindowID.sceneID, value: AddonWindowID(ref: ref, installationID: state.installation.id))
+            } else {
                 model.selectedAddonID = id
                 model.showInspector = true
             }
@@ -182,7 +187,7 @@ private struct StatusCell: View {
 }
 
 private struct InstalledActionCell: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
     var state: InstallationModel
     var row: InstalledRow
     var rowState: RowState
@@ -206,15 +211,19 @@ private struct InstalledActionCell: View {
                     .help("Start managing this folder from its GitHub repository")
             }
         }
+        // Table cells otherwise draw buttons borderless, which reads as plain text.
+        .buttonStyle(.bordered)
         .controlSize(.small)
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
 
+/// Hosted in an AppKit menu, so it takes everything as properties rather than from the environment.
 private struct InstalledContextMenu: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
     var state: InstallationModel
     var status: AddonStatus
+    var openWindow: OpenWindowAction
 
     var body: some View {
         if case .managed(let addon, _) = status {
@@ -238,6 +247,11 @@ private struct InstalledContextMenu: View {
         Button("Show Details") {
             model.selectedAddonID = status.id
             model.showInspector = true
+        }
+        if case .managed(let addon, _) = status {
+            Button("Open in New Window") {
+                openWindow(id: AddonWindowID.sceneID, value: AddonWindowID(ref: addon.id, installationID: state.installation.id))
+            }
         }
     }
 }

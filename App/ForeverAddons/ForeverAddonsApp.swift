@@ -49,6 +49,12 @@ struct ForeverAddonsApp: App {
             }
         }
 
+        WindowGroup("Add-on", id: AddonWindowID.sceneID, for: AddonWindowID.self) { $id in
+            AddonWindow(model: model, id: id)
+                .environment(model)
+        }
+        .defaultSize(width: 900, height: 800)
+
         Settings {
             SettingsView()
                 .environment(model)

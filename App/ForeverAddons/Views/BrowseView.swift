@@ -20,7 +20,7 @@ enum BrowseHome: String, CaseIterable, Identifiable {
 /// the filter bar); with a query, or a category chip, it lists search results. Without a
 /// chosen sort, rows keep the core's order: relevance for searches, stars or date for home.
 struct BrowseView: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
     var state: InstallationModel
 
     @AppStorage("browseForeverOnly") private var foreverOnly = true
@@ -56,7 +56,7 @@ struct BrowseView: View {
         VStack(spacing: 0) {
             filterBar
             Divider()
-            BrowseTable(state: state, selection: $model.selectedBrowseID, sortOrder: sortOrder, columns: $columns)
+            BrowseTable(model: model, state: state, selection: $model.selectedBrowseID, sortOrder: sortOrder, columns: $columns)
                 .overlay { emptyState }
             Divider()
             statusBar
@@ -170,7 +170,8 @@ struct BrowseView: View {
 }
 
 private struct BrowseTable: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
+    @Environment(\.openWindow) private var openWindow
     var state: InstallationModel
     @Binding var selection: BrowseRow.ID?
     @Binding var sortOrder: [ColumnSort<BrowseColumn>]
@@ -209,7 +210,7 @@ private struct BrowseTable: View {
             .customizationID("updated")
 
             TableColumn("") { row in
-                BrowseActionCell(state: state, row: row, rowState: state.row(row.id))
+                BrowseActionCell(model: model, state: state, row: row, rowState: state.row(row.id))
             }
             .width(min: 96, ideal: 110, max: 160)
             .customizationID("action")
@@ -221,16 +222,21 @@ private struct BrowseTable: View {
                     selection = id
                     model.showInspector = true
                 }
+                Button("Open in New Window") { openWindow(id: AddonWindowID.sceneID, value: windowID(ref)) }
                 if let url = ref.webURL {
                     Link("Open on \(ref.sourceName)", destination: url)
                 }
             }
         } primaryAction: { ids in
-            if let id = ids.first {
-                selection = id
-                model.showInspector = true
+            // Double-click or Return.
+            if let id = ids.first, let ref = AddonRef(rowID: id) {
+                openWindow(id: AddonWindowID.sceneID, value: windowID(ref))
             }
         }
+    }
+
+    private func windowID(_ ref: AddonRef) -> AddonWindowID {
+        AddonWindowID(ref: ref, installationID: state.installation.id)
     }
 }
 
@@ -258,7 +264,7 @@ private struct BrowseNameCell: View {
 }
 
 private struct BrowseActionCell: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
     @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
     var state: InstallationModel
     var row: BrowseRow
@@ -285,6 +291,8 @@ private struct BrowseActionCell: View {
                 }
             }
         }
+        // Table cells otherwise draw buttons borderless, which reads as plain text.
+        .buttonStyle(.bordered)
         .controlSize(.small)
         .frame(maxWidth: .infinity, alignment: .trailing)
     }

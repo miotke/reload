@@ -3,7 +3,7 @@ import SwiftUI
 /// One-time offer, shown after the main window first appears, to link `addonctl` into
 /// `/usr/local/bin`.
 struct CommandLineToolOfferSheet: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
     @Environment(\.dismiss) private var dismiss
 
     private var tool: CommandLineToolModel { model.commandLineTool }
@@ -67,7 +67,7 @@ struct CommandLineToolOfferSheet: View {
 
 /// Settings section: status of the `addonctl` link with Install / Repair / Uninstall.
 struct CommandLineToolSection: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
 
     private var tool: CommandLineToolModel { model.commandLineTool }
 

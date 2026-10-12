@@ -3,6 +3,8 @@ import SwiftUI
 /// Horizontal strip of README screenshots. Click one to open the viewer.
 struct ScreenshotGallery: View {
     var urls: [URL]
+    /// Thumbnail frame; decoded at twice its width for Retina.
+    var thumbnail = CGSize(width: 150, height: 96)
 
     @State private var viewing: Viewing?
 
@@ -20,8 +22,8 @@ struct ScreenshotGallery: View {
                     Button {
                         viewing = Viewing(index: index)
                     } label: {
-                        ScreenshotImage(url: url, maxPixelSize: 320)
-                            .frame(width: 150, height: 96)
+                        ScreenshotImage(url: url, maxPixelSize: Int(thumbnail.width * 2))
+                            .frame(width: thumbnail.width, height: thumbnail.height)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                             .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
                     }
@@ -32,7 +34,7 @@ struct ScreenshotGallery: View {
             .padding(.vertical, 2)
         }
         .scrollIndicators(.automatic)
-        .frame(height: 104)
+        .frame(height: thumbnail.height + 8)
         .sheet(item: $viewing) { viewing in
             ScreenshotViewer(urls: urls, index: viewing.index)
         }
