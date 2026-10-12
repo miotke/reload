@@ -85,10 +85,22 @@ flowchart LR
 | No releases, or the repo is gone | `.noReleases` |
 | Anything else failed | `.unknown` (stored as an `error` row, never shown) |
 
+- Alongside the verdict, `LatestRelease` and `SupportCheck` carry `availableFlavors`: every flavor the release's `release.json` names, nil without one. It's stored per repo in `repo_meta` (`available_flavors`, `flavors_tag`, `flavors_source`) in the verdict's transaction; another flavor's check reuses it, and a stored `release.json` without it is derived locally. For a release with no `release.json`, an installed or adopted zip's TOCs fill it in (source `inspection`, which never replaces a `release.json` answer). `SupportStatus` stays as is for install logic.
+
 - `GitHubSource` is the **only owner** of verdicts and latest tags; callers pass a `CachePolicy` and never judge freshness themselves ([decision 0011](../decisions/0011-single-cache-owner.md)). How long each outcome is reused: [caching.md](../network/caching.md#lifetimes).
 - Concurrent lookups for the same repo and flavor share one request.
 - If github.com fails for a reason other than pushing back (429/403), `apiSupport(for:flavor:)`, the API path, answers while quota is comfortable. It also looks past the latest release, and keeps a 10-call reserve.
 - `background: true` requests stay off constrained (Low Data Mode) networks.
+
+## Retail build on Forever
+
+Forever loads the `_Mainline` family TOC, so a Retail build often works there ([flavors.md](../architecture/flavors.md#game-families)). It's offered, never chosen silently:
+
+- `resolve(_:for:channel:allowFamilyFallback:)` and `install(…, allowFamilyFallback:)`: when the installation's flavor has no build and `allowFamilyFallback` is true, the `Flavor.fallbackFlavor` build (`mainline` on Forever) is resolved the usual way, quota-free first. `ResolvedRelease.flavorBuild` marks it and its reasoning says so. Without the flag, or with no fallback build either, it's `noCompatibleRelease`.
+- The install records `InstalledAddon.installedFlavorBuild = .mainline` (and keeps it in rollback snapshots).
+- **Update checks keep to that build.** They first ask whether the latest release now has a build for the installation's own flavor; if so, that's the update ("Forever build available"), even for the same tag, and installing it clears `installedFlavorBuild`. Otherwise they check the Retail build as usual. `isUpdate` treats a change of build as an update.
+- An add-on installed as its own build never switches: if a release drops Forever, the check says `noCompatibleRelease` or stays on the last Forever release.
+- App: **Install Retail Build…** with a confirmation; CLI: `addonctl install --retail-build`.
 
 ## Parsing refs
 

@@ -45,6 +45,44 @@ public enum ZipInspector {
         (try? inspect(addonFolder: addonFolder, flavor: flavor).isSupported) ?? false
     }
 
+    // MARK: - Available flavors
+
+    /// Every flavor a zip ships a TOC for (docs/architecture/flavors.md#game-families).
+    public static func availableFlavors(zipAt zipURL: URL) throws -> Set<Flavor> {
+        try availableFlavors(ZipListing(url: zipURL))
+    }
+
+    /// Every flavor installed add-on folders ship a TOC for. Unreadable folders are skipped.
+    public static func availableFlavors(addonFolders: [URL]) -> Set<Flavor> {
+        addonFolders.reduce(into: []) { found, folder in
+            if let listing = try? FolderListing(folder: folder) { found.formUnion(availableFlavors(listing)) }
+        }
+    }
+
+    /// From the TOCs present: a flavor's own suffix names it (`_Mainline` → Retail, `_Camelot`
+    /// → Forever, `_Mists` → Mists); a TOC's interfaces add the flavors that may load it
+    /// (`_Mainline` with 16001 → Forever too). A base TOC counts by its interfaces alone, and a
+    /// `_Classic` TOC whose interfaces name no classic game counts as Classic Era.
+    static func availableFlavors(_ listing: some FileListing) -> Set<Flavor> {
+        var found: Set<Flavor> = []
+        for entry in addonFolders(in: listing.paths).values.flatMap({ $0 }) {
+            let suffix = entry.file.suffix
+            let interfaces = (try? Toc(parsing: listing.read(entry.path)).interfaces) ?? []
+            for flavor in Flavor.allCases where entry.file.isSpecific(to: flavor) { found.insert(flavor) }
+            var fromInterfaces: Set<Flavor> = []
+            for flavor in interfaces.compactMap(Flavor.from(interface:)) {
+                let loads = suffix == nil || entry.file.isSpecific(to: flavor) || entry.file.isShared(for: flavor)
+                if loads { fromInterfaces.insert(flavor) }
+            }
+            found.formUnion(fromInterfaces)
+            if let suffix, suffix.caseInsensitiveCompare("Classic") == .orderedSame,
+               !fromInterfaces.contains(where: { $0.family == .classic }) {
+                found.insert(.vanilla)
+            }
+        }
+        return found
+    }
+
     // MARK: - Shared logic
 
     static func inspect(_ listing: some FileListing, flavor: Flavor) throws -> FlavorSupport {

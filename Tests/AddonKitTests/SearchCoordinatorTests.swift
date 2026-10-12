@@ -110,9 +110,9 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
         let entries = try await h.catalogue.entries()
         let without = try #require(entries.first { !$0.hasReleaseJSON })
         let with = try #require(entries.first { $0.hasReleaseJSON })
-        let results = try #require(await h.collect(SearchQuery(text: without.fullName, flavor: .forever, compatibleOnly: false)).first)
+        let results = try #require(await h.collect(SearchQuery(text: without.fullName, flavor: .forever, hideIncompatible: false)).first)
         #expect(results.first { $0.id == without.ref }?.support == .needsDownload)
-        let others = try #require(await h.collect(SearchQuery(text: with.fullName, flavor: .forever, compatibleOnly: false)).first)
+        let others = try #require(await h.collect(SearchQuery(text: with.fullName, flavor: .forever, hideIncompatible: false)).first)
         #expect(others.first { $0.id == with.ref }?.support == .unknown)
     }
 
@@ -125,28 +125,51 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
         #expect(Array(ids(first).prefix(2)) == ["BigWigsMods/BigWigs", "BigWigsMods/BigWigs_Classic"])
     }
 
-    @Test func compatibleOnlyHidesVerifiedUnsupported() async throws {
-        let h = try await Harness(withGitHub: false)
-        await h.cache.set(.unsupported, for: AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Classic"), flavor: .forever)
+    /// BigWigs_Classic ships classic builds only, BigWigs a Retail build only.
+    private func storeFamilies(_ h: Harness) async {
+        let now = Date()
+        await h.cache.set([SupportRecord(ref: AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Classic"), status: .unsupported,
+                                         tag: "v1", checkedAt: now, availableFlavors: [.vanilla, .mists])], flavor: .forever)
+        await h.cache.set([SupportRecord(ref: bigWigsRef, status: .unsupported, tag: "v1", checkedAt: now, availableFlavors: [.mainline])], flavor: .forever)
         await h.cache.set(.noReleases, for: AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Legion"), flavor: .forever)
         await h.cache.set(.needsDownload, for: AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Voice"), flavor: .forever)
-        let shown = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever, compatibleOnly: true)).last)
-        #expect(!ids(shown).contains("BigWigsMods/BigWigs_Classic"))
-        #expect(!ids(shown).contains("BigWigsMods/BigWigs_Legion"))
-        #expect(ids(shown).contains("BigWigsMods/BigWigs_Voice"))
-        #expect(ids(shown).contains("BigWigsMods/BigWigs"))
-
-        let all = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever, compatibleOnly: false)).last)
-        #expect(ids(all).contains("BigWigsMods/BigWigs_Classic"))
-        #expect(all.first { $0.id.identifier == "BigWigsMods/BigWigs_Legion" }?.support == .noReleases)
     }
 
-    @Test func compatibleOnlyKeepsInstalledEvenIfUnsupported() async throws {
+    @Test func hideIncompatibleOnForeverHidesClassicOnly() async throws {
+        let h = try await Harness(withGitHub: false)
+        await storeFamilies(h)
+        let shown = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever, hideIncompatible: true)).last)
+        #expect(!ids(shown).contains("BigWigsMods/BigWigs_Classic"))
+        #expect(!ids(shown).contains("BigWigsMods/BigWigs_Legion"))
+        #expect(ids(shown).contains("BigWigsMods/BigWigs_Voice"), "unknown families stay")
+        #expect(ids(shown).contains("BigWigsMods/BigWigs"), "a Retail-only build may work on Forever")
+        #expect(shown.first { $0.id == bigWigsRef }?.families == [.retail])
+
+        let all = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever, hideIncompatible: false)).last)
+        #expect(all.first { $0.id.identifier == "BigWigsMods/BigWigs_Classic" }?.families == [.classic])
+        #expect(all.first { $0.id.identifier == "BigWigsMods/BigWigs_Legion" }?.support == .noReleases)
+        #expect(all.first { $0.id.identifier == "BigWigsMods/BigWigs_Voice" }?.availableFlavors == nil)
+    }
+
+    @Test func hideIncompatibleFollowsTheInstallationsFamily() async throws {
+        let h = try await Harness(withGitHub: false)
+        await storeFamilies(h)
+        let retail = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .mainline)).last)
+        #expect(!ids(retail).contains("BigWigsMods/BigWigs_Classic"))
+        #expect(ids(retail).contains("BigWigsMods/BigWigs"))
+        let mists = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .mists)).last)
+        #expect(ids(mists).contains("BigWigsMods/BigWigs_Classic"))
+        #expect(!ids(mists).contains("BigWigsMods/BigWigs"))
+        #expect(ids(mists).contains("BigWigsMods/BigWigs_Voice"))
+    }
+
+    @Test func hideIncompatibleKeepsInstalledEvenIfUnsupported() async throws {
         let h = try await Harness(withGitHub: false)
         await h.cache.set(.unsupported, for: bigWigsRef, flavor: .forever)
         let installed: [AddonStatus] = [
             .managed(sampleInstalledAddon("BigWigsMods/BigWigs", name: "BigWigs", folders: ["BigWigs"]), missingFolders: []),
         ]
+        await h.cache.setAvailableFlavors([.vanilla], tag: "v1", source: .releaseJSON, for: bigWigsRef)
         let first = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever), installed: installed).first)
         #expect(first.first?.id == bigWigsRef)
     }
@@ -299,7 +322,9 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
         _ = try await h.catalogue.entries()
         await h.cache.set(.supported(version: "1"), for: bigWigsRef, flavor: .forever)
         await h.cache.set(.supported(version: "2"), for: AddonRef(source: .github, identifier: "funkydude/BugSack"), flavor: .forever)
-        await h.cache.set(.unsupported, for: AddonRef(source: .github, identifier: "Cidan/BetterBags"), flavor: .forever)
+        // Classic-only, so hidden on Forever; an unsupported verdict alone no longer hides a row.
+        await h.cache.set([SupportRecord(ref: AddonRef(source: .github, identifier: "Cidan/BetterBags"), status: .unsupported,
+                                         tag: "v1", checkedAt: Date(), availableFlavors: [.vanilla])], flavor: .forever)
         let browse = await h.coordinator.browse(flavor: .forever)
 
         #expect(Set(ids(browse.popular)) == ["BigWigsMods/BigWigs", "funkydude/BugSack"])

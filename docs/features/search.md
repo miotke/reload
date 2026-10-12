@@ -40,11 +40,24 @@ sequenceDiagram
     end
 ```
 
-- **No support checks during search.** Results carry the stored verdict. Catalogue rows without a `release.json` show `.needsDownload`, since nothing cheaper could tell. Everything else is `.unknown` until it's opened, installed or refreshed. `.checking` is never emitted.
+- **No support checks during search.** Results carry the stored verdict and `availableFlavors` (every flavor the latest release ships, nil = not checked; `families` is derived), both read in one query each. Catalogue rows without a `release.json` show `.needsDownload`, since nothing cheaper could tell. Everything else is `.unknown` until it's opened, installed, refreshed, or scrolled into view in Browse ([visible-row checks](refresh.md#visible-row-checks)). `.checking` is never emitted.
 - `search(_:installed:)` returns plain result arrays; `searchUpdates(_:installed:)` returns `SearchUpdate { results, isSearchingGitHub, isComplete }`. `AddonManager` has both, plus `search(_:in:installed:)` so the caller's add-on list is used instead of rescanning `AddOns/` per keystroke.
 - Results are deduplicated by ref, and their `origin` sets are merged.
 - Cancelling the consumer cancels any work still running.
-- **`SearchQuery.compatibleOnly`** (on by default; it was `foreverOnly`) hides `.unsupported` and `.noReleases` results for the installation's flavor. Installed add-ons and direct refs always stay. `SearchQuery.init` has no default flavor; callers pass the installation's.
+- **`SearchQuery.hideIncompatible`** (on by default; it was `compatibleOnly`, and `foreverOnly` before that) applies the rule below. Installed add-ons and direct refs always stay. `SearchQuery.init` has no default flavor; callers pass the installation's.
+
+### Hide incompatible
+
+`Flavor.hidesAsIncompatible(families:support:)`, by the installation's family ([decision 0019](../decisions/0019-available-games-and-visible-row-checks.md)):
+
+| Installation | Hidden |
+|---|---|
+| Forever | families exactly {Classic} (classic-only), or no recognised builds. Retail-only results **stay**: they often load on Forever |
+| Retail | results without a Retail build |
+| Any classic | results without a Classic build |
+| Any | repos with no releases (`.noReleases`) |
+
+Unknown families (nil: no `release.json`, never checked) are always kept. A verdict of `.unsupported` alone no longer hides a row: on Forever that's often a Retail-only add-on.
 
 ## GitHub fallback
 
@@ -78,12 +91,13 @@ Known quirk: "bag" ranks the Bagnon plugins above BetterBags, because a name sta
 - **Stale while revalidating:** an old copy is returned at once and refreshed in the background.
 - **Offline:** a failed download isn't retried for 15 minutes. The failure time is stored, so the app and CLI share the backoff.
 - **Import:** all rows are upserted in one transaction. `ON CONFLICT … DO UPDATE … WHERE (columns) IS NOT (new values)` leaves unchanged rows alone, so `refresh()` returns a `CatalogueDiff` of the repos that actually changed. Rows that left the file are deleted; rows found by live search are kept.
-- The catalogue's `flavors` column under-reports Forever and other flavors, so it isn't trusted; verdicts come from [support checks](release-selection.md#support-checks).
+- The catalogue's `flavors` column under-reports Forever and other flavors (AutoPotion's omits Forever, though its `release.json` lists it), so it isn't trusted; verdicts and available flavors come from [support checks](release-selection.md#support-checks).
 
 ## Browse (empty query)
 
 `AddonManager.browse(in:)` is local only:
 - **Popular:** add-ons with a stored "supported" verdict, sorted by stars when known.
+- Both lists carry `availableFlavors`. **Recently updated** always drops what the hide-incompatible rule hides; the app filters both lists again by its toggle.
 - **Recently updated:** catalogue entries with the newest update dates.
 - **Categories:** Boss mods, Bags, UI, Quests, Maps, Auction and Combat. Each is a saved keyword query from `SearchAliases.categories`; clicking one runs that search.
 
@@ -93,7 +107,7 @@ Results that are already installed are marked.
 
 - Browse calls `searchUpdates(_:in:installed:)` and shows each `SearchUpdate` as it arrives.
 - "Searching GitHub…" shows only while the update says `isSearchingGitHub`; "No results" only after the update with `isComplete`.
-- The **"<flavor> only"** toggle (e.g. "Forever only", "Mists Classic only") sets `compatibleOnly` and filters search results as well as the home lists. It keeps the `@AppStorage("browseForeverOnly")` key so users keep their setting.
+- The **Hide Classic-only** toggle ("Hide add-ons without a Retail build" on Retail, "…without a Classic build" on the classics) sets `hideIncompatible` and filters search results as well as the home lists. On by default; it keeps the `@AppStorage("browseForeverOnly")` key so users keep their setting.
 - Badges fill in live during a refresh ([app/live-data.md](../app/live-data.md)). Table layout: [app/layout.md](../app/layout.md#browse-table).
 
 ## In the CLI

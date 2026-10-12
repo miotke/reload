@@ -3,8 +3,9 @@ import Foundation
 /// Runs every search layer and merges them into one result list (docs/features/search.md).
 ///
 /// Search reads the local database; if it finds nothing, it asks GitHub once and remembers
-/// the answer. It never checks Forever support itself: results carry the stored verdict, or
-/// `.unknown` until the add-on is opened, installed or refreshed.
+/// the answer. It never checks support itself: results carry the stored verdict and the
+/// flavors the latest release ships, or `.unknown` / nil until the add-on is opened,
+/// installed, refreshed or scrolled into view in Browse (`AddonManager.checkVisible`).
 public actor SearchCoordinator {
     /// Catalogue matches kept per search.
     public static let catalogueLimit = 200
@@ -75,8 +76,9 @@ public actor SearchCoordinator {
             continuation.yield(SearchUpdate(results: [], isComplete: true))
             return
         }
-        var session = Session(compatibleOnly: query.compatibleOnly)
+        var session = Session(flavor: query.flavor, hideIncompatible: query.hideIncompatible)
         let statuses = await keyed(supportCache.statuses(flavor: query.flavor))
+        let flavors = await supportCache.allAvailableFlavors()
         let stars = await supportCache.stars()
 
         var installedByKey: [String: InstalledAddon] = [:]
@@ -109,7 +111,7 @@ public actor SearchCoordinator {
         }
 
         session.attach(installed: installedByKey)
-        session.apply(statuses)
+        session.apply(statuses, flavors: flavors)
         guard !Task.isCancelled else { return }
 
         // 4. GitHub live search, when asked or when the database can't answer.
@@ -136,7 +138,7 @@ public actor SearchCoordinator {
         guard !Task.isCancelled else { return }
         for result in live { session.merge(result) }
         session.attach(installed: installedByKey)
-        session.apply(statuses)
+        session.apply(statuses, flavors: flavors)
         continuation.yield(SearchUpdate(results: session.visible, isComplete: true))
     }
 
@@ -218,6 +220,7 @@ public actor SearchCoordinator {
         let statuses = await supportCache.statuses(flavor: flavor)
         let keyedStatuses = keyed(statuses)
         let stars = await supportCache.stars()
+        let flavors = await supportCache.allAvailableFlavors()
         let index = await localIndex()
 
         var popular: [SearchResult] = []
@@ -233,6 +236,7 @@ public actor SearchCoordinator {
                 )
             }
             result.support = status
+            result.availableFlavors = flavors[ref.identifier.lowercased()]
             popular.append(result)
         }
         popular.sort { a, b in
@@ -247,7 +251,8 @@ public actor SearchCoordinator {
         for entry in index?.recentlyUpdated(limit: 60) ?? [] {
             var result = Self.result(for: entry, origin: .catalogue, stars: stars)
             if let status = keyedStatuses[Session.key(entry.ref)] { result.support = status }
-            if result.support.isVerifiedUnsupported { continue }
+            result.availableFlavors = flavors[entry.fullName.lowercased()]
+            if flavor.hidesAsIncompatible(families: result.families, support: result.support) { continue }
             recent.append(result)
             if recent.count == 20 { break }
         }
@@ -298,12 +303,14 @@ public actor SearchCoordinator {
 // MARK: - Per-search state
 
 private struct Session {
-    var compatibleOnly: Bool
+    var flavor: Flavor
+    var hideIncompatible: Bool
     private(set) var results: [SearchResult] = []
     private var positions: [String: Int] = [:]
 
-    init(compatibleOnly: Bool) {
-        self.compatibleOnly = compatibleOnly
+    init(flavor: Flavor, hideIncompatible: Bool) {
+        self.flavor = flavor
+        self.hideIncompatible = hideIncompatible
     }
 
     var count: Int { results.count }
@@ -329,6 +336,7 @@ private struct Session {
         existing.lastUpdated = existing.lastUpdated ?? new.lastUpdated
         existing.installed = existing.installed ?? new.installed
         if existing.support == .unknown { existing.support = new.support }
+        existing.availableFlavors = existing.availableFlavors ?? new.availableFlavors
         results[i] = existing
     }
 
@@ -341,15 +349,17 @@ private struct Session {
         }
     }
 
-    /// Stored verdicts win over the catalogue's release.json hint.
-    mutating func apply(_ statuses: [String: SupportStatus]) {
+    /// Stored verdicts win over the catalogue's release.json hint. `flavors` is keyed by
+    /// lower-cased `owner/repo`.
+    mutating func apply(_ statuses: [String: SupportStatus], flavors: [String: Set<Flavor>]) {
         for i in results.indices {
             if let status = statuses[Self.key(results[i].id)] { results[i].support = status }
+            if let available = flavors[results[i].id.identifier.lowercased()] { results[i].availableFlavors = available }
         }
     }
 
     private func isVisible(_ result: SearchResult) -> Bool {
-        guard compatibleOnly, result.support.isVerifiedUnsupported else { return true }
+        guard hideIncompatible, flavor.hidesAsIncompatible(families: result.families, support: result.support) else { return true }
         // Installed add-ons and explicit references are always shown.
         return result.installed != nil || result.origin.contains(.installed) || result.origin.contains(.direct)
     }

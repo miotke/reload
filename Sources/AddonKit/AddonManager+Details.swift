@@ -46,6 +46,7 @@ extension AddonManager {
             latestPublishedAt: notes?.publishedAt ?? storedPublishedAt,
             latestChangelog: notes?.markdown,
             support: latest.status,
+            availableFlavors: latest.availableFlavors,
             fetchedAt: stored?.fetchedAt ?? now()
         )
     }

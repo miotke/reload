@@ -52,6 +52,16 @@ flowchart LR
 - 4 checks at a time, jittered retries, and a global pause on 429/403 ([github-endpoints.md](../network/github-endpoints.md#errors)).
 - Requests stay off Low Data Mode networks (`allowsConstrainedNetworkAccess = false`).
 
+## Visible-row checks
+
+`AddonManager.checkVisible(_:in:)` fills in the Browse rows the user is looking at, so a search for something outside the seed (AutoPotion, say) doesn't stay "—". The app calls it about a second after scrolling stops ([app/layout.md](../app/layout.md#browse-table)).
+
+- **Quota-free only.** Each ref is a background `latestRelease(policy: .revalidateIfStale)`: `HEAD releases/latest` on github.com, plus the tag's `release.json` when it isn't stored. Background checks never fall back to the API.
+- Only refs without a fresh stored answer for the flavor (the same lifetimes as the refresh); a latest tag another flavor stored within the hour needs no request at all.
+- At most **20 refs per call** (the rest wait for the next), **4 at a time**; refs already in flight from an earlier call are dropped, and duplicates count once.
+- Skipped entirely while github.com is pausing requests (429/403 backoff) and on Low Data Mode (`NWPathMonitor` says the path is constrained). A pause mid-call stops the rest; so does cancelling the caller (a new query).
+- Answers go through the normal store, so `database.changes()` reports them and the rows patch live. Cost per call: at most 20 HEADs plus one `release.json` per new tag ([budget.md](../network/budget.md)).
+
 ## Progress
 
 - Coalesced to about 10 Hz: counts and a short message ("Checked BigWigs"), never result lists.

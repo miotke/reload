@@ -28,12 +28,24 @@ public protocol AddonManaging: Sendable {
 
     func resolve(_ ref: AddonRef, for installation: Installation, channel: Channel) async throws -> ResolvedRelease
 
-    /// `progress` reports download progress in `0...1`.
+    /// `progress` reports download progress in `0...1`. With `allowFamilyFallback`, an add-on
+    /// with no build for the installation's flavor installs its fallback family's build
+    /// (`Flavor.fallbackFlavor`: the Retail build on Forever), recorded in
+    /// `installedFlavorBuild`. Without it, that's `noCompatibleRelease`.
     @discardableResult
     func install(
-        _ ref: AddonRef, into installation: Installation, channel: Channel, force: Bool,
+        _ ref: AddonRef, into installation: Installation, channel: Channel, force: Bool, allowFamilyFallback: Bool,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> InstalledAddon
+
+    /// Checks the support and available flavors of rows the user is looking at, quota-free
+    /// (github.com `releases/latest` plus the tag's release.json, never the API): only refs
+    /// without a fresh stored answer, at most 20 per call and 4 at a time, none already in
+    /// flight. Skipped while github.com is pausing requests and on Low Data Mode. Answers are
+    /// written through the store, so `MetadataDatabase.changes()` reports them. Returns the
+    /// refs it checked. Has a default that checks nothing.
+    @discardableResult
+    func checkVisible(_ refs: [AddonRef], in installation: Installation) async -> [AddonRef]
 
     func checkForUpdates(in installation: Installation) async throws -> [AddonRef: UpdateState]
     func update(_ refs: [AddonRef], in installation: Installation) -> AsyncStream<OperationEvent>
@@ -105,6 +117,18 @@ extension AddonManaging {
 
     @discardableResult
     public func install(_ ref: AddonRef, into installation: Installation, channel: Channel = .stable, force: Bool = false) async throws -> InstalledAddon {
-        try await install(ref, into: installation, channel: channel, force: force, progress: { _ in })
+        try await install(ref, into: installation, channel: channel, force: force, allowFamilyFallback: false, progress: { _ in })
     }
+
+    /// Installs the installation's own build only.
+    @discardableResult
+    public func install(
+        _ ref: AddonRef, into installation: Installation, channel: Channel, force: Bool,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> InstalledAddon {
+        try await install(ref, into: installation, channel: channel, force: force, allowFamilyFallback: false, progress: progress)
+    }
+
+    @discardableResult
+    public func checkVisible(_ refs: [AddonRef], in installation: Installation) async -> [AddonRef] { [] }
 }

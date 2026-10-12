@@ -7,13 +7,32 @@ public struct SupportRecord: Sendable, Hashable {
     /// Latest release tag the verdict was based on, when known.
     public var tag: String?
     public var checkedAt: Date
+    /// Every flavor `tag`'s release.json names, when it was read for this verdict. Stored per
+    /// repo in the same transaction; nil leaves what's stored alone.
+    public var availableFlavors: Set<Flavor>?
 
-    public init(ref: AddonRef, status: SupportStatus, tag: String? = nil, checkedAt: Date) {
+    public init(ref: AddonRef, status: SupportStatus, tag: String? = nil, checkedAt: Date, availableFlavors: Set<Flavor>? = nil) {
         self.ref = ref
         self.status = status
         self.tag = tag
         self.checkedAt = checkedAt
+        self.availableFlavors = availableFlavors
     }
+}
+
+/// Every flavor a repo's latest release ships, as stored in `repo_meta` (decision 0019).
+public struct StoredFlavors: Sendable, Hashable {
+    public enum Source: String, Sendable {
+        /// The release's release.json: authoritative for `tag`.
+        case releaseJSON = "release_json"
+        /// The TOCs of a zip that was installed or adopted, for repos without a release.json.
+        case inspection
+    }
+
+    public var flavors: Set<Flavor>
+    /// The release these flavors describe.
+    public var tag: String?
+    public var source: Source
 }
 
 /// Per-repo knowledge kept in the metadata database: Forever-support verdicts (`support`
@@ -129,9 +148,13 @@ public actor SupportCache {
         var verdicts: [[SQLValue]] = []
         var tags: [[SQLValue]] = []
         var failures: [[SQLValue]] = []
+        var flavorRows: [[SQLValue]] = []
         var changed: Set<String> = []
         for record in records {
             let name = SQLValue.text(record.ref.identifier)
+            if let available = record.availableFlavors {
+                flavorRows.append([name, .text(available.storageValue), record.tag.sqlValue, .text(StoredFlavors.Source.releaseJSON.rawValue)])
+            }
             if case .unknown = record.status {
                 failures.append([name, flavorName, record.checkedAt.sqlValue,
                                  record.checkedAt.addingTimeInterval(Self.errorTTL).sqlValue])
@@ -147,7 +170,7 @@ public actor SupportCache {
             }
         }
         guard !verdicts.isEmpty || !failures.isEmpty else { return }
-        let (verdictRows, tagRows, failureRows) = (verdicts, tags, failures)
+        let (verdictRows, tagRows, failureRows, availableRows) = (verdicts, tags, failures, flavorRows)
         _ = try? await database.transaction { db in
             if !verdictRows.isEmpty {
                 let upsert = try db.prepare("""
@@ -176,6 +199,10 @@ public actor SupportCache {
                     """)
                 for row in failureRows { try db.step(upsert, row) }
             }
+            if !availableRows.isEmpty {
+                let upsert = try db.prepare(Self.upsertFlavorsSQL)
+                for row in availableRows { try db.step(upsert, row) }
+            }
         }
         // A failure changes nothing anyone shows.
         guard !changed.isEmpty else { return }
@@ -190,6 +217,57 @@ public actor SupportCache {
             try db.execute("DELETE FROM release_json")
         }
         await database.notify(["support", "repo_meta", "details"])
+    }
+
+    // MARK: - Available flavors
+
+    /// Writes nothing when unchanged, and an inspection never replaces what a release.json said.
+    static let upsertFlavorsSQL = """
+        INSERT INTO repo_meta(full_name, available_flavors, flavors_tag, flavors_source) VALUES (?, ?, ?, ?)
+        ON CONFLICT(full_name) DO UPDATE SET available_flavors = excluded.available_flavors,
+            flavors_tag = excluded.flavors_tag, flavors_source = excluded.flavors_source
+        WHERE (repo_meta.available_flavors, repo_meta.flavors_tag, repo_meta.flavors_source)
+                IS NOT (excluded.available_flavors, excluded.flavors_tag, excluded.flavors_source)
+            AND (excluded.flavors_source = 'release_json' OR repo_meta.flavors_source IS NOT 'release_json')
+        """
+
+    /// What `ref`'s latest release ships, as stored; nil when nobody has looked.
+    public func storedFlavors(for ref: AddonRef) async -> StoredFlavors? {
+        guard let row = try? await database.query(
+            "SELECT available_flavors, flavors_tag, flavors_source FROM repo_meta WHERE full_name = ?", ref.identifier).first,
+            let text = row.string(0), let source = row.string(2).flatMap(StoredFlavors.Source.init(rawValue:)) else { return nil }
+        return StoredFlavors(flavors: Set(storageValue: text), tag: row.string(1), source: source)
+    }
+
+    public func availableFlavors(for ref: AddonRef) async -> Set<Flavor>? {
+        await storedFlavors(for: ref)?.flavors
+    }
+
+    /// Every stored answer, keyed by lower-cased `owner/repo`: one query per search.
+    public func allAvailableFlavors() async -> [String: Set<Flavor>] {
+        let rows = (try? await database.query(
+            "SELECT full_name, available_flavors FROM repo_meta WHERE available_flavors IS NOT NULL")) ?? []
+        var out: [String: Set<Flavor>] = [:]
+        for row in rows {
+            if let name = row.string(0), let text = row.string(1) { out[name.lowercased()] = Set(storageValue: text) }
+        }
+        return out
+    }
+
+    /// Records what `tag` ships. `nil` from a release.json source means that release has none:
+    /// flavors an older release.json gave are cleared, an inspection's are kept.
+    public func setAvailableFlavors(_ flavors: Set<Flavor>?, tag: String?, source: StoredFlavors.Source, for ref: AddonRef) async {
+        let changed: Int
+        if let flavors {
+            changed = (try? await database.execute(Self.upsertFlavorsSQL, ref.identifier, flavors.storageValue, tag, source.rawValue)) ?? 0
+        } else {
+            guard source == .releaseJSON else { return }
+            changed = (try? await database.execute("""
+                UPDATE repo_meta SET available_flavors = NULL, flavors_tag = NULL, flavors_source = NULL
+                WHERE full_name = ? AND flavors_source = 'release_json'
+                """, ref.identifier)) ?? 0
+        }
+        if changed > 0 { await database.notify(["repo_meta"], repos: [ref.identifier]) }
     }
 
     // MARK: - Repo metadata

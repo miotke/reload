@@ -50,7 +50,16 @@ Rows the 0017 changes affect. **Measured** rows come from the offline request-co
 | A github.com failure in a background check | could spend an API call and overwrote the verdict | 0 API calls; verdict kept, retried after 15 min | measured |
 | Live search with a stored answer | 500 ms wait first | answered at once, no "searching GitHub" state | measured |
 
-How: [decision 0009](../decisions/0009-local-first-search.md), [0010](../decisions/0010-quota-free-endpoints.md), [0011](../decisions/0011-single-cache-owner.md), [0017](../decisions/0017-details-without-quota-release-json-by-tag.md).
+### Visible-row checks ([decision 0019](../decisions/0019-available-games-and-visible-row-checks.md))
+
+| Flow | Cost | |
+|---|---|---|
+| Scroll Browse, rows without a fresh answer | ≤ 0/0/20 per pause: one HEAD each, plus `release.json` only for tags not stored. 4 at a time | measured (`VisibleCheckTests`) |
+| The same rows again within their lifetime | 0/0/0 | measured |
+| Rows already in flight, Low Data Mode, github.com pausing | 0/0/0 | measured |
+| A search for 20 repos outside the seed, scrolled once | 0/0/20–40, never an API call | expected |
+
+How: [decision 0009](../decisions/0009-local-first-search.md), [0010](../decisions/0010-quota-free-endpoints.md), [0011](../decisions/0011-single-cache-owner.md), [0017](../decisions/0017-details-without-quota-release-json-by-tag.md), [0019](../decisions/0019-available-games-and-visible-row-checks.md).
 
 ## Useful facts
 

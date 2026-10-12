@@ -5,6 +5,11 @@ public struct SupportCheck: Sendable, Hashable {
     public var status: SupportStatus
     /// The latest stable tag seen, when the repo has releases.
     public var tag: String?
+    /// Every flavor the latest release ships a build for; nil when not known (no release.json
+    /// and no inspected zip, no releases, or never checked).
+    public var availableFlavors: Set<Flavor>?
+
+    public var families: Set<GameFamily>? { availableFlavors?.families }
 }
 
 /// Resolves add-ons published as GitHub Releases (docs/features/release-selection.md).
@@ -273,6 +278,8 @@ public actor GitHubSource: Source, SupportChecking {
         public var build: ReleaseJSON.Release?
         /// The last check failed: `tag` and `status` are the last good answer, if any.
         public var failed = false
+        /// Every flavor the release ships, from its release.json or an inspected zip; nil when unknown.
+        public var availableFlavors: Set<Flavor>?
     }
 
     /// Whether `ref` supports `flavor`, by its latest stable release (docs/features/release-selection.md).
@@ -280,7 +287,7 @@ public actor GitHubSource: Source, SupportChecking {
     /// latest tags itself, so callers never judge freshness.
     public func check(_ ref: AddonRef, flavor: Flavor, policy: CachePolicy = .revalidateIfStale, background: Bool = false) async -> SupportCheck {
         let latest = await latestRelease(for: ref, flavor: flavor, policy: policy, background: background)
-        return SupportCheck(status: latest.status, tag: latest.tag)
+        return SupportCheck(status: latest.status, tag: latest.tag, availableFlavors: latest.availableFlavors)
     }
 
     public func support(for ref: AddonRef, flavor: Flavor) async -> SupportStatus {
@@ -303,6 +310,13 @@ public actor GitHubSource: Source, SupportChecking {
     /// release.json if it isn't stored.
     func latestRelease(
         for ref: AddonRef, flavor: Flavor, policy: CachePolicy, needBuild: Bool = false, background: Bool = false
+    ) async -> LatestRelease {
+        let answer = await latestVerdict(for: ref, flavor: flavor, policy: policy, needBuild: needBuild, background: background)
+        return await withFlavors(answer, ref: ref)
+    }
+
+    private func latestVerdict(
+        for ref: AddonRef, flavor: Flavor, policy: CachePolicy, needBuild: Bool, background: Bool
     ) async -> LatestRelease {
         guard ref.source == .github, let (owner, repo) = try? Self.split(ref) else {
             return LatestRelease(tag: nil, status: .unknown)
@@ -346,7 +360,9 @@ public actor GitHubSource: Source, SupportChecking {
     private func verdict(tag: String, releaseJSON json: ReleaseJSON?, flavor: Flavor) -> LatestRelease {
         guard let json else { return LatestRelease(tag: tag, status: .needsDownload) }
         let build = json.release(for: flavor)
-        return LatestRelease(tag: tag, status: build != nil ? .supported(version: tag) : .unsupported, build: build)
+        return LatestRelease(
+            tag: tag, status: build != nil ? .supported(version: tag) : .unsupported, build: build,
+            availableFlavors: json.availableFlavors)
     }
 
     /// The answer from a latest tag another flavor's check stored under `sharedTagTTL` ago, or
@@ -371,7 +387,7 @@ public actor GitHubSource: Source, SupportChecking {
         } else {
             answer = LatestRelease(tag: nil, status: .noReleases)
         }
-        await store.set([SupportRecord(ref: ref, status: answer.status, tag: answer.tag, checkedAt: meta.checkedAt)], flavor: flavor)
+        await store.set([SupportRecord(ref: ref, status: answer.status, tag: answer.tag, checkedAt: meta.checkedAt, availableFlavors: answer.availableFlavors)], flavor: flavor)
         return answer
     }
 
@@ -394,7 +410,37 @@ public actor GitHubSource: Source, SupportChecking {
         } catch {
             return await failed(ref, flavor: flavor, error: error, stored: stored, background: background)
         }
-        await store.set([SupportRecord(ref: ref, status: answer.status, tag: answer.tag, checkedAt: now())], flavor: flavor)
+        await store.set([SupportRecord(ref: ref, status: answer.status, tag: answer.tag, checkedAt: now(), availableFlavors: answer.availableFlavors)], flavor: flavor)
+        return answer
+    }
+
+    /// Fills in every flavor the answer's release ships, without a request:
+    /// - just read from its release.json, or stored for its tag: that;
+    /// - its release.json is stored but the flavors aren't (rows from before migration 5): derived and stored;
+    /// - the release has no release.json: an inspected zip's flavors, if any, else nil;
+    /// - nothing known for this tag yet: whatever is stored.
+    private func withFlavors(_ answer: LatestRelease, ref: AddonRef) async -> LatestRelease {
+        guard answer.availableFlavors == nil, ref.source == .github else { return answer }
+        if case .noReleases = answer.status { return answer }
+        var answer = answer
+        let stored = await store.storedFlavors(for: ref)
+        guard let tag = answer.tag else {
+            answer.availableFlavors = stored?.flavors
+            return answer
+        }
+        if let stored, stored.source == .releaseJSON, stored.tag == tag {
+            answer.availableFlavors = stored.flavors
+        } else if let known = await knownReleaseJSON(ref, tag: tag) {
+            if let json = known {
+                answer.availableFlavors = json.availableFlavors
+                await store.setAvailableFlavors(json.availableFlavors, tag: tag, source: .releaseJSON, for: ref)
+            } else {
+                if stored?.source == .releaseJSON { await store.setAvailableFlavors(nil, tag: tag, source: .releaseJSON, for: ref) }
+                answer.availableFlavors = stored?.source == .inspection ? stored?.flavors : nil
+            }
+        } else {
+            answer.availableFlavors = stored?.flavors
+        }
         return answer
     }
 
@@ -469,6 +515,18 @@ public actor GitHubSource: Source, SupportChecking {
     func quotaFreeResolve(_ ref: AddonRef, flavor: Flavor, policy: CachePolicy, background: Bool = false) async -> ResolvedRelease? {
         let latest = await latestRelease(for: ref, flavor: flavor, policy: policy, needBuild: true, background: background)
         return resolvedRelease(ref, from: latest, flavor: flavor)
+    }
+
+    /// True while github.com is pushing back and every web request fails fast.
+    func webIsPaused() -> Bool {
+        webBlockedUntil.map { $0 > now() } ?? false
+    }
+
+    /// True when a stored answer for `ref` and `flavor` is within its lifetime, so
+    /// `.revalidateIfStale` wouldn't make a request.
+    func hasFreshAnswer(for ref: AddonRef, flavor: Flavor) async -> Bool {
+        guard let stored = await store.storedSupport(for: ref, flavor: flavor) else { return false }
+        return await store.isFresh(stored)
     }
 
     private static func isRateLimit(_ error: AddonError) -> Bool {

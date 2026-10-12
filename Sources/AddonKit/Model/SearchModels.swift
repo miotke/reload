@@ -42,13 +42,17 @@ public struct CatalogueEntry: Codable, Sendable, Hashable, Identifiable {
 public struct SearchQuery: Sendable, Hashable {
     public var text: String
     public var flavor: Flavor
-    public var compatibleOnly: Bool
+    /// Hides results whose builds can't run on the installation's family
+    /// (`Flavor.hidesAsIncompatible`): classic-only ones on Forever, those without a Retail
+    /// build on Retail, without a Classic build on the classics. Installed add-ons and direct
+    /// refs always stay. It was `compatibleOnly`, and before that `foreverOnly`.
+    public var hideIncompatible: Bool
     public var includeLiveGitHub: Bool
 
-    public init(text: String, flavor: Flavor, compatibleOnly: Bool = true, includeLiveGitHub: Bool = false) {
+    public init(text: String, flavor: Flavor, hideIncompatible: Bool = true, includeLiveGitHub: Bool = false) {
         self.text = text
         self.flavor = flavor
-        self.compatibleOnly = compatibleOnly
+        self.hideIncompatible = hideIncompatible
         self.includeLiveGitHub = includeLiveGitHub
     }
 }
@@ -76,13 +80,18 @@ public struct SearchResult: Sendable, Identifiable, Hashable {
     public var lastUpdated: Date?
     public var installed: InstalledAddon?
     public var support: SupportStatus
+    /// Every flavor the latest release ships a build for, as stored; nil when not checked.
+    public var availableFlavors: Set<Flavor>?
     public var origin: Set<SearchOrigin>
+
+    public var families: Set<GameFamily>? { availableFlavors?.families }
 
     public init(
         id: AddonRef, name: String, summary: String? = nil, owner: String, stars: Int? = nil,
         lastUpdated: Date? = nil, installed: InstalledAddon? = nil, support: SupportStatus = .unknown,
-        origin: Set<SearchOrigin>
+        availableFlavors: Set<Flavor>? = nil, origin: Set<SearchOrigin>
     ) {
+        self.availableFlavors = availableFlavors
         self.id = id
         self.name = name
         self.summary = summary

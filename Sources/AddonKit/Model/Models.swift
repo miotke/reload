@@ -89,13 +89,19 @@ public struct InstalledAddon: Codable, Sendable, Identifiable, Hashable {
     public var changelog: String?
     /// The release installed before this one, for rollback.
     public var previousRelease: ReleaseSnapshot?
+    /// Set when the installed build is another game's, chosen with `allowFamilyFallback`:
+    /// `.mainline` for a Retail build on Forever. Update checks keep to that build until one
+    /// for the installation's own flavor appears, which is then offered as the update. Nil
+    /// for the installation's own build.
+    public var installedFlavorBuild: Flavor?
 
     public init(
         id: AddonRef, name: String, folders: [String], version: String, releaseID: Int64,
         assetName: String, publishedAt: Date, installedAt: Date, channel: Channel = .stable,
         pinned: Bool = false, etag: String? = nil, changelog: String? = nil,
-        previousRelease: ReleaseSnapshot? = nil
+        previousRelease: ReleaseSnapshot? = nil, installedFlavorBuild: Flavor? = nil
     ) {
+        self.installedFlavorBuild = installedFlavorBuild
         self.id = id
         self.name = name
         self.folders = folders
@@ -113,11 +119,15 @@ public struct InstalledAddon: Codable, Sendable, Identifiable, Hashable {
 
     /// The installed release, for `previousRelease` of the next install.
     public var snapshot: ReleaseSnapshot {
-        ReleaseSnapshot(version: version, releaseID: releaseID, assetName: assetName, publishedAt: publishedAt, changelog: changelog)
+        ReleaseSnapshot(
+            version: version, releaseID: releaseID, assetName: assetName, publishedAt: publishedAt,
+            changelog: changelog, flavorBuild: installedFlavorBuild)
     }
 
     /// True when `release` should replace this install.
     public func isUpdate(_ release: ResolvedRelease) -> Bool {
+        // Switching builds (a Forever build replacing a Retail one) is an update even for the same tag.
+        if release.flavorBuild != installedFlavorBuild { return true }
         // Releases resolved without the API carry a synthetic (negative) ID and no real
         // date, so only their tags can be compared.
         if release.releaseID < 0 || releaseID < 0 { return release.version != version }
@@ -132,8 +142,11 @@ public struct ReleaseSnapshot: Codable, Sendable, Hashable {
     public var assetName: String
     public var publishedAt: Date
     public var changelog: String?
+    /// `InstalledAddon.installedFlavorBuild` of that release.
+    public var flavorBuild: Flavor?
 
-    public init(version: String, releaseID: Int64, assetName: String, publishedAt: Date, changelog: String? = nil) {
+    public init(version: String, releaseID: Int64, assetName: String, publishedAt: Date, changelog: String? = nil, flavorBuild: Flavor? = nil) {
+        self.flavorBuild = flavorBuild
         self.version = version
         self.releaseID = releaseID
         self.assetName = assetName
@@ -155,12 +168,16 @@ public struct ResolvedRelease: Sendable, Hashable {
     public var isPrerelease: Bool
     /// Human-readable trail of how this release/asset was chosen (`addonctl resolve`).
     public var reasoning: [String]
+    /// Another game's build, chosen with `allowFamilyFallback` (`.mainline` on Forever); nil
+    /// for the installation's own flavor.
+    public var flavorBuild: Flavor?
 
     public init(
         ref: AddonRef, name: String, version: String, releaseID: Int64, publishedAt: Date,
         downloadURL: URL, assetName: String, changelog: String? = nil, isPrerelease: Bool = false,
-        reasoning: [String] = []
+        reasoning: [String] = [], flavorBuild: Flavor? = nil
     ) {
+        self.flavorBuild = flavorBuild
         self.ref = ref
         self.name = name
         self.version = version
@@ -253,15 +270,20 @@ public struct AddonDetails: Sendable, Hashable {
     public var latestPublishedAt: Date?
     public var latestChangelog: String?
     public var support: SupportStatus
+    /// Every flavor the latest release ships a build for; nil when not checked.
+    public var availableFlavors: Set<Flavor>?
     public var fetchedAt: Date
+
+    public var families: Set<GameFamily>? { availableFlavors?.families }
 
     public init(
         ref: AddonRef, name: String, owner: String, summary: String? = nil, repositoryURL: URL,
         homepage: URL? = nil, stars: Int? = nil, lastUpdated: Date? = nil, topics: [String] = [],
         license: String? = nil, readme: String? = nil, screenshots: [URL] = [], latestVersion: String? = nil,
         latestPublishedAt: Date? = nil, latestChangelog: String? = nil, support: SupportStatus = .unknown,
-        fetchedAt: Date = .now
+        availableFlavors: Set<Flavor>? = nil, fetchedAt: Date = .now
     ) {
+        self.availableFlavors = availableFlavors
         self.ref = ref
         self.name = name
         self.owner = owner
