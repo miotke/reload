@@ -14,17 +14,19 @@ sequenceDiagram
     participant I as Installer
     M->>D: download(release)
     D-->>M: cached zip
-    M->>S: withLock { … }
-    S->>I: install(archive, current add-ons, force)
+    M->>I: prepare(archive), off the actor, no lock
     I->>I: validate zip
-    I->>I: check folder ownership
     I->>I: extract to staging
+    I-->>M: PreparedInstall
+    M->>S: withLock { … }
+    S->>I: commit(prepared, current add-ons, force)
+    I->>I: check folder ownership
     I->>I: swap folders (with backups)
     I-->>S: InstalledAddon
     S->>S: upsert + atomic write
 ```
 
-The download happens first. The ownership check, the folder swap and the store write then run as one step under the cross-process store lock, so the app and the CLI can't interleave.
+The download comes first, then `Installer.prepare` validates the zip and extracts it into staging (about 106 ms for 8 MB) **before** the store lock is taken. Only `commit` (the ownership check and the folder swap) and the store write run under the cross-process store lock, so the app and the CLI can't interleave, and neither waits on the other's extraction. If the ownership check fails after extraction, the staging folder is deleted; if the lock or the store read fails before `commit` runs, `PreparedInstall.discard()` deletes it.
 
 ### 1. Validate (`ZipExtractor`)
 
@@ -49,7 +51,7 @@ Folder names are compared case-insensitively.
 
 ### 3. Staging and swap
 
-1. Extract into a staging folder on the same volume, so the moves are instant renames.
+1. Extract into a staging folder on the same volume, so the moves are instant renames (`prepare`, before the lock).
 2. For each folder, move the old copy to a backup folder, then move the new copy in.
 3. Folders the previous version owned but the new one doesn't ship are moved out too.
 4. **If any step fails, the backups are restored in reverse order.** If restoring itself fails, the staging folder is kept so nothing is lost.

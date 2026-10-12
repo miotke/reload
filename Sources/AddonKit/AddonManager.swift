@@ -251,22 +251,36 @@ public actor AddonManager: AddonManaging {
     ) async throws -> InstalledAddon {
         let archive = try await downloader.download(release, progress: progress)
         let installer = self.installer
-        return try await store.withLock { store in
-            let current = try store.addons(in: installation)
-            let previous = current.first { $0.id == release.ref }
-            var addon = try installer.install(archive: archive, into: installation, release: release, current: current, force: force)
-            if let channel { addon.channel = channel }
-            if let pin { addon.pinned = pin }
-            addon.changelog = release.changelog
-            addon.etag = nil
-            if let previous, previous.releaseID != release.releaseID {
-                addon.previousRelease = previous.snapshot
-            } else {
-                addon.previousRelease = previous?.previousRelease
+        // Extraction is the slow part; it runs before the lock the CLI and app wait on, and
+        // off this actor. Only the ownership check, the swap and the store write are locked.
+        let prepared = try await Self.prepare(installer, archive: archive, into: installation)
+        do {
+            return try await store.withLock { store in
+                let current = try store.addons(in: installation)
+                let previous = current.first { $0.id == release.ref }
+                var addon = try installer.commit(prepared, release: release, current: current, force: force)
+                if let channel { addon.channel = channel }
+                if let pin { addon.pinned = pin }
+                addon.changelog = release.changelog
+                addon.etag = nil
+                if let previous, previous.releaseID != release.releaseID {
+                    addon.previousRelease = previous.snapshot
+                } else {
+                    addon.previousRelease = previous?.previousRelease
+                }
+                try store.upsert(addon, in: installation)
+                return addon
             }
-            try store.upsert(addon, in: installation)
-            return addon
+        } catch {
+            // `commit` cleans up after itself; this covers failures before it ran.
+            prepared.discard()
+            throw error
         }
+    }
+
+    @concurrent
+    private static func prepare(_ installer: Installer, archive: URL, into installation: Installation) async throws -> Installer.PreparedInstall {
+        try installer.prepare(archive: archive, into: installation)
     }
 
     public func adopt(folder: String, as ref: AddonRef, in installation: Installation) async throws -> InstalledAddon {

@@ -37,7 +37,29 @@ public struct Installer: Sendable {
 
     // MARK: - Install
 
-    /// Installs `archive` (the asset of `release`) into `installation`.
+    /// An archive validated and extracted into staging on the AddOns volume, ready for
+    /// `commit`. Extraction is the slow part (about 106 ms for 8 MB), so callers do it
+    /// before taking the store lock.
+    public struct PreparedInstall: Sendable {
+        let addonsDirectory: URL
+        let staging: URL
+        /// The archive's top-level folders, sorted.
+        public let folders: [String]
+
+        var extracted: URL { staging.appending(path: "new", directoryHint: .isDirectory) }
+        var backup: URL { staging.appending(path: "backup", directoryHint: .isDirectory) }
+
+        /// Deletes the staging folder when `commit` never ran. A folder still holding
+        /// backups a failed swap couldn't put back is kept rather than lose data.
+        public func discard() {
+            let fm = FileManager.default
+            let backups = (try? fm.contentsOfDirectory(atPath: backup.path(percentEncoded: false))) ?? []
+            guard backups.isEmpty else { return }
+            try? fm.removeItem(at: staging)
+        }
+    }
+
+    /// Installs `archive` (the asset of `release`) into `installation`: `prepare`, then `commit`.
     ///
     /// - Parameters:
     ///   - current: Every managed add-on in `installation`, used for ownership checks.
@@ -54,15 +76,54 @@ public struct Installer: Sendable {
         force: Bool,
         now: Date = Date()
     ) throws -> InstalledAddon {
+        let prepared = try prepare(archive: archive, into: installation)
+        return try commit(prepared, release: release, current: current, force: force, now: now)
+    }
+
+    /// Steps 1 and 3 of an install: validates `archive` and extracts it into a staging folder
+    /// on the same volume as `AddOns/`. Touches nothing in `AddOns/` and needs no store state.
+    public func prepare(archive: URL, into installation: Installation) throws -> PreparedInstall {
         let fm = FileManager.default
-        let ref = release.ref
         let addonsDirectory = installation.addonsDirectory
-        let previous = current.first { $0.id == ref }
 
         // 1. Validate the zip before touching anything.
         let newFolders = try ZipExtractor.topLevelFolders(in: archive)
         for folder in newFolders where Self.isProtected(folder) {
             throw AddonError.invalidArchive("archive contains protected folder \(folder)")
+        }
+
+        // 3. Extract to staging on the same volume, so the swap is a rename.
+        try fm.createDirectory(at: addonsDirectory, withIntermediateDirectories: true)
+        let staging = try makeStagingDirectory(for: addonsDirectory)
+        do {
+            let prepared = PreparedInstall(addonsDirectory: addonsDirectory, staging: staging, folders: [])
+            try fm.createDirectory(at: prepared.backup, withIntermediateDirectories: true)
+            let folders = try ZipExtractor.extract(archive, to: prepared.extracted)
+            return PreparedInstall(addonsDirectory: addonsDirectory, staging: staging, folders: folders)
+        } catch {
+            try? fm.removeItem(at: staging)
+            throw error
+        }
+    }
+
+    /// Steps 2, 4 and 5: the ownership check against `current`, the swap, and the new
+    /// record. Run it under the store lock. The staging folder is removed whatever happens,
+    /// except when a failed swap leaves backups it couldn't restore.
+    public func commit(
+        _ prepared: PreparedInstall,
+        release: ResolvedRelease,
+        current: [InstalledAddon],
+        force: Bool,
+        now: Date = Date()
+    ) throws -> InstalledAddon {
+        let fm = FileManager.default
+        let ref = release.ref
+        let addonsDirectory = prepared.addonsDirectory
+        let previous = current.first { $0.id == ref }
+        let newFolders = prepared.folders
+        var keepStaging = false
+        defer {
+            if !keepStaging { try? fm.removeItem(at: prepared.staging) }
         }
 
         // 2. Ownership.
@@ -81,17 +142,9 @@ public struct Installer: Sendable {
                 && !current.contains { $0.id != ref && $0.folders.contains { Self.same($0, old) } }
         }
 
-        // 3. Extract to staging on the same volume.
-        try fm.createDirectory(at: addonsDirectory, withIntermediateDirectories: true)
-        let staging = try makeStagingDirectory(for: addonsDirectory)
-        var keepStaging = false
-        defer {
-            if !keepStaging { try? fm.removeItem(at: staging) }
-        }
-        let extracted = staging.appending(path: "new", directoryHint: .isDirectory)
-        let backup = staging.appending(path: "backup", directoryHint: .isDirectory)
-        try fm.createDirectory(at: backup, withIntermediateDirectories: true)
-        let folders = try ZipExtractor.extract(archive, to: extracted)
+        let folders = newFolders
+        let extracted = prepared.extracted
+        let backup = prepared.backup
 
         // 4. Swap.
         var journal: [SwapStep] = []
