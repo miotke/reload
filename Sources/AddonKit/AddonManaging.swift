@@ -73,6 +73,10 @@ public protocol AddonManaging: Sendable {
     /// Call after the GitHub token in the Keychain changes.
     func tokenDidChange() async
 
+    /// API quota, search quota and github.com pause state, from stored state only (no
+    /// network). Has a default that reports nothing known.
+    func gitHubStatus() async -> GitHubStatus
+
     /// README, screenshots, stats and latest version for the inspector. Cached on disk;
     /// spends no API quota. `latestChangelog` is filled only when the notes are stored.
     func details(for ref: AddonRef, in installation: Installation) async throws -> AddonDetails
@@ -142,6 +146,29 @@ extension AddonManaging {
 
     @discardableResult
     public func checkVisible(_ refs: [AddonRef], in installation: Installation) async -> [AddonRef] { [] }
+
+    public func gitHubStatus() async -> GitHubStatus { GitHubStatus() }
+}
+
+/// GitHub quota and backoff state, as last reported by GitHub. Nil fields mean unknown.
+public struct GitHubStatus: Sendable, Hashable {
+    /// REST API (`core`): 60 an hour without a token, 5,000 with one.
+    public var api: RateLimitState?
+    /// Search API: 10 a minute without a token, 30 with one.
+    public var search: RateLimitState?
+    /// The API limit for the current token state (60 or 5,000).
+    public var apiLimit: Int?
+    public var hasToken: Bool
+    /// While set and in the future, quota-free github.com requests are paused (after a 429/403).
+    public var webPausedUntil: Date?
+
+    public init(api: RateLimitState? = nil, search: RateLimitState? = nil, apiLimit: Int? = nil, hasToken: Bool = false, webPausedUntil: Date? = nil) {
+        self.api = api
+        self.search = search
+        self.apiLimit = apiLimit
+        self.hasToken = hasToken
+        self.webPausedUntil = webPausedUntil
+    }
 }
 
 /// What a metadata commit touched, in terms the UI understands.
