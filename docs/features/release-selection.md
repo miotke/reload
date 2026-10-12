@@ -1,8 +1,8 @@
 # Release selection
 
-How `GitHubSource` finds the newest GitHub release of an add-on that supports Forever, and the right zip within it.
+How `GitHubSource` finds the newest GitHub release of an add-on that supports the installation's flavor (Forever, Retail or a classic game), and the right zip within it. Examples use Forever.
 
-Code: `Sources/AddonKit/Sources/GitHubSource.swift`, `GitHubModels.swift`, `Selection/ReleaseSelector.swift`, `Selection/ZipInspector.swift`. Why `release.json` first: [decision 0003](../decisions/0003-forever-detection.md). The requests it makes: [github-endpoints.md](../network/github-endpoints.md).
+Code: `Sources/AddonKit/Sources/GitHubSource.swift`, `GitHubModels.swift`, `Selection/ReleaseSelector.swift`, `Selection/ZipInspector.swift`. Why `release.json` first: [decision 0003](../decisions/0003-forever-detection.md); per-flavor rules: [decision 0016](../decisions/0016-one-flavor-per-game.md). The requests it makes: [github-endpoints.md](../network/github-endpoints.md).
 
 ## How a release is chosen
 
@@ -12,19 +12,20 @@ flowchart TD
     B --> C{Next release,<br/>newest first}
     C --> D{Has release.json?}
     D -- yes --> E[Download release.json<br/>no API quota]
-    E --> F{Full build with<br/>flavor forever?}
+    E --> F{Full build naming<br/>the flavor?}
     F -- yes --> G[Pick the asset<br/>named in filename]
     F -- no --> C
     D -- no --> H[Candidate zips:<br/>uploaded .zip, not -nolib]
     H --> I[Download and run ZipInspector]
-    I -- supports Forever --> G
+    I -- supports the flavor --> G
     I -- no match --> C
     C -- none left, or 3 zip<br/>inspections used --> X[noCompatibleRelease]
 ```
 
-- Walking back to older releases handles authors who dropped Forever support: users stay on the last build that works.
+- Walking back to older releases handles authors who dropped support for a game: users stay on the last build that works.
 - `ReleaseSelector` is pure and synchronous. When it needs data it doesn't have yet, it returns `.needsReleaseJSON` or `.needsInspection`. `GitHubSource` fetches that data and asks again, adding releases whose zips didn't match to an exclusion list.
-- `noCompatibleRelease` shows as "No Forever build yet" in the app.
+- **`release.json` names per flavor:** a build counts when its metadata lists one of the flavor's names, e.g. `forever` or `camelot` for Forever, `classic` or `vanilla` for Classic Era, `bcc` or `tbc` for TBC ([flavors.md](../architecture/flavors.md#flavors)).
+- `noCompatibleRelease` shows as "No <flavor> build yet" in the app, using the flavor's display name.
 
 ## Reasoning trail
 
@@ -36,13 +37,14 @@ Every `ResolvedRelease` carries a `reasoning` trail, for example:
 
 `addonctl resolve` and `addonctl info` print it ([cli/commands.md](../cli/commands.md)).
 
-## ZipInspector: does a zip support Forever?
+## ZipInspector: does a zip support the flavor?
 
 It uses the TOC file the game client itself would load:
 
 1. Find add-on folders: a top-level folder `F` containing `F/F[suffix].toc`. `__MACOSX/` is ignored.
-2. A Forever-specific TOC (`_Camelot`, `-Forever` and so on) means supported.
-3. Otherwise the `_Mainline` TOC decides, and failing that the base TOC: it's supported if its `## Interface:` values include one in 16000–19999.
+2. **A TOC with one of the flavor's own suffixes decides on its own** (`_Camelot` or `-Forever` for Forever, `_Mists` for Mists Classic): supported.
+3. Otherwise the **first shared TOC in the flavor's order** is used (`_Mainline` for Forever; `_Classic` for the classics; `_Wrath`, `_WOTLKC`, then `_Classic` for Titan), then the base TOC.
+4. That TOC counts only if one of its `## Interface:` values is in the flavor's ranges (16000–19999 for Forever). So `_Mainline` supports Forever only with a `16xxx` interface, and `_Classic` supports exactly the classic game its interface belongs to.
 
 The same check runs on an add-on folder already on disk, which adopting uses. Suffixes and ranges come from [FlavorRules](../architecture/flavors.md).
 
@@ -77,7 +79,7 @@ flowchart LR
 
 | Outcome | `SupportStatus` |
 |---|---|
-| Latest release's `release.json` lists Forever | `.supported(version: tag)` |
+| Latest release's `release.json` lists the flavor | `.supported(version: tag)` |
 | It lists only other flavors | `.unsupported` |
 | Latest release has no `release.json` | `.needsDownload` |
 | No releases, or the repo is gone | `.noReleases` |

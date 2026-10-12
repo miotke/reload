@@ -65,6 +65,11 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 - Each new step runs in its own `BEGIN IMMEDIATE` transaction when the database opens, re-checking the version inside the lock so the app and CLI can't both apply it.
 - Shipped steps are never edited; add a new one.
 
+| `user_version` | Step |
+|---|---|
+| 1 | The schema above |
+| 2 | `classic` was split into `vanilla`, `tbc`, `wrath`, `titan`, `cata` and `mists` ([decision 0016](../decisions/0016-one-flavor-per-game.md)). Deletes `support` and `details` rows with `flavor = 'classic'`; they're re-checked under the new flavors. `forever` and `mainline` rows stay. `refresh_state` is keyed by installation, so it's left alone |
+
 ### Change stream
 
 - `MetadataDatabase.changes()` streams the tables and repos each commit touched, so the UI can patch only affected rows.

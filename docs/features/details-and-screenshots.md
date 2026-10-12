@@ -12,7 +12,7 @@ For any selected add-on, installed or not:
 
 | Part | Contents |
 |---|---|
-| Header | Name, author, summary, Forever badge |
+| Header | Name, author, summary, support badge for the installation's flavor |
 | Actions | Install / Update / Roll Back / Uninstall |
 | Details | Latest version and date, stars, last update, license, topics, GitHub and homepage links |
 | Screenshots | A strip of README images |

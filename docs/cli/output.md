@@ -68,6 +68,8 @@ Errors go to stderr:
 
 Messages come from [`AddonError`](../architecture/errors.md) or the CLI's own `CLIError`.
 
+JSON error codes: `invalid_reference`, `not_found`, `no_compatible_release`, `rate_limited`, `http_error`, `invalid_archive`, `unsafe_archive`, `folder_conflict`, `unmanaged_folder`, `not_installed`, `no_rollback`, `installation_not_found`, `usage`, `ambiguous_reference`, `no_installation`, `ambiguous_installation`, `confirmation_required`, `cancelled`, `partial_failure`, `failed`, `error`. `no_forever_installation` was removed with `CLIError.noForeverInstallation`: any single installation is used now ([commands.md](commands.md#choosing-the-installation)).
+
 ## Exit codes
 
 | Code | Meaning |

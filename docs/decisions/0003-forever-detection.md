@@ -2,7 +2,7 @@
 
 A release supports Forever if its `release.json` says so; without one, the zip's TOC files decide. All Forever constants live in one `FlavorRules` table.
 
-- **Status:** Accepted
+- **Status:** Accepted; partly superseded by [0016](0016-one-flavor-per-game.md) (the per-game `FlavorRules` table and TOC choice). The `release.json`-first order still holds.
 - **Date:** 2026-10-11
 
 ## Context

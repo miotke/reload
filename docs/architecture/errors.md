@@ -12,7 +12,7 @@ Everything in AddonKit throws `AddonError`. Each case has a user-facing `errorDe
 |---|---|---|---|
 | `invalidReference(String)` | Not a valid add-on reference | `GitHubSource` ref handling, `import` | 2 |
 | `notFound(AddonRef)` | … was not found | GitHub 404 on the release list | 1 |
-| `noCompatibleRelease(AddonRef, Flavor)` | … has no Forever build yet | [release selection](../features/release-selection.md) | 1 |
+| `noCompatibleRelease(AddonRef, Flavor)` | … has no *<flavor>* build yet (e.g. Forever) | [release selection](../features/release-selection.md) | 1 |
 | `rateLimited(resetAt:)` | GitHub rate limit reached. Try again … | 403/429 with no quota left, `retry-after`, or a secondary rate limit | 4 |
 | `http(status:url:)` | HTTP *n* from *host* | any other non-2xx (GitHub, catalogue) | 1 |
 | `invalidArchive(String)` | Invalid add-on archive | `ZipExtractor` | 1 |

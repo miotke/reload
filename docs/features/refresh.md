@@ -21,7 +21,7 @@ flowchart LR
 |---|---|---|
 | `catalogue` | revalidate the add-on catalogue ([search.md](search.md#the-catalogue-cataloguesource)) | 0–10% |
 | `updates` | check installed add-ons for updates | 10–30% |
-| `support` | check which add-ons support Forever | 30–100% |
+| `support` | check which add-ons support the installation's flavor | 30–100% |
 | `finished` | carries the update states | 100% |
 
 ## Support targets
