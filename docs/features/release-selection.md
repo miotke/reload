@@ -2,7 +2,7 @@
 
 How `GitHubSource` finds the newest GitHub release of an add-on that supports the installation's flavor (Forever, Retail or a classic game), and the right zip within it. Examples use Forever.
 
-Code: `Sources/AddonKit/Sources/GitHubSource.swift`, `GitHubModels.swift`, `Selection/ReleaseSelector.swift`, `Selection/ZipInspector.swift`. Why `release.json` first: [decision 0003](../decisions/0003-forever-detection.md); per-flavor rules: [decision 0016](../decisions/0016-one-flavor-per-game.md). The requests it makes: [github-endpoints.md](../network/github-endpoints.md).
+Code: `Sources/AddonKit/GitHub/GitHubSource.swift`, `GitHubModels.swift`, `Selection/ReleaseSelector.swift`, `Selection/ZipInspector.swift`. Why `release.json` first: [decision 0003](../decisions/0003-forever-detection.md); per-flavor rules: [decision 0016](../decisions/0016-one-flavor-per-game.md). The requests it makes: [github-endpoints.md](../network/github-endpoints.md).
 
 ## How a release is chosen
 

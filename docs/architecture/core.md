@@ -50,20 +50,67 @@ Search no longer calls `GitHubSource`: it reads stored verdicts only ([search.md
 
 ```
 Sources/AddonKit/
-├── AddonManager.swift       the façade (this doc)
-├── AddonManager+Refresh.swift, +Details.swift, +Visible.swift
+├── AddonManager*.swift      the façade (this doc), split by feature
 ├── AddonManaging.swift      the façade's protocol
-├── Model/                   Flavor + FlavorRules, GameFamily, Installation, AddonRef, InstalledAddon,
-│                            ResolvedRelease, search models, AddonError
-├── Parsing/                 Toc, TocFileName, ReleaseJSON, BuildInfo (pure, no I/O)
-├── Sources/                 Source/HTTPClient protocols, GitHubSource, GitHub API models
-├── Selection/               ReleaseSelector, ZipInspector
+├── Model/                   flavors, game families, refs, installs, releases, search models, errors
+├── Parsing/                 TOC, release.json, .build.info (pure, no I/O)
+├── Sources/                 Source/HTTPClient protocols
+├── GitHub/                  GitHubSource, GitHub API models
+├── Selection/               ReleaseSelector, ZipInspector, AdoptionIndex
 ├── Install/                 Downloader, ZipExtractor, Installer, InstallationLocator
 ├── Store/                   InstallStore, AppDirectories, MetadataDatabase
 ├── Search/                  catalogue, index, providers, SupportCache, SearchCoordinator
 ├── Details/                 ReadmeImages (screenshot URLs from a README)
 └── Support/                 KeychainStore
+Sources/addonctl/            the CLI (docs/cli/)
 ```
+
+## Where things live
+
+| Responsibility | File |
+|---|---|
+| The façade: init, dependencies, token, installations, add-ons, search, resolve, install, adoption, updates, changes, caches | `Sources/AddonKit/AddonManager.swift` |
+| The façade's protocol, `MetadataChange`, `StoredAvailability` | `Sources/AddonKit/AddonManaging.swift` |
+| Inspector details, README fetch and storage, release notes | `Sources/AddonKit/AddonManager+Details.swift` |
+| Background refresh, its targets, progress, stored update states | `Sources/AddonKit/AddonManager+Refresh.swift` |
+| Visible-row checks, Low Data Mode monitor | `Sources/AddonKit/AddonManager+Visible.swift` |
+| Observation API: metadata changes, store folder, stored availability | `Sources/AddonKit/AddonManager+Observation.swift` |
+| GitHub: parse, resolve, latest release, verdicts, `CachePolicy`, API and web requests, README, zip inspection | `Sources/AddonKit/GitHub/GitHubSource.swift` |
+| GitHub API models (releases, assets) | `Sources/AddonKit/GitHub/GitHubModels.swift` |
+| `Source` and `HTTPClient` protocols, the URL session, the User-Agent | `Sources/AddonKit/Sources/Source.swift` |
+| Flavors, `FlavorRules`, interface ranges | `Sources/AddonKit/Model/Flavor.swift` |
+| Game families, family filtering, availability sentence | `Sources/AddonKit/Model/GameFamily.swift` |
+| Refs, installations, installed add-ons, releases, update states, operation events | `Sources/AddonKit/Model/Models.swift` |
+| Catalogue entries, search queries and results, support status | `Sources/AddonKit/Model/SearchModels.swift` |
+| Unmanaged folders, TOC hints, adoption candidates and previews | `Sources/AddonKit/Model/Adoption.swift` |
+| `AddonError` | `Sources/AddonKit/Model/AddonError.swift` |
+| TOC, `release.json` and `.build.info` parsing | `Sources/AddonKit/Parsing/` |
+| Release selection (pure) | `Sources/AddonKit/Selection/ReleaseSelector.swift` |
+| Zip and folder flavor inspection | `Sources/AddonKit/Selection/ZipInspector.swift` |
+| Adoption suggestions and folder grouping | `Sources/AddonKit/Selection/AdoptionIndex.swift` |
+| Downloads and the download cache | `Sources/AddonKit/Install/Downloader.swift` |
+| Zip validation and extraction | `Sources/AddonKit/Install/ZipExtractor.swift` |
+| Install, uninstall, remove unmanaged folders | `Sources/AddonKit/Install/Installer.swift` |
+| Finding WoW installations | `Sources/AddonKit/Install/InstallationLocator.swift` |
+| Install store and its lock | `Sources/AddonKit/Store/InstallStore.swift` |
+| App data directories | `Sources/AddonKit/Store/AppDirectories.swift` |
+| SQLite schema, migrations, change stream | `Sources/AddonKit/Store/MetadataDatabase.swift` |
+| Catalogue download and storage | `Sources/AddonKit/Search/CatalogueSource.swift` |
+| CSV reader | `Sources/AddonKit/Search/CSVParser.swift` |
+| Stored verdicts, latest tags, available flavors | `Sources/AddonKit/Search/SupportCache.swift` |
+| Search layers merged, Browse content | `Sources/AddonKit/Search/SearchCoordinator.swift` |
+| Text normalisation and the local index | `Sources/AddonKit/Search/SearchIndex.swift` |
+| Query aliases and Browse categories | `Sources/AddonKit/Search/SearchAliases.swift` |
+| Installed-add-on search layer | `Sources/AddonKit/Search/InstalledSearchProvider.swift` |
+| Live GitHub search and its rate limit | `Sources/AddonKit/Search/GitHubSearchProvider.swift` |
+| Screenshot URLs from a README | `Sources/AddonKit/Details/ReadmeImages.swift` |
+| GitHub token in the Keychain | `Sources/AddonKit/Support/KeychainStore.swift` |
+| CLI entry point and command list | `Sources/addonctl/AddonCtl.swift` |
+| CLI commands, one file per group | `Sources/addonctl/Commands/` |
+| CLI options, context, installation choice | `Sources/addonctl/Context.swift`, `Sources/addonctl/Selection.swift` |
+| CLI config and environment | `Sources/addonctl/Config.swift`, `Sources/addonctl/Environment.swift` |
+| CLI output: tables, colour, JSON, errors and exit codes | `Sources/addonctl/Table.swift`, `Sources/addonctl/Terminal.swift`, `Sources/addonctl/JSONOutput.swift`, `Sources/addonctl/Errors.swift` |
+| `addons.json` export format, read-only metadata views | `Sources/addonctl/AddonsFile.swift`, `Sources/addonctl/Metadata.swift` |
 
 ## AddonManager
 
@@ -87,17 +134,9 @@ Sources/AddonKit/
 - **Updates are detected by release, not version string.** An add-on is out of date when the chosen release has a different GitHub release ID *and* a later publish date (`InstalledAddon.isUpdate`). Version schemes are too inconsistent to compare (`v426.4`, `12.1.12`, `r1234-alpha`).
 - **ETags are stored only while up to date.** That way a `304 Not Modified` always means "still current", never "an update you haven't installed".
 - **Installs take the store lock.** See [installing.md](../features/installing.md).
-- **Rollback.** Each install records the release it replaced in `previousRelease`. `rollback` reinstalls that release from the download cache, which keeps the last 2 zips per add-on, and **pins** the add-on so the next update doesn't undo it.
+- **Rollback** reinstalls `previousRelease` from the download cache (the last 2 zips per add-on) and **pins** the add-on so the next update doesn't undo it.
 - **Update checks are mostly quota-free.** For the stable channel, the latest tag comes from github.com: an unchanged tag is up to date, and a new tag whose `release.json` has the flavor is the update, both without an API call. Only when neither decides, or for the prerelease channel, does the API resolve run (with the stored ETag). See [release-selection.md](../features/release-selection.md#quota-free-resolve-stable-channel).
-- **Updating:**
-  - `update([])` updates every add-on. Each one is checked as above first, and only installed if an update is available. Pinned and up-to-date add-ons come back as `.skipped`.
-  - `update(releases:in:)` (on `AddonManaging`) installs releases the caller already resolved (the app's `.available(release)` states) without resolving again. An empty list does nothing.
-  - Up to 4 add-ons are updated at once.
-  - One failure doesn't stop the others.
+- **Updating.** `update([])` checks every add-on as above and installs only available updates; pinned and up-to-date ones come back `.skipped`. `update(releases:in:)` installs releases the caller already resolved (the app's `.available(release)` states); an empty list does nothing. Up to 4 at once; one failure doesn't stop the others.
 - **`lookup` order:** a GitHub ref or URL first, then an installed add-on's name, repo or folder, then an exact catalogue name. More than one result means the input was ambiguous.
-- **GitHub token:**
-  - It comes from `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (service `com.andrewmiotke.ForeverAddons`, account `github-token`).
-  - `KeychainStore` lives in AddonKit so the app and the CLI share it.
-  - It's read on the first GitHub call, not when `AddonManager` is created, so app launch never waits on a Keychain prompt.
-  - Call `tokenDidChange()` after changing the Keychain item. It swaps the token in place; ETags, cached `release.json` files and the rate-limit state are kept.
-- **One URL session** for the core: 20 s request timeout, no waiting for connectivity, no HTTP cache (ETags are explicit), User-Agent `ForeverAddons/<version> (+https://github.com/miotke/swift-addons)`. Background work (refresh) sets `allowsConstrainedNetworkAccess = false` per request, so it stays off Low Data Mode networks.
+- **GitHub token:** `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (`KeychainStore`, service `com.andrewmiotke.ForeverAddons`, account `github-token`, shared by the app and CLI). It's read on the first API call, so launch never waits on a Keychain prompt. `tokenDidChange()` swaps it in place, keeping ETags, `release.json` files and the rate-limit state.
+- **One URL session** for the core, with the app's User-Agent and no HTTP cache ([github-endpoints.md](../network/github-endpoints.md#headers)).
