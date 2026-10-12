@@ -9,8 +9,11 @@
 /* Begin PBXBuildFile section */
 		07416E0F6EC153D633F52BF5 /* InfoCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 560432F4415AC950966B789D /* InfoCommands.swift */; };
 		091CD46F03DDF8255A25811C /* DoctorCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B17E23513C805B03CE50AB /* DoctorCommand.swift */; };
+		0C28BD083829591FD70F788F /* TableRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F212A399CCE2D99EF29211 /* TableRows.swift */; };
 		0C542CF522D4C9AA255BB80C /* Environment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D36BDC334B9B87FF5870150 /* Environment.swift */; };
 		0CE72D9B63E8E6962B5F3E6B /* Errors.swift in Sources */ = {isa = PBXBuildFile; fileRef = D064A1DC6C935A778DFD3DD4 /* Errors.swift */; };
+		0D83595F4CDB9AB554C8C33F /* AddonKit in Frameworks */ = {isa = PBXBuildFile; productRef = 50C50B62C043E2B8012F27F2 /* AddonKit */; };
+		0F9AA56AD1132895B36E9E6E /* MarkdownBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AE6E6398446CB407F9BBEA1 /* MarkdownBlocks.swift */; };
 		0FEA61A6A4CEC1DE71FEC0FD /* CommandLineToolViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CF5E2EE6163862C645B6048 /* CommandLineToolViews.swift */; };
 		1CB387FA5391F1C1A20E603A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B03076B8BFF278C464CE260 /* SettingsView.swift */; };
 		1E9F337C22AC646AD9BF294D /* AddonKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0E1170CB0F2152E5159112D3 /* AddonKit */; };
@@ -18,11 +21,13 @@
 		3160566F0455C30A50742B88 /* Context.swift in Sources */ = {isa = PBXBuildFile; fileRef = 834AA9CBC6CD2C3757026E11 /* Context.swift */; };
 		34C15115716C6CC75F41C54A /* Terminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACA048498121AE3C675CB76B /* Terminal.swift */; };
 		407A1D54363D0D680B3AF076 /* CLIInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57F30BD63245FBBBF75F7F81 /* CLIInstaller.swift */; };
+		4583BC535CAC67BC15B0750C /* ScreenshotLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B3B4AB67A957DAC73FEF361 /* ScreenshotLoader.swift */; };
 		468EB08E5E039DC38591B52C /* ForeverAddonsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3197DFD368553BB4AD30C9 /* ForeverAddonsApp.swift */; };
 		4C6B4E5FEE4BFFA0E492A78F /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 022B72E0FACAA9D8667ABEFF /* Config.swift */; };
 		4D2AF3076CF291AE6EFC4594 /* AddonsFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF193DF5E3054892C1CED113 /* AddonsFile.swift */; };
 		4E4D9A2C9FFF1A9015046AD6 /* CacheCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426D32F7D9C33B73BB5D0E20 /* CacheCommand.swift */; };
 		528E10E27B571BC813AD9E4F /* AddonKit in Frameworks */ = {isa = PBXBuildFile; productRef = D3B24E719F9F70CC8AEF5DD8 /* AddonKit */; };
+		5A3C2B4E3341CAABADFC981C /* MarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E0D9B368AAD6BB7E51053D /* MarkdownView.swift */; };
 		5C6B30533BCAC91705E27CED /* DirectoryWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98BB6B2BAF1866F610DA9B74 /* DirectoryWatcher.swift */; };
 		61086430A14A859091B705DB /* AddonInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC55C3999BC6360A945DED0 /* AddonInspectorView.swift */; };
 		663D11E5FDE3CE715B246BDE /* Table.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7A18F9BD53A11FE1DD9D14 /* Table.swift */; };
@@ -34,20 +39,30 @@
 		7918B613FB41FE4C8E45CE7D /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EE11DCC66741EC4CAB9D676 /* Components.swift */; };
 		7DDB999FEE080909983EF7D4 /* ExportImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E2D69CA9FBC28933F617A7 /* ExportImport.swift */; };
 		898F8828004DF9F57B958BF5 /* Selection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E7E77F433D46F6E0D648C6D /* Selection.swift */; };
+		8A0E4C66DCF0BF50A25A9332 /* SeedingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E9DE2A942AD6177F00DC281 /* SeedingSheet.swift */; };
+		8EBF3D8E9A8B3FD385C0BC7F /* TableSorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44908C837144FE10921FE10F /* TableSorting.swift */; };
 		9220DACE2F3B7293B124B703 /* DirectoryWatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35B92908B9DA2EB7058AE083 /* DirectoryWatcherTests.swift */; };
 		959F5B0152151CE00879D859 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = 8F1F0BA8A5177AF80CFBB37C /* ArgumentParser */; };
 		97ED8F7126C3BF2E62F9B6BC /* ConfigCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F689B41C477FA43FE24BAE /* ConfigCommand.swift */; };
 		991C19C8877AFFB4C5F7C20C /* SearchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4B8D9C09058904EA86034A0 /* SearchCommand.swift */; };
+		99C8ADB4D3D44B5B559106ED /* TableSorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44908C837144FE10921FE10F /* TableSorting.swift */; };
+		9B5C6B879F2F47705D5EF89F /* AddonFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF81EACD77BDE4D0AF1F997 /* AddonFormatting.swift */; };
 		A1096B8C6728354815459EBF /* DirectoryWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98BB6B2BAF1866F610DA9B74 /* DirectoryWatcher.swift */; };
 		A2C47B7ED9B685CCD40D938B /* CLIInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5680F32D663CF27A82C78A75 /* CLIInstallerTests.swift */; };
 		A5DC2BE13453254162718216 /* ListCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = E540601A2DE65DE43653660B /* ListCommands.swift */; };
 		B4578D9170736C998F0D4745 /* CommandLineToolModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20101C270379BAA42CAAEE14 /* CommandLineToolModel.swift */; };
+		B67059544C134BCD3F7907EC /* TableRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F212A399CCE2D99EF29211 /* TableRows.swift */; };
 		B8C24FF7036BA157B2ECB02D /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DD7FDB7A545154D3D58C296 /* BrowseView.swift */; };
+		BB6A6299494B191E100B78B3 /* AddonFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF81EACD77BDE4D0AF1F997 /* AddonFormatting.swift */; };
+		BC483DB8729DB6D83AA09CB7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 508E9F329D200399CEB76AE8 /* Assets.xcassets */; };
 		BDDE13914E604CAE215D7D7C /* AddonCtl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FBC266C47D7ABD5ECC10699 /* AddonCtl.swift */; };
 		D025C3598076124C58AB5A47 /* AdoptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F9DC6003D8E999933F5909 /* AdoptSheet.swift */; };
+		D1009E8E3845B910CB7B0670 /* AppHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E908C270934BC35839EB982D /* AppHelpersTests.swift */; };
 		D45EC0D7E705B4FCC826130C /* addonctl in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 1BB6A7D9EF3DE4767E81D539 /* addonctl */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D6DA6CFDAC47C65BA2423589 /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842B565CC85DDFE014D991C4 /* AppSupport.swift */; };
 		DB8FD68E04EBE5C1F244CBE6 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 406B1ADA6E2BCC31A844C6A3 /* AppEnvironment.swift */; };
+		E3E58E6AA110CE5B83D375C3 /* MarkdownBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AE6E6398446CB407F9BBEA1 /* MarkdownBlocks.swift */; };
+		F07F138F3DD1D943458EEB07 /* ScreenshotViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 484AEBB6D52F7A4EC94799C7 /* ScreenshotViews.swift */; };
 		F761CB038317CAF710DA0382 /* CLIInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57F30BD63245FBBBF75F7F81 /* CLIInstaller.swift */; };
 		FA8BDDAB36C79CFB1CCDC588 /* JSONOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCD8F9EE0C4C335E05F13A65 /* JSONOutput.swift */; };
 /* End PBXBuildFile section */
@@ -78,6 +93,7 @@
 
 /* Begin PBXFileReference section */
 		022B72E0FACAA9D8667ABEFF /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		02E0D9B368AAD6BB7E51053D /* MarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownView.swift; sourceTree = "<group>"; };
 		08F689B41C477FA43FE24BAE /* ConfigCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigCommand.swift; sourceTree = "<group>"; };
 		15747CABA42662EFFAA7B07D /* InstallCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallCommands.swift; sourceTree = "<group>"; };
 		1BB6A7D9EF3DE4767E81D539 /* addonctl */ = {isa = PBXFileReference; includeInIndex = 0; path = addonctl; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -87,10 +103,15 @@
 		2FBC266C47D7ABD5ECC10699 /* AddonCtl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddonCtl.swift; sourceTree = "<group>"; };
 		338A8CBE22BAB26E109E92C4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		35B92908B9DA2EB7058AE083 /* DirectoryWatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryWatcherTests.swift; sourceTree = "<group>"; };
+		3AE6E6398446CB407F9BBEA1 /* MarkdownBlocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlocks.swift; sourceTree = "<group>"; };
+		3B3B4AB67A957DAC73FEF361 /* ScreenshotLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotLoader.swift; sourceTree = "<group>"; };
 		406B1ADA6E2BCC31A844C6A3 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		426D32F7D9C33B73BB5D0E20 /* CacheCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheCommand.swift; sourceTree = "<group>"; };
+		44908C837144FE10921FE10F /* TableSorting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableSorting.swift; sourceTree = "<group>"; };
+		484AEBB6D52F7A4EC94799C7 /* ScreenshotViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotViews.swift; sourceTree = "<group>"; };
 		49F3D13F7C792860AC5FCE17 /* InstallationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationModel.swift; sourceTree = "<group>"; };
 		4DD7FDB7A545154D3D58C296 /* BrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseView.swift; sourceTree = "<group>"; };
+		508E9F329D200399CEB76AE8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		560432F4415AC950966B789D /* InfoCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoCommands.swift; sourceTree = "<group>"; };
 		5680F32D663CF27A82C78A75 /* CLIInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstallerTests.swift; sourceTree = "<group>"; };
 		57F30BD63245FBBBF75F7F81 /* CLIInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstaller.swift; sourceTree = "<group>"; };
@@ -108,6 +129,7 @@
 		93BC0C2B3B3C6F2D820CCA62 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		98BB6B2BAF1866F610DA9B74 /* DirectoryWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryWatcher.swift; sourceTree = "<group>"; };
 		9B03076B8BFF278C464CE260 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		9E9DE2A942AD6177F00DC281 /* SeedingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedingSheet.swift; sourceTree = "<group>"; };
 		A44B3D26ECB608B92042E0C8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		ACA048498121AE3C675CB76B /* Terminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Terminal.swift; sourceTree = "<group>"; };
 		AF193DF5E3054892C1CED113 /* AddonsFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddonsFile.swift; sourceTree = "<group>"; };
@@ -116,12 +138,23 @@
 		C428104BE6CB77EC3BA7B3DB /* ForeverAddonsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ForeverAddonsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D064A1DC6C935A778DFD3DD4 /* Errors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Errors.swift; sourceTree = "<group>"; };
 		D4B8D9C09058904EA86034A0 /* SearchCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchCommand.swift; sourceTree = "<group>"; };
+		E3F212A399CCE2D99EF29211 /* TableRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableRows.swift; sourceTree = "<group>"; };
 		E540601A2DE65DE43653660B /* ListCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListCommands.swift; sourceTree = "<group>"; };
+		E908C270934BC35839EB982D /* AppHelpersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppHelpersTests.swift; sourceTree = "<group>"; };
 		EB7A18F9BD53A11FE1DD9D14 /* Table.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Table.swift; sourceTree = "<group>"; };
 		F0E2D69CA9FBC28933F617A7 /* ExportImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportImport.swift; sourceTree = "<group>"; };
+		FEF81EACD77BDE4D0AF1F997 /* AddonFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddonFormatting.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		260877BDB556F5521624C9F5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0D83595F4CDB9AB554C8C33F /* AddonKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9E1F25A4100443358F2531AA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -199,10 +232,15 @@
 		4F4F5A902880A8E4986D31C9 /* Support */ = {
 			isa = PBXGroup;
 			children = (
+				FEF81EACD77BDE4D0AF1F997 /* AddonFormatting.swift */,
 				406B1ADA6E2BCC31A844C6A3 /* AppEnvironment.swift */,
 				842B565CC85DDFE014D991C4 /* AppSupport.swift */,
 				57F30BD63245FBBBF75F7F81 /* CLIInstaller.swift */,
 				98BB6B2BAF1866F610DA9B74 /* DirectoryWatcher.swift */,
+				3AE6E6398446CB407F9BBEA1 /* MarkdownBlocks.swift */,
+				3B3B4AB67A957DAC73FEF361 /* ScreenshotLoader.swift */,
+				E3F212A399CCE2D99EF29211 /* TableRows.swift */,
+				44908C837144FE10921FE10F /* TableSorting.swift */,
 			);
 			path = Support;
 			sourceTree = "<group>";
@@ -210,6 +248,7 @@
 		6D09EB9AAB313A85B89A8280 /* ForeverAddons */ = {
 			isa = PBXGroup;
 			children = (
+				508E9F329D200399CEB76AE8 /* Assets.xcassets */,
 				8F3197DFD368553BB4AD30C9 /* ForeverAddonsApp.swift */,
 				338A8CBE22BAB26E109E92C4 /* Info.plist */,
 				E8CCAA7601ED877E20B1013B /* Models */,
@@ -229,6 +268,9 @@
 				7EE11DCC66741EC4CAB9D676 /* Components.swift */,
 				A44B3D26ECB608B92042E0C8 /* ContentView.swift */,
 				6F3BB0F64238989764264A38 /* InstalledView.swift */,
+				02E0D9B368AAD6BB7E51053D /* MarkdownView.swift */,
+				484AEBB6D52F7A4EC94799C7 /* ScreenshotViews.swift */,
+				9E9DE2A942AD6177F00DC281 /* SeedingSheet.swift */,
 				9B03076B8BFF278C464CE260 /* SettingsView.swift */,
 			);
 			path = Views;
@@ -245,6 +287,7 @@
 		AD51F6D3974D0533150828DC /* ForeverAddonsTests */ = {
 			isa = PBXGroup;
 			children = (
+				E908C270934BC35839EB982D /* AppHelpersTests.swift */,
 				5680F32D663CF27A82C78A75 /* CLIInstallerTests.swift */,
 				35B92908B9DA2EB7058AE083 /* DirectoryWatcherTests.swift */,
 			);
@@ -307,6 +350,7 @@
 			buildConfigurationList = B9E6CFEC663185B3DDA8C5CD /* Build configuration list for PBXNativeTarget "ForeverAddons" */;
 			buildPhases = (
 				FC4ABF4325998FC3F91B1F32 /* Sources */,
+				AAE60F6290BC14317F8B76B6 /* Resources */,
 				AFF2BA6EB497E1FFE53904E4 /* Frameworks */,
 				D2428B51A0D91CE8045F3D43 /* Embed Dependencies */,
 			);
@@ -328,6 +372,7 @@
 			buildConfigurationList = 5620C360373AB4A4D6DCF6AB /* Build configuration list for PBXNativeTarget "ForeverAddonsTests" */;
 			buildPhases = (
 				6E5ECEC9AF2A6DCAEBC49361 /* Sources */,
+				260877BDB556F5521624C9F5 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -335,6 +380,7 @@
 			);
 			name = ForeverAddonsTests;
 			packageProductDependencies = (
+				50C50B62C043E2B8012F27F2 /* AddonKit */,
 			);
 			productName = ForeverAddonsTests;
 			productReference = C428104BE6CB77EC3BA7B3DB /* ForeverAddonsTests.xctest */;
@@ -388,15 +434,31 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		AAE60F6290BC14317F8B76B6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BC483DB8729DB6D83AA09CB7 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		6E5ECEC9AF2A6DCAEBC49361 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB6A6299494B191E100B78B3 /* AddonFormatting.swift in Sources */,
+				D1009E8E3845B910CB7B0670 /* AppHelpersTests.swift in Sources */,
 				407A1D54363D0D680B3AF076 /* CLIInstaller.swift in Sources */,
 				A2C47B7ED9B685CCD40D938B /* CLIInstallerTests.swift in Sources */,
 				5C6B30533BCAC91705E27CED /* DirectoryWatcher.swift in Sources */,
 				9220DACE2F3B7293B124B703 /* DirectoryWatcherTests.swift in Sources */,
+				0F9AA56AD1132895B36E9E6E /* MarkdownBlocks.swift in Sources */,
+				B67059544C134BCD3F7907EC /* TableRows.swift in Sources */,
+				99C8ADB4D3D44B5B559106ED /* TableSorting.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -430,6 +492,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9B5C6B879F2F47705D5EF89F /* AddonFormatting.swift in Sources */,
 				61086430A14A859091B705DB /* AddonInspectorView.swift in Sources */,
 				D025C3598076124C58AB5A47 /* AdoptSheet.swift in Sources */,
 				DB8FD68E04EBE5C1F244CBE6 /* AppEnvironment.swift in Sources */,
@@ -445,7 +508,14 @@
 				468EB08E5E039DC38591B52C /* ForeverAddonsApp.swift in Sources */,
 				732CA31A29F2918071B64E28 /* InstallationModel.swift in Sources */,
 				6D41B6B1ED2CA9A5C693153D /* InstalledView.swift in Sources */,
+				E3E58E6AA110CE5B83D375C3 /* MarkdownBlocks.swift in Sources */,
+				5A3C2B4E3341CAABADFC981C /* MarkdownView.swift in Sources */,
+				4583BC535CAC67BC15B0750C /* ScreenshotLoader.swift in Sources */,
+				F07F138F3DD1D943458EEB07 /* ScreenshotViews.swift in Sources */,
+				8A0E4C66DCF0BF50A25A9332 /* SeedingSheet.swift in Sources */,
 				1CB387FA5391F1C1A20E603A /* SettingsView.swift in Sources */,
+				0C28BD083829591FD70F788F /* TableRows.swift in Sources */,
+				8EBF3D8E9A8B3FD385C0BC7F /* TableSorting.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -774,6 +844,10 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		0E1170CB0F2152E5159112D3 /* AddonKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AddonKit;
+		};
+		50C50B62C043E2B8012F27F2 /* AddonKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AddonKit;
 		};

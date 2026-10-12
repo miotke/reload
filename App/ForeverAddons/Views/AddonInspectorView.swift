@@ -2,140 +2,245 @@ import AppKit
 import AddonKit
 import SwiftUI
 
-/// Details for the selected add-on: versions, changelog, folders, channel, pin, rollback, uninstall.
-struct AddonInspectorView: View {
+/// The trailing pane: details for whatever is selected in the current tab.
+struct InspectorPane: View {
+    @Environment(AppModel.self) private var model
     var state: InstallationModel
-    var statusID: AddonStatus.ID?
 
     var body: some View {
-        switch state.status(id: statusID) {
-        case .managed(let addon, let missing):
-            ManagedInspector(state: state, addon: addon, missingFolders: missing)
-        case .unmanaged(let folder, let toc, let suggested):
-            UnmanagedInspector(state: state, folder: folder, toc: toc, suggestedRef: suggested)
-        case nil:
-            ContentUnavailableView("No Selection", systemImage: "puzzlepiece.extension",
-                                   description: Text("Select an installed add-on to see its details."))
+        Group {
+            switch model.tab {
+            case .installed:
+                switch state.status(id: model.selectedAddonID) {
+                case .managed(let addon, let missing):
+                    AddonInspector(state: state, ref: addon.id, missingFolders: missing)
+                        .id(addon.id)
+                case .unmanaged(let folder, let toc, let suggested):
+                    UnmanagedInspector(state: state, folder: folder, toc: toc, suggestedRef: suggested)
+                        .id(folder)
+                case nil:
+                    noSelection("Select an add-on to see its details.")
+                }
+            case .browse:
+                if let id = model.selectedBrowseID, let ref = AddonRef(rowID: id) {
+                    AddonInspector(state: state, ref: ref, missingFolders: [])
+                        .id(ref)
+                } else {
+                    noSelection("Select an add-on to see its details, screenshots and read-me.")
+                }
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func noSelection(_ message: String) -> some View {
+        ContentUnavailableView("No Selection", systemImage: "puzzlepiece.extension", description: Text(message))
     }
 }
 
-private struct ManagedInspector: View {
+/// Details for one add-on, installed or not: what Browse showed, the core's `AddonDetails`
+/// (stats, links, screenshots, read-me) and, when installed, the install's own state and actions.
+private struct AddonInspector: View {
     var state: InstallationModel
-    var addon: InstalledAddon
+    var ref: AddonRef
     var missingFolders: [String]
 
-    @State private var confirmUninstall = false
-    @State private var confirmRollback = false
-
-    private var id: String { addon.id.description }
+    private var id: String { ref.description }
+    private var installed: InstalledAddon? { state.addon(for: ref) }
+    private var result: BrowseRow? { state.browseRow(id: id) }
+    private var loaded: AddonDetails? { state.details[ref]?.details }
 
     var body: some View {
+        let rowState = state.row(id)
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                if let error = state.rowErrors[id] { RowErrorText(message: error) }
-                if let activity = state.activity[id] { ActivityIndicator(activity: activity) }
-                details
-                folders
-                changelog
-                actions
+                RowProgress(rowState: rowState)
+                InspectorActions(state: state, ref: ref, installed: installed, rowState: rowState)
+                about
+                detailsStatus
+                if let loaded {
+                    let screenshots = Array(ScreenshotFilter.screenshots(loaded.screenshots)
+                        .prefix(ScreenshotLoader.maxImagesPerAddon))
+                    if !screenshots.isEmpty {
+                        section("Screenshots") { ScreenshotGallery(urls: screenshots) }
+                    }
+                }
+                if let installed {
+                    installedSection(installed)
+                    folders(installed)
+                    installedChangelog(installed)
+                } else if let loaded, let notes = loaded.latestChangelog, !notes.isEmpty {
+                    section("What's New\(loaded.latestVersion.map { " in \($0)" } ?? "")") {
+                        MarkdownText(markdown: notes).font(.callout)
+                    }
+                }
+                readme
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // Debounced so arrow-keying through a table doesn't fetch every row; changing the
+        // selection cancels this task and with it the load.
+        .task(id: ref) {
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            await state.loadDetails(for: ref)
+        }
     }
 
+    // MARK: Header & actions
+
+    private var name: String { installed?.name ?? result?.name ?? loaded?.name ?? ref.identifier }
+    private var owner: String? { result?.owner ?? loaded?.owner }
+    private var summary: String? { result?.summary ?? loaded?.summary }
+    private var support: SupportStatus? { loaded?.support ?? result?.support }
+
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(addon.name).font(.title2.weight(.semibold))
-            if let url = addon.id.webURL {
-                Link(addon.id.identifier, destination: url).font(.callout)
-            } else {
-                Text(addon.id.identifier).font(.callout).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(name).font(.title2.weight(.semibold)).textSelection(.enabled)
+            HStack(spacing: 8) {
+                if let owner { Text("by \(owner)").foregroundStyle(.secondary) }
+                if let support { SupportBadge(status: support) }
+            }
+            .font(.callout)
+            if let summary {
+                Text(summary).font(.callout).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    private var details: some View {
+    // MARK: About
+
+    @ViewBuilder private var about: some View {
+        let stars = loaded?.stars ?? result?.stars
+        let updated = loaded?.lastUpdated ?? result?.lastUpdated
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-            GridRow {
-                Text("Version").foregroundStyle(.secondary)
-                Text(addon.version).monospacedDigit().textSelection(.enabled)
-            }
-            if let release = state.availableRelease(for: addon.id) {
-                GridRow {
-                    Text("Available").foregroundStyle(.secondary)
-                    Text(release.version).monospacedDigit().foregroundStyle(.tint)
+            if let version = loaded?.latestVersion {
+                row("Latest") {
+                    let published = Text(loaded?.latestPublishedAt.map { " · \(DayLabel.string(for: $0))" } ?? "")
+                        .foregroundStyle(.secondary)
+                    Text("\(Text(version).monospacedDigit())\(published)")
                 }
             }
-            GridRow {
-                Text("Released").foregroundStyle(.secondary)
-                Text(addon.publishedAt.formatted(date: .abbreviated, time: .omitted))
+            if let stars {
+                row("Stars") { Text(stars.formatted()).monospacedDigit() }
             }
-            GridRow {
-                Text("Installed").foregroundStyle(.secondary)
-                Text(addon.installedAt.formatted(.relative(presentation: .named)))
+            if let updated {
+                row("Updated") { Text(DayLabel.string(for: updated)) }
             }
-            GridRow {
-                Text("Source").foregroundStyle(.secondary)
-                Text(addon.id.sourceName)
+            if let license = loaded?.license {
+                row("License") { Text(license) }
             }
-            GridRow {
-                Text("Channel").foregroundStyle(.secondary)
-                Picker("Channel", selection: Binding(
-                    get: { addon.channel },
-                    set: { channel in Task { await state.setChannel(channel, for: addon.id) } }
-                )) {
-                    ForEach(Channel.allCases, id: \.self) { Text($0.title).tag($0) }
+            if let topics = loaded?.topics, !topics.isEmpty {
+                row("Topics") { Text(topics.joined(separator: ", ")).fixedSize(horizontal: false, vertical: true) }
+            }
+            row("Links") {
+                HStack(spacing: 12) {
+                    if let url = loaded?.repositoryURL ?? ref.webURL {
+                        Link(ref.sourceName, destination: url)
+                    }
+                    if let homepage = loaded?.homepage {
+                        Link("Homepage", destination: homepage)
+                    }
                 }
-                .labelsHidden()
-                .fixedSize()
-            }
-            GridRow {
-                Text("Pinned").foregroundStyle(.secondary)
-                Toggle("Never update automatically", isOn: Binding(
-                    get: { addon.pinned },
-                    set: { pinned in Task { await state.setPinned(pinned, for: addon.id) } }
-                ))
-                .toggleStyle(.checkbox)
             }
         }
         .font(.callout)
     }
 
-    private var folders: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Folders").font(.headline)
-            ForEach(addon.folders, id: \.self) { folder in
-                let missing = missingFolders.contains(folder)
-                Label(folder, systemImage: missing ? "exclamationmark.triangle" : "folder")
-                    .foregroundStyle(missing ? .orange : .primary)
-                    .help(missing ? "This folder is missing from disk" : "")
+    @ViewBuilder private var detailsStatus: some View {
+        switch state.details[ref] {
+        case .loading?, nil:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Loading details…").foregroundStyle(.secondary)
             }
             .font(.callout)
-            Button("Show in Finder", systemImage: "folder") {
-                let urls = addon.folders.map { state.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
-                NSWorkspace.shared.activateFileViewerSelecting(urls)
+        case .failed(let message)?:
+            VStack(alignment: .leading, spacing: 6) {
+                RowErrorText(message: "Couldn't load details: \(message)")
+                Button("Try Again") { Task { await state.loadDetails(for: ref, force: true) } }
+                    .controlSize(.small)
             }
-            .buttonStyle(.link)
+        case .loaded?:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder private var readme: some View {
+        if case .loaded(let details, let blocks)? = state.details[ref], !blocks.isEmpty {
+            section("Read Me") {
+                MarkdownView(blocks: blocks, baseURL: details.repositoryURL.appending(path: "blob/HEAD/"))
+                    .font(.callout)
+            }
+        }
+    }
+
+    // MARK: Installed
+
+    private func installedSection(_ addon: InstalledAddon) -> some View {
+        section("Installed") {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                row("Version") { Text(addon.version).monospacedDigit().textSelection(.enabled) }
+                if let release = state.availableRelease(for: ref) {
+                    row("Available") { Text(release.version).monospacedDigit().foregroundStyle(.tint) }
+                }
+                row("Released") { Text(DayLabel.string(for: addon.publishedAt)) }
+                row("Installed") { Text(DayLabel.string(for: addon.installedAt)) }
+                row("Channel") {
+                    Picker("Channel", selection: Binding(
+                        get: { addon.channel },
+                        set: { channel in Task { await state.setChannel(channel, for: ref) } }
+                    )) {
+                        ForEach(Channel.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                row("Pinned") {
+                    Toggle("Never update automatically", isOn: Binding(
+                        get: { addon.pinned },
+                        set: { pinned in Task { await state.setPinned(pinned, for: ref) } }
+                    ))
+                    .toggleStyle(.checkbox)
+                }
+            }
+            .font(.callout)
+        }
+    }
+
+    private func folders(_ addon: InstalledAddon) -> some View {
+        section("Folders") {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(addon.folders, id: \.self) { folder in
+                    let missing = missingFolders.contains(folder)
+                    Label(folder, systemImage: missing ? "exclamationmark.triangle" : "folder")
+                        .foregroundStyle(missing ? .orange : .primary)
+                        .help(missing ? "This folder is missing from disk" : "")
+                }
+                Button("Show in Finder", systemImage: "folder") {
+                    let urls = addon.folders.map { state.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
+                    NSWorkspace.shared.activateFileViewerSelecting(urls)
+                }
+                .buttonStyle(.link)
+            }
             .font(.callout)
         }
     }
 
     /// Release notes from the store (installed release) and, when there's an update, the
     /// update check's release. No network request is needed.
-    @ViewBuilder private var changelog: some View {
-        if let release = state.availableRelease(for: addon.id) {
+    @ViewBuilder private func installedChangelog(_ addon: InstalledAddon) -> some View {
+        if let release = state.availableRelease(for: ref) {
             notes(title: "What's New in \(release.version)", markdown: release.changelog, version: release.version)
         }
-        notes(title: state.availableRelease(for: addon.id) == nil ? "Changelog" : "Installed (\(addon.version))",
+        notes(title: state.availableRelease(for: ref) == nil ? "Changelog" : "Installed (\(addon.version))",
               markdown: addon.changelog, version: addon.version)
     }
 
     private func notes(title: String, markdown: String?, version: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.headline)
+        section(title) {
             if let markdown, !markdown.isEmpty {
                 MarkdownText(markdown: markdown).font(.callout)
             } else {
@@ -144,34 +249,82 @@ private struct ManagedInspector: View {
         }
     }
 
-    private var actions: some View {
+    // MARK: Helpers
+
+    private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+            Text(title).font(.headline)
+            content()
+        }
+    }
+
+    private func row(_ label: String, @ViewBuilder value: () -> some View) -> some View {
+        GridRow {
+            Text(label).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
+            value()
+        }
+    }
+}
+
+/// The row's error and progress. Separate so download ticks re-render only this.
+private struct RowProgress: View {
+    var rowState: RowState
+
+    var body: some View {
+        if let error = rowState.error { RowErrorText(message: error) }
+        if let activity = rowState.activity { ActivityIndicator(activity: activity) }
+    }
+}
+
+/// Install / Update / Roll Back / Uninstall. Separate so download ticks re-render only this.
+private struct InspectorActions: View {
+    @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
+    var state: InstallationModel
+    var ref: AddonRef
+    var installed: InstalledAddon?
+    var rowState: RowState
+
+    @State private var confirmUninstall = false
+    @State private var confirmRollback = false
+
+    var body: some View {
+        let busy = rowState.activity != nil
         HStack {
-            if state.availableRelease(for: addon.id) != nil {
-                Button("Update") { Task { await state.update([addon.id]) } }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(state.activity[id] != nil)
-            }
-            if let previous = addon.previousRelease {
-                Button("Roll Back to \(previous.version)…") { confirmRollback = true }
-                    .disabled(state.activity[id] != nil)
-                    .confirmationDialog("Roll back \(addon.name) to \(previous.version)?", isPresented: $confirmRollback) {
-                        Button("Roll Back") { Task { await state.rollback(addon.id) } }
-                    } message: {
-                        Text("Reinstalls \(previous.version) from the local download cache and pins \(addon.name) so it isn't updated again automatically.")
-                    }
-            } else {
-                Button("Roll Back…") {}
-                    .disabled(true)
-                    .help("No earlier version is cached. Rollback becomes available after an update.")
-            }
-            Spacer()
-            Button("Uninstall…", role: .destructive) { confirmUninstall = true }
-                .disabled(state.activity[id] != nil)
-                .confirmationDialog("Uninstall \(addon.name)?", isPresented: $confirmUninstall) {
-                    Button("Uninstall", role: .destructive) { Task { await state.uninstall(addon.id) } }
-                } message: {
-                    Text("Removes \(addon.folders.joined(separator: ", ")) from Interface/AddOns. Saved settings are kept.")
+            if let installed {
+                if let release = state.availableRelease(for: ref), !installed.pinned {
+                    Button("Update to \(release.version)") { Task { await state.update([ref]) } }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(busy)
                 }
+                if let previous = installed.previousRelease {
+                    Button("Roll Back…") { confirmRollback = true }
+                        .disabled(busy)
+                        .help("Reinstall \(previous.version)")
+                        .confirmationDialog("Roll back \(installed.name) to \(previous.version)?", isPresented: $confirmRollback) {
+                            Button("Roll Back") { Task { await state.rollback(ref) } }
+                        } message: {
+                            Text("Reinstalls \(previous.version) from the local download cache and pins \(installed.name) so it isn't updated again automatically.")
+                        }
+                }
+                Spacer()
+                Button("Uninstall…", role: .destructive) { confirmUninstall = true }
+                    .disabled(busy)
+                    .confirmationDialog("Uninstall \(installed.name)?", isPresented: $confirmUninstall) {
+                        Button("Uninstall", role: .destructive) { Task { await state.uninstall(ref) } }
+                    } message: {
+                        Text("Removes \(installed.folders.joined(separator: ", ")) from Interface/AddOns. Saved settings are kept.")
+                    }
+            } else if rowState.needsOverwrite {
+                Button("Overwrite Existing Folder", role: .destructive) {
+                    Task { await state.install(ref, channel: defaultChannel, force: true) }
+                }
+                .disabled(busy)
+            } else {
+                Button("Install") { Task { await state.install(ref, channel: defaultChannel) } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(busy)
+            }
         }
     }
 }
@@ -190,7 +343,7 @@ private struct UnmanagedInspector: View {
                     Text(toc?.title ?? folder).font(.title2.weight(.semibold))
                     Text("Unmanaged folder").font(.callout).foregroundStyle(.secondary)
                 }
-                if let error = state.rowErrors["unmanaged:\(folder)"] { RowErrorText(message: error) }
+                RowProgress(rowState: state.row("unmanaged:\(folder)"))
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
                     row("Folder", folder)
                     if let version = toc?.version { row("Version", version) }

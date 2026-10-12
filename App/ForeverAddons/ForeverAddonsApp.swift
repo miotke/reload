@@ -6,7 +6,8 @@ import SwiftUI
 struct ForeverAddonsApp: App {
     private static let environment = AppEnvironment.current()
     @State private var model = AppModel(
-        manager: environment.manager, offersCommandLineTool: environment.offersCommandLineTool)
+        manager: environment.manager, offersCommandLineTool: environment.offersCommandLineTool,
+        usesStandardDefaults: environment.usesStandardDefaults)
 
     @AppStorage(SettingsKey.showMenuBarExtra) private var showMenuBarExtra = false
 
@@ -14,10 +15,14 @@ struct ForeverAddonsApp: App {
         WindowGroup {
             ContentView()
                 .environment(model)
-                .frame(minWidth: 820, minHeight: 480)
+                .frame(minWidth: 900, minHeight: 480)
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     // Belt and braces next to the store watcher: pick up changes made while inactive.
                     Task { await model.reload() }
+                    model.refreshInBackground()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+                    model.stopAutoRefresh()
                 }
         }
         .defaultSize(width: 1300, height: 880)
@@ -29,10 +34,13 @@ struct ForeverAddonsApp: App {
             CommandMenu("Add-ons") {
                 Button("Check for Updates") { model.checkForUpdates() }
                     .keyboardShortcut("r", modifiers: .command)
-                    .disabled(model.current == nil || model.current?.isCheckingForUpdates == true)
+                    .disabled(model.current == nil || model.current?.isRefreshing == true)
                 Button("Update All") { model.updateAll() }
                     .keyboardShortcut("u", modifiers: [.command, .shift])
                     .disabled((model.current?.updateCount ?? 0) == 0 || model.current?.isUpdatingAll == true)
+                Divider()
+                Button(model.showInspector ? "Hide Inspector" : "Show Inspector") { model.showInspector.toggle() }
+                    .keyboardShortcut("i", modifiers: [.command, .option])
                 Divider()
                 Button("Add Installation…") { model.addInstallationWithPanel() }
             }

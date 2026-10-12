@@ -54,6 +54,8 @@ struct SupportBadge: View {
 /// Spinner / progress bar shown in a row's action column while work is in flight.
 struct ActivityIndicator: View {
     var activity: RowActivity
+    /// Table cells are narrow: there the label moves to the tooltip.
+    var showsLabel = true
 
     var body: some View {
         HStack(spacing: 6) {
@@ -64,10 +66,60 @@ struct ActivityIndicator: View {
             } else {
                 ProgressView().controlSize(.small)
             }
-            Text(activity.label)
+            if showsLabel {
+                Text(activity.label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .help(activity.label)
+    }
+}
+
+/// Small warning icon for a row error; the message is in the tooltip and the inspector.
+struct RowErrorIcon: View {
+    var message: String
+
+    var body: some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .foregroundStyle(.red)
+            .help(message)
+            .accessibilityLabel(message)
+    }
+}
+
+/// Progress of a metadata refresh: the bar and message under "Add Installation…".
+struct RefreshStatusView: View {
+    var progress: RefreshProgress
+    var installation: Installation
+    var showsInstallation: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ProgressView(value: progress.fraction)
+                .progressViewStyle(.linear)
+                .controlSize(.small)
+            Text(progress.displayMessage)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .help(showsInstallation ? "\(installation.displayName): \(progress.displayMessage)" : progress.displayMessage)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+extension RefreshProgress {
+    /// The core's message, or a phase description when it sends none.
+    var displayMessage: String {
+        if !message.isEmpty { return message }
+        return switch phase {
+        case .catalogue: "Downloading the add-on catalogue…"
+        case .updates: "Checking for updates…"
+        case .support: "Checking Forever support…"
+        case .finished: "Done"
         }
     }
 }
@@ -108,54 +160,5 @@ struct BannerView: View {
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .transition(.move(edge: .top).combined(with: .opacity))
-    }
-}
-
-/// Renders release notes. `Text` only handles inline Markdown, so headings and list items are
-/// laid out here and each line's inline formatting goes through `AttributedString(markdown:)`.
-struct MarkdownText: View {
-    var markdown: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                switch block {
-                case .heading(let text):
-                    Text(Self.inline(text)).font(.headline).padding(.top, 4)
-                case .bullet(let text):
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("•")
-                        Text(Self.inline(text))
-                    }
-                case .paragraph(let text):
-                    Text(Self.inline(text))
-                }
-            }
-        }
-        .textSelection(.enabled)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private enum Block {
-        case heading(String), bullet(String), paragraph(String)
-    }
-
-    private var blocks: [Block] {
-        markdown.split(whereSeparator: \.isNewline).compactMap { raw in
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { return nil }
-            if line.hasPrefix("#") {
-                return .heading(String(line.drop { $0 == "#" }).trimmingCharacters(in: .whitespaces))
-            }
-            for marker in ["- ", "* ", "+ "] where line.hasPrefix(marker) {
-                return .bullet(String(line.dropFirst(2)))
-            }
-            return .paragraph(line)
-        }
-    }
-
-    static func inline(_ text: String) -> AttributedString {
-        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 }

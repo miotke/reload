@@ -1,12 +1,32 @@
 import AddonKit
 import SwiftUI
 
+/// Which list the Browse tab shows with an empty query.
+enum BrowseHome: String, CaseIterable, Identifiable {
+    case popular, recent
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .popular: "Popular"
+        case .recent: "Recently Updated"
+        }
+    }
+}
+
 /// Search and browse add-ons (docs/design.md §7, §8).
+///
+/// One sortable table. With an empty query it lists Popular or Recently Updated (a switch in
+/// the filter bar); with a query, or a category chip, it lists search results. Without a
+/// chosen sort, rows keep the core's order: relevance for searches, stars or date for home.
 struct BrowseView: View {
     @Environment(AppModel.self) private var model
     var state: InstallationModel
 
     @AppStorage("browseForeverOnly") private var foreverOnly = true
+    @AppStorage("browseHome") private var home: BrowseHome = .popular
+    @AppStorage("browseSort") private var sortStorage = ""
+    @SceneStorage("browseColumns") private var columns = TableColumnCustomization<BrowseRow>()
     @State private var includeLiveGitHub = false
 
     private struct QueryKey: Hashable {
@@ -17,17 +37,31 @@ struct BrowseView: View {
     }
 
     private var trimmedQuery: String { model.searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var isHome: Bool { trimmedQuery.isEmpty }
+    private var sort: ColumnSort<BrowseColumn>? { ColumnSort(storageValue: sortStorage) }
+
+    private var sortOrder: Binding<[ColumnSort<BrowseColumn>]> {
+        Binding(
+            get: { sort.map { [$0] } ?? [] },
+            set: { sortStorage = $0.first?.storageValue ?? "" })
+    }
+
+    /// Filtering and sorting happen in the model, once per change, not in `body`.
+    private var options: BrowseOptions {
+        BrowseOptions(query: trimmedQuery, home: home, foreverOnly: foreverOnly, sort: sort)
+    }
 
     var body: some View {
+        @Bindable var model = model
         VStack(spacing: 0) {
             filterBar
             Divider()
-            if trimmedQuery.isEmpty {
-                BrowseHomeList(state: state, foreverOnly: foreverOnly)
-            } else {
-                resultsList
-            }
+            BrowseTable(state: state, selection: $model.selectedBrowseID, sortOrder: sortOrder, columns: $columns)
+                .overlay { emptyState }
+            Divider()
+            statusBar
         }
+        .onChange(of: options, initial: true) { state.browseOptions = options }
         // `.task(id:)` cancels the previous search whenever the query changes; the sleep is the debounce.
         .task(id: QueryKey(text: trimmedQuery, foreverOnly: foreverOnly, includeLiveGitHub: includeLiveGitHub,
                            installationID: state.installation.id)) {
@@ -49,6 +83,15 @@ struct BrowseView: View {
 
     private var filterBar: some View {
         HStack(spacing: 12) {
+            if isHome {
+                Picker("Show", selection: $home) {
+                    ForEach(BrowseHome.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .controlSize(.small)
+            }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     ForEach(state.browse?.categories ?? SearchAliases.categories) { category in
@@ -74,193 +117,179 @@ struct BrowseView: View {
         .padding(.vertical, 8)
     }
 
-    @ViewBuilder private var resultsList: some View {
-        let installed = state.searchResults.filter { $0.installed != nil }
-        let others = state.searchResults.filter { $0.installed == nil }
-        List {
-            if !installed.isEmpty {
-                Section("Installed") {
-                    ForEach(installed) { SearchResultRow(state: state, result: $0) }
-                }
+    private var statusBar: some View {
+        let count = state.browseRows.count
+        return HStack(spacing: 8) {
+            if !isHome && state.isSearching {
+                ProgressView().controlSize(.mini)
+                Text(state.isSearchingGitHub(query: trimmedQuery) ? "Searching GitHub…" : "Searching…")
+            } else {
+                Text(count == 1 ? "1 add-on" : "\(count) add-ons")
             }
-            Section {
-                ForEach(others) { SearchResultRow(state: state, result: $0) }
-            } header: {
-                HStack {
-                    Text("Results")
-                    if state.isSearching { ProgressView().controlSize(.mini) }
+            if sort != nil {
+                Button(isHome ? "Default Order" : "Sort by Relevance") { sortStorage = "" }
+                    .buttonStyle(.link)
+                    .help("Go back to the order ForeverAddons suggests")
+            }
+            Spacer()
+            if !isHome {
+                Button("Search GitHub for More Results", systemImage: "magnifyingglass") {
+                    includeLiveGitHub = true
                 }
-            } footer: {
-                HStack {
-                    Spacer()
-                    Button("Search GitHub for more results", systemImage: "magnifyingglass") {
-                        includeLiveGitHub = true
-                    }
-                    .disabled(includeLiveGitHub)
-                    .help("Runs a live GitHub search. Limited to a few searches per minute without a token.")
-                    Spacer()
-                }
-                .padding(.vertical, 8)
+                .buttonStyle(.borderless)
+                .disabled(includeLiveGitHub)
+                .help("Runs a deeper live GitHub search. Limited to a few searches per minute without a token.")
             }
         }
-        .overlay {
-            if state.searchResults.isEmpty {
-                if state.isSearching {
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .controlSize(.small)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    @ViewBuilder private var emptyState: some View {
+        if state.browseRows.isEmpty {
+            if isHome {
+                if state.browse == nil {
                     ProgressView()
                 } else {
-                    ContentUnavailableView.search(text: trimmedQuery)
+                    ContentUnavailableView(
+                        "Nothing to Browse Yet", systemImage: "magnifyingglass",
+                        description: Text("Search for an add-on by name, or pick a category above."))
                 }
+            } else if state.isSearching {
+                // "No results" waits for the stream to finish: the core may still be asking GitHub.
+                if state.isSearchingGitHub(query: trimmedQuery) {
+                    ProgressView("Searching GitHub…").controlSize(.small).foregroundStyle(.secondary)
+                } else {
+                    ProgressView()
+                }
+            } else {
+                ContentUnavailableView.search(text: trimmedQuery)
             }
         }
     }
 }
 
-/// Empty-query state: Popular on Forever / Recently updated (docs/design.md §7.5).
-private struct BrowseHomeList: View {
-    var state: InstallationModel
-    var foreverOnly: Bool
-
-    var body: some View {
-        let popular = visible(state.browse?.popular ?? [])
-        let recent = visible(state.browse?.recent ?? [])
-        List {
-            if !popular.isEmpty {
-                Section("Popular on Forever") {
-                    ForEach(popular) { SearchResultRow(state: state, result: $0) }
-                }
-            }
-            if !recent.isEmpty {
-                Section("Recently updated") {
-                    ForEach(recent) { SearchResultRow(state: state, result: $0) }
-                }
-            }
-        }
-        .overlay {
-            if state.browse == nil {
-                ProgressView()
-            } else if popular.isEmpty && recent.isEmpty {
-                ContentUnavailableView(
-                    "Nothing to Browse Yet", systemImage: "magnifyingglass",
-                    description: Text("Search for an add-on by name, or pick a category above."))
-            }
-        }
-    }
-
-    private func visible(_ results: [SearchResult]) -> [SearchResult] {
-        guard foreverOnly else { return results }
-        return results.filter { result in
-            switch result.support {
-            case .unsupported, .noReleases: false
-            default: true
-            }
-        }
-    }
-}
-
-struct SearchResultRow: View {
+private struct BrowseTable: View {
     @Environment(AppModel.self) private var model
-    @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
     var state: InstallationModel
-    var result: SearchResult
-
-    private var id: String { result.id.description }
+    @Binding var selection: BrowseRow.ID?
+    @Binding var sortOrder: [ColumnSort<BrowseColumn>]
+    @Binding var columns: TableColumnCustomization<BrowseRow>
 
     var body: some View {
-        // Drop the metadata columns, then the badge, as the window narrows, so the name column
-        // never collapses (a squeezed name wraps a letter per line and blows up the row height).
-        ViewThatFits(in: .horizontal) {
-            row(showsBadge: true, showsMetadata: true)
-            row(showsBadge: true, showsMetadata: false)
-            row(showsBadge: false, showsMetadata: false)
+        Table(state.browseRows, selection: $selection, sortOrder: $sortOrder, columnCustomization: $columns) {
+            TableColumn("Name", sortUsing: ColumnSort(BrowseColumn.name)) { row in
+                BrowseNameCell(row: row)
+            }
+            .width(min: 180, ideal: 320)
+            .customizationID("name")
+            .disabledCustomizationBehavior(.visibility)
+
+            TableColumn("Forever", sortUsing: ColumnSort(BrowseColumn.support)) { row in
+                SupportBadge(status: row.support)
+            }
+            .width(min: 84, ideal: 96, max: 130)
+            .customizationID("forever")
+
+            TableColumn("Stars", sortUsing: ColumnSort(BrowseColumn.stars, order: .reverse)) { row in
+                Text(row.starsText)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .width(min: 50, ideal: 64, max: 90)
+            .customizationID("stars")
+
+            TableColumn("Updated", sortUsing: ColumnSort(BrowseColumn.updated, order: .reverse)) { row in
+                Text(row.updatedText)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .width(min: 80, ideal: 100, max: 140)
+            .customizationID("updated")
+
+            TableColumn("") { row in
+                BrowseActionCell(state: state, row: row, rowState: state.row(row.id))
+            }
+            .width(min: 96, ideal: 110, max: 160)
+            .customizationID("action")
+            .disabledCustomizationBehavior(.visibility)
         }
-        .padding(.vertical, 3)
-        .contextMenu {
-            if let url = result.id.webURL {
-                Link("Open on \(result.id.sourceName)", destination: url)
+        .contextMenu(forSelectionType: BrowseRow.ID.self) { ids in
+            if let id = ids.first, let ref = AddonRef(rowID: id) {
+                Button("Show Details") {
+                    selection = id
+                    model.showInspector = true
+                }
+                if let url = ref.webURL {
+                    Link("Open on \(ref.sourceName)", destination: url)
+                }
+            }
+        } primaryAction: { ids in
+            if let id = ids.first {
+                selection = id
+                model.showInspector = true
             }
         }
     }
+}
 
-    private func row(showsBadge: Bool, showsMetadata: Bool) -> some View {
-        HStack(spacing: 12) {
-            details
-                .frame(minWidth: 200, idealWidth: 200, maxWidth: .infinity, alignment: .leading)
-                .opacity(SupportBadge.isDimmed(result.support) && result.installed == nil ? 0.6 : 1)
+private struct BrowseNameCell: View {
+    var row: BrowseRow
 
-            if showsBadge {
-                SupportBadge(status: result.support)
-                    .frame(width: 100, alignment: .leading)
-            }
-
-            if showsMetadata {
-                metadata
-            }
-
-            action
-                .frame(width: 110, alignment: .trailing)
-        }
-    }
-
-    private var details: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Text(result.name).fontWeight(.medium).lineLimit(1).layoutPriority(1)
-                Text(result.owner).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                if result.origin.contains(.github) {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 4) {
+                Text(row.name).fontWeight(.medium).lineLimit(1).layoutPriority(1)
+                Text("by \(row.owner)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if row.isFromGitHub {
                     Image(systemName: "globe").font(.caption).foregroundStyle(.secondary)
                         .help("Found by live GitHub search")
                 }
             }
-            if let summary = result.summary {
-                Text(summary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-            if let error = state.rowErrors[id] {
-                RowErrorText(message: error)
-            }
-        }
-    }
-
-    @ViewBuilder private var metadata: some View {
-        if let installed = result.installed {
-            Text(installed.version)
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
+            Text(row.summary ?? "No description")
+                .font(.caption)
+                .foregroundStyle(row.summary == nil ? .tertiary : .secondary)
                 .lineLimit(1)
-                .frame(width: 140, alignment: .leading)
-        } else {
-            Group {
-                if let stars = result.stars {
-                    Label("\(stars)", systemImage: "star").labelStyle(.titleAndIcon)
-                } else {
-                    Text("")
-                }
-            }
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .frame(width: 60, alignment: .leading)
-
-            Text(result.lastUpdated?.formatted(.relative(presentation: .named)) ?? "")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .frame(width: 90, alignment: .leading)
         }
-    }
-
-    @ViewBuilder private var action: some View {
-        if let installed = result.installed {
-            Button("Open") { model.reveal(installed.id) }
-        } else if let activity = state.activity[id] {
-            ActivityIndicator(activity: activity)
-        } else if state.needsOverwrite.contains(result.id) {
-            Button("Overwrite", role: .destructive) {
-                Task { await state.install(result.id, channel: defaultChannel, force: true) }
-            }
-            .help("Replace the existing unmanaged folder")
-        } else {
-            Button("Install") {
-                Task { await state.install(result.id, channel: defaultChannel) }
-            }
-        }
+        .opacity(SupportBadge.isDimmed(row.support) && !row.isInstalled ? 0.6 : 1)
+        .help(row.summary ?? row.name)
     }
 }
+
+private struct BrowseActionCell: View {
+    @Environment(AppModel.self) private var model
+    @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
+    var state: InstallationModel
+    var row: BrowseRow
+    var rowState: RowState
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let error = rowState.error {
+                RowErrorIcon(message: error)
+            }
+            if row.isInstalled {
+                Button("Open") { model.reveal(row.ref) }
+                    .help("Show in the Installed tab")
+            } else if let activity = rowState.activity {
+                ActivityIndicator(activity: activity, showsLabel: false)
+            } else if rowState.needsOverwrite {
+                Button("Overwrite", role: .destructive) {
+                    Task { await state.install(row.ref, channel: defaultChannel, force: true) }
+                }
+                .help("Replace the existing unmanaged folder")
+            } else {
+                Button("Install") {
+                    Task { await state.install(row.ref, channel: defaultChannel) }
+                }
+            }
+        }
+        .controlSize(.small)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+}
+
