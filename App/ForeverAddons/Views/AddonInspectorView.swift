@@ -118,9 +118,9 @@ private struct AddonInspector: View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
             if let version = loaded?.latestVersion {
                 row("Latest") {
-                    Text(version).monospacedDigit()
-                        + Text(loaded?.latestPublishedAt.map { " · \(DayLabel.string(for: $0))" } ?? "")
+                    let published = Text(loaded?.latestPublishedAt.map { " · \(DayLabel.string(for: $0))" } ?? "")
                         .foregroundStyle(.secondary)
+                    Text("\(Text(version).monospacedDigit())\(published)")
                 }
             }
             if let stars {
