@@ -611,6 +611,14 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         #expect(try CLIContext(options: options, environment: env, console: piped).confirm("Move?", action: "remove"))
     }
 
+    /// The Retail-build offer defaults to yes: an empty answer installs it.
+    @Test func confirmCanDefaultToYes() {
+        let enter = Prompter(style: Style(enabled: false), readLine: { "" })
+        #expect(enter.confirm("Install?", defaultYes: true))
+        #expect(!enter.confirm("Install?"))
+        #expect(!Prompter(style: Style(enabled: false), readLine: { "n" }).confirm("Install?", defaultYes: true))
+    }
+
     @Test func tokenMask() {
         #expect(ConfigService.mask("short") == "••••")
         #expect(ConfigService.mask("github_pat_1234567890abcd") == "gith…abcd")

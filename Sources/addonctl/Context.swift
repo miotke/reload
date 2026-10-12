@@ -105,10 +105,10 @@ struct CLIContext: Sendable {
         console.out(try JSONOutput.document(payload))
     }
 
-    func confirm(_ question: String, action: String) throws -> Bool {
+    func confirm(_ question: String, action: String, defaultYes: Bool = false) throws -> Bool {
         if yes { return true }
         guard interactive else { throw CLIError.confirmationRequired(action) }
-        return prompter.confirm(question)
+        return prompter.confirm(question, defaultYes: defaultYes)
     }
 
     /// After changing files: tell the user to `/reload` if the game is running.

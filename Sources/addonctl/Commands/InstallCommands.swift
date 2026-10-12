@@ -46,7 +46,8 @@ struct InstallCommand: ContextCommand {
             let channel: Channel = prerelease ? .prerelease : (existing?.channel ?? context.config.load().defaultChannel ?? .stable)
             requests.append(.init(ref: ref, channel: channel, version: version, pin: version != nil, allowFamilyFallback: retailBuild))
         }
-        let outcome = await BatchInstaller.run(requests, force: force, context: context, installation: installation)
+        var outcome = await BatchInstaller.run(requests, force: force, context: context, installation: installation)
+        try await offerFallbackBuilds(&outcome, requests: requests, context: context, installation: installation)
         if context.json {
             try context.emit(InstallOutput(installation: installation.id, installed: outcome.installed, failed: outcome.failedJSON))
         } else {
@@ -54,6 +55,42 @@ struct InstallCommand: ContextCommand {
             context.noteIfGameRunning(changed: outcome.installed.count)
         }
         if let error = ExitStatus.batchError(failures: outcome.failures.map(\.error), total: requests.count) { throw error }
+    }
+
+    /// An add-on with no build for this game may still load from its fallback family's build
+    /// (Retail on Forever), so a missing build asks instead of stopping. `--yes` accepts;
+    /// without a prompt, the failure stands with a hint.
+    private func offerFallbackBuilds(
+        _ outcome: inout BatchInstaller.Outcome, requests: [BatchInstaller.Request], context: CLIContext, installation: Installation
+    ) async throws {
+        guard let fallback = installation.flavor.fallbackFlavor else { return }
+        let missing = requests.filter { request in
+            !request.allowFamilyFallback && outcome.failures.contains { failure in
+                guard failure.ref == request.ref, case AddonError.noCompatibleRelease? = failure.error as? AddonError else { return false }
+                return true
+            }
+        }
+        guard !missing.isEmpty else { return }
+        let own = installation.flavor.displayName
+        guard context.yes || context.interactive else {
+            for request in missing {
+                context.note("\(Format.ref(request.ref)): its \(fallback.displayName) build may still load in \(own); retry with --retail-build to install it.")
+            }
+            return
+        }
+        var retries: [BatchInstaller.Request] = []
+        for var request in missing {
+            let question = "\(Format.ref(request.ref)) has no \(own) build. Install its \(fallback.displayName) build anyway? It may not load."
+            guard try context.confirm(question, action: "install", defaultYes: true) else { continue }
+            request.allowFamilyFallback = true
+            retries.append(request)
+        }
+        guard !retries.isEmpty else { return }
+        let retried = Set(retries.map(\.ref))
+        outcome.failures.removeAll { retried.contains($0.ref) }
+        let second = await BatchInstaller.run(retries, force: force, context: context, installation: installation)
+        outcome.installed += second.installed
+        outcome.failures += second.failures
     }
 }
 
@@ -112,6 +149,11 @@ enum BatchInstaller {
                 if let build = Format.build(addon) {
                     context.note("\(addon.name): \(build). \(installation.flavor.displayName) lists it as out of date until you tick Load out of date AddOns.")
                 }
+            } catch AddonError.noCompatibleRelease(_, let flavor) where !request.allowFamilyFallback && flavor.fallbackFlavor != nil {
+                // `install` may offer the fallback build once the batch is done.
+                board.update(key: key, status: context.errStyle.yellow("no \(flavor.displayName) build"))
+                outcome.failures.append((request.ref, AddonError.noCompatibleRelease(request.ref, flavor)))
+                context.itemError(Format.ref(request.ref), AddonError.noCompatibleRelease(request.ref, flavor), batchSize: requests.count)
             } catch {
                 board.update(key: key, status: context.errStyle.red("failed"))
                 outcome.failures.append((request.ref, error))
