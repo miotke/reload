@@ -45,6 +45,10 @@ public actor GitHubSource: Source {
     /// Accepts `owner/repo`, `github:owner/repo` and `github.com` URLs (with `.git`, a trailing
     /// slash, or `/releases…`, `/tags`, `/tree/…`, `/blob/…` after the repo).
     public nonisolated func parse(_ input: String) -> AddonRef? {
+        Self.parseRef(input)
+    }
+
+    static func parseRef(_ input: String) -> AddonRef? {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !text.contains(where: \.isWhitespace) else { return nil }
         var parts: [Substring]

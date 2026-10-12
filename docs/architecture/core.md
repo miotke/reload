@@ -86,6 +86,7 @@ Sources/addonctl/            the CLI (docs/cli/)
 | Game families, family filtering, availability sentence | `Sources/AddonKit/Model/GameFamily.swift` |
 | Refs, installations, installed add-ons, releases, update states, operation events | `Sources/AddonKit/Model/Models.swift` |
 | Catalogue entries, search queries and results, support status | `Sources/AddonKit/Model/SearchModels.swift` |
+| Decisions front ends display: `InstallAction`, `UpdateOffer`, `BrowseFilter`, `AddonRef(parsing:)` | `Sources/AddonKit/Model/InstallAction.swift` |
 | Unmanaged folders, TOC hints, adoption candidates and previews | `Sources/AddonKit/Model/Adoption.swift` |
 | `AddonError` | `Sources/AddonKit/Model/AddonError.swift` |
 | TOC, `release.json` and `.build.info` parsing | `Sources/AddonKit/Parsing/` |

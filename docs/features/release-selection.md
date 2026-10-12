@@ -101,6 +101,7 @@ Forever loads the `_Mainline` family TOC, so a Retail build often works there ([
 - **Update checks keep to that build.** They first ask whether the latest release now has a build for the installation's own flavor; if so, that's the update ("Forever build available"), even for the same tag, and installing it clears `installedFlavorBuild`. Otherwise they check the Retail build as usual. `isUpdate` treats a change of build as an update.
 - An add-on installed as its own build never switches: if a release drops Forever, the check says `noCompatibleRelease` or stays on the last Forever release.
 - App: **Install Retail Build…** with a confirmation; CLI: `addonctl install --retail-build`.
+- Which action applies is decided in the core: `InstallAction(installed:update:availableFlavors:flavor:)` gives `.installFallbackBuild` (from `Flavor.offeredFallbackBuild`), and an update back to the own build is `UpdateOffer.ownBuild`.
 
 ## Parsing refs
 

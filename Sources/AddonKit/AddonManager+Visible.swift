@@ -51,6 +51,13 @@ extension AddonManager {
         return targets
     }
 
+    /// Which of the rows on screen to pass to `checkVisible`, in order: unchecked ones (no
+    /// available flavors known yet) first, then the rest, at most `visibleCheckLimit`.
+    public static func visibleCheckTargets(_ onScreen: [AddonRef], isChecked: (AddonRef) -> Bool) -> [AddonRef] {
+        let ordered = onScreen.filter { !isChecked($0) } + onScreen.filter(isChecked)
+        return Array(ordered.prefix(visibleCheckLimit))
+    }
+
     func setNetworkConstrained(_ isConstrained: @escaping @Sendable () -> Bool) {
         networkIsConstrained = isConstrained
     }
