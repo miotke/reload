@@ -95,7 +95,7 @@ Browse rows, the inspector and the add-on window all take an add-on's installed 
 | Name | author and a one-line summary under it |
 | Games | [R F C bubbles](#games) |
 | Stars | count; hidden by default, turn it on from the header's context menu |
-| Last updated | date |
+| Last updated | date of the latest release (never the install date, which the inspector shows as Installed) |
 | Action | Install / progress / Overwrite / ✓ Installed / Update |
 
 - With an empty query, a **Popular / Recently Updated** switch picks the list. It's one table rather than two sections, so sorting applies to whichever list you're looking at.

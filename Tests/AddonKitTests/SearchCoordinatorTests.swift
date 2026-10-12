@@ -76,6 +76,22 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
         #expect(Set(ids(first)).count == first.count, "results are deduped")
     }
 
+    /// "Last updated" is the latest release, never when the add-on was installed.
+    @Test func lastUpdatedIsTheLatestReleaseNotTheInstall() async throws {
+        let h = try await Harness(withGitHub: false)
+        var addon = sampleInstalledAddon("BigWigsMods/BigWigs", name: "BigWigs", folders: ["BigWigs"])
+        addon.releaseID = -42 // installed without the API: publishedAt is the install time
+        addon.publishedAt = .now
+        let catalogueDate = try Date("2026-09-12T17:28:34Z", strategy: .iso8601)
+        var first = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever), installed: [.managed(addon, missingFolders: [])]).first)
+        #expect(first.first { $0.id == bigWigsRef }?.lastUpdated == catalogueDate)
+
+        let released = Date(timeIntervalSince1970: 1_790_000_000)
+        await h.cache.setLatestTag("v400", publishedAt: released, for: bigWigsRef)
+        first = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever), installed: [.managed(addon, missingFolders: [])]).first)
+        #expect(first.first { $0.id == bigWigsRef }?.lastUpdated == released)
+    }
+
     @Test func catalogueResultsForInstalledAddonsAreMarked() async throws {
         let h = try await Harness(withGitHub: false)
         let installed: [AddonStatus] = [

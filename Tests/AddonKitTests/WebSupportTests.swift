@@ -29,6 +29,20 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
         #expect(await source.latest.store.latestTag(for: ref)?.tag == "v2.0")
     }
 
+    /// The release.json asset's upload time is the release date, with no API call, and a
+    /// quota-free install records it instead of the install time.
+    @Test func releaseDateComesFromTheReleaseJSONUpload() async throws {
+        let http = RedirectingHTTPClient()
+        http.publishLatest("o/r", tag: "v2.0", flavors: ["forever"], uploadedAt: "Fri, 09 Oct 2026 14:21:37 GMT")
+        let source = await source(http)
+        _ = await source.latest.check(ref, flavor: .forever)
+        let expected = try Date("2026-10-09T14:21:37Z", strategy: .iso8601)
+        #expect(await source.latest.store.latestPublishedAt(for: ref) == expected)
+        let release = try #require(await source.latest.quotaFreeResolve(ref, flavor: .forever, policy: .preferStored))
+        #expect(release.publishedAt == expected)
+        #expect(http.apiRequests.isEmpty)
+    }
+
     @Test func releaseJSONWithoutTheFlavorIsUnsupported() async {
         let http = RedirectingHTTPClient()
         http.publishLatest("o/r", tag: "v1", flavors: ["mainline", "classic"])

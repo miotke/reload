@@ -22,6 +22,8 @@ public struct LatestRelease: Sendable, Hashable {
     public var failed = false
     /// Every flavor the release ships, from its release.json or an inspected zip; nil when unknown.
     public var availableFlavors: Set<Flavor>?
+    /// When the release was published, if its release.json was just downloaded.
+    public var publishedAt: Date?
 }
 
 /// The outcome of a support check.
@@ -54,6 +56,8 @@ public actor LatestReleaseStore: SupportChecking {
     /// release.json by lowercased `owner/repo@tag` (nil: that release has none), in front of
     /// the `release_json` table.
     private var tagReleaseJSON: [String: ReleaseJSON?] = [:]
+    /// Upload dates of release.json files downloaded by this process, by the same key.
+    private var uploadDates: [String: Date] = [:]
     /// Latest-release lookups in flight, so two callers asking at once share one request.
     private var inFlightLatest: [String: Task<LatestRelease, Never>] = [:]
 
@@ -144,12 +148,12 @@ public actor LatestReleaseStore: SupportChecking {
         return await withBuild(answer, ref: ref, flavor: flavor, fetch: needBuild, background: background)
     }
 
-    private func verdict(tag: String, releaseJSON json: ReleaseJSON?, flavor: Flavor) -> LatestRelease {
+    private func verdict(tag: String, releaseJSON json: ReleaseJSON?, flavor: Flavor, ref: AddonRef) -> LatestRelease {
         guard let json else { return LatestRelease(tag: tag, status: .needsDownload) }
         let build = json.release(for: flavor)
         return LatestRelease(
             tag: tag, status: build != nil ? .supported(version: tag) : .unsupported, build: build,
-            availableFlavors: json.availableFlavors)
+            availableFlavors: json.availableFlavors, publishedAt: uploadDates["\(GitHubReleaseResolver.cacheKey(ref))@\(tag)"])
     }
 
     /// The answer from a latest tag another flavor's check stored under `sharedTagTTL` ago, or
@@ -166,7 +170,7 @@ public actor LatestReleaseStore: SupportChecking {
                 answer = stored
             } else {
                 do {
-                    answer = verdict(tag: tag, releaseJSON: try await webReleaseJSON(owner: owner, repo: repo, ref: ref, tag: tag, background: background), flavor: flavor)
+                    answer = verdict(tag: tag, releaseJSON: try await webReleaseJSON(owner: owner, repo: repo, ref: ref, tag: tag, background: background), flavor: flavor, ref: ref)
                 } catch {
                     return nil
                 }
@@ -174,7 +178,7 @@ public actor LatestReleaseStore: SupportChecking {
         } else {
             answer = LatestRelease(tag: nil, status: .noReleases)
         }
-        await store.set([SupportRecord(ref: ref, status: answer.status, tag: answer.tag, checkedAt: meta.checkedAt, availableFlavors: answer.availableFlavors)], flavor: flavor)
+        await store.set([SupportRecord(ref: ref, status: answer.status, tag: answer.tag, checkedAt: meta.checkedAt, availableFlavors: answer.availableFlavors, publishedAt: answer.publishedAt)], flavor: flavor)
         return answer
     }
 
@@ -187,7 +191,7 @@ public actor LatestReleaseStore: SupportChecking {
                 if let stored, stored.tag == tag {
                     answer = LatestRelease(tag: tag, status: stored.status)
                 } else {
-                    answer = verdict(tag: tag, releaseJSON: try await webReleaseJSON(owner: owner, repo: repo, ref: ref, tag: tag, background: background), flavor: flavor)
+                    answer = verdict(tag: tag, releaseJSON: try await webReleaseJSON(owner: owner, repo: repo, ref: ref, tag: tag, background: background), flavor: flavor, ref: ref)
                 }
             } else {
                 answer = LatestRelease(tag: nil, status: .noReleases)
@@ -197,7 +201,7 @@ public actor LatestReleaseStore: SupportChecking {
         } catch {
             return await failed(ref, flavor: flavor, error: error, stored: stored, background: background)
         }
-        await store.set([SupportRecord(ref: ref, status: answer.status, tag: answer.tag, checkedAt: now(), availableFlavors: answer.availableFlavors)], flavor: flavor)
+        await store.set([SupportRecord(ref: ref, status: answer.status, tag: answer.tag, checkedAt: now(), availableFlavors: answer.availableFlavors, publishedAt: answer.publishedAt)], flavor: flavor)
         return answer
     }
 
@@ -301,7 +305,8 @@ public actor LatestReleaseStore: SupportChecking {
 
     /// The quota-free `ResolvedRelease` for a supported latest release: the asset URL is
     /// `releases/download/<tag>/<filename>`. It has no real release ID or date: `releaseID`
-    /// is a negative hash of the tag and `publishedAt` is now. `InstalledAddon.isUpdate`
+    /// is a negative hash of the tag and `publishedAt` is now (`quotaFreeResolve` fills in the
+    /// stored date when there is one). `InstalledAddon.isUpdate`
     /// compares tags for such releases.
     func resolvedRelease(_ ref: AddonRef, from latest: LatestRelease, flavor: Flavor) -> ResolvedRelease? {
         guard let tag = latest.tag, let build = latest.build, let (owner, repo) = try? GitHubReleaseResolver.split(ref) else { return nil }
@@ -325,7 +330,11 @@ public actor LatestReleaseStore: SupportChecking {
     /// build for `flavor`; nil when only the API can decide.
     func quotaFreeResolve(_ ref: AddonRef, flavor: Flavor, policy: CachePolicy, background: Bool = false) async -> ResolvedRelease? {
         let latest = await latestRelease(for: ref, flavor: flavor, policy: policy, needBuild: true, background: background)
-        return resolvedRelease(ref, from: latest, flavor: flavor)
+        guard var release = resolvedRelease(ref, from: latest, flavor: flavor) else { return nil }
+        if let meta = await store.latestTag(for: ref), meta.tag == latest.tag, let date = await store.latestPublishedAt(for: ref) {
+            release.publishedAt = date
+        }
+        return release
     }
 
     /// A stable negative ID for a release known only by its tag (FNV-1a of `owner/repo@tag`).
@@ -354,9 +363,16 @@ public actor LatestReleaseStore: SupportChecking {
     /// (tags are effectively immutable), so each one is downloaded once, not once per process.
     private func webReleaseJSON(owner: String, repo: String, ref: AddonRef, tag: String, background: Bool) async throws -> ReleaseJSON? {
         if let known = await knownReleaseJSON(ref, tag: tag) { return known }
-        let json = try await web.fetchReleaseJSON(owner: owner, repo: repo, tag: tag, background: background)
-        tagReleaseJSON["\(GitHubReleaseResolver.cacheKey(ref))@\(tag)"] = .some(json)
+        let (json, uploadedAt) = try await web.fetchReleaseJSON(owner: owner, repo: repo, tag: tag, background: background)
+        let key = "\(GitHubReleaseResolver.cacheKey(ref))@\(tag)"
+        tagReleaseJSON[key] = .some(json)
         await store.setReleaseJSON(json, for: ref, tag: tag)
+        if let uploadedAt {
+            // A verdict stored next carries it; when `tag` is already the stored latest tag
+            // (flavors or build filled in later), it's written now.
+            uploadDates[key] = uploadedAt
+            await store.setPublishedAt(uploadedAt, ifLatestTagIs: tag, for: ref)
+        }
         return json
     }
 }

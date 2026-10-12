@@ -82,6 +82,7 @@ public actor SearchCoordinator {
         let statuses = await keyed(supportCache.statuses(flavor: query.flavor))
         let flavors = await supportCache.allAvailableFlavors()
         let stars = await supportCache.stars()
+        let released = await supportCache.latestPublishedDates()
 
         var installedByKey: [String: InstalledAddon] = [:]
         for status in installed {
@@ -113,7 +114,7 @@ public actor SearchCoordinator {
         }
 
         session.attach(installed: installedByKey)
-        session.apply(statuses, flavors: flavors)
+        session.apply(statuses, flavors: flavors, released: released)
         guard !Task.isCancelled else { return }
 
         // 4. GitHub live search, when asked or when the database can't answer.
@@ -140,7 +141,7 @@ public actor SearchCoordinator {
         guard !Task.isCancelled else { return }
         for result in live { session.merge(result) }
         session.attach(installed: installedByKey)
-        session.apply(statuses, flavors: flavors)
+        session.apply(statuses, flavors: flavors, released: released)
         continuation.yield(SearchUpdate(results: session.visible, isComplete: true))
     }
 
@@ -223,6 +224,7 @@ public actor SearchCoordinator {
         let keyedStatuses = keyed(statuses)
         let stars = await supportCache.stars()
         let flavors = await supportCache.allAvailableFlavors()
+        let released = await supportCache.latestPublishedDates()
         let index = await localIndex()
 
         var popular: [SearchResult] = []
@@ -239,6 +241,7 @@ public actor SearchCoordinator {
             }
             result.support = status
             result.availableFlavors = flavors[ref.identifier.lowercased()]
+            result.lastUpdated = released[ref.identifier.lowercased()] ?? result.lastUpdated
             popular.append(result)
         }
         popular.sort { a, b in
@@ -254,6 +257,7 @@ public actor SearchCoordinator {
             var result = Self.result(for: entry, origin: .catalogue, stars: stars)
             if let status = keyedStatuses[Session.key(entry.ref)] { result.support = status }
             result.availableFlavors = flavors[entry.fullName.lowercased()]
+            result.lastUpdated = released[entry.fullName.lowercased()] ?? result.lastUpdated
             if flavor.hidesAsIncompatible(families: result.families, support: result.support) { continue }
             recent.append(result)
             if recent.count == Self.browseLimit { break }
@@ -332,10 +336,13 @@ private struct Session {
         var existing = results[i]
         // A bare direct reference only knows the repo name; prefer the catalogue's.
         if existing.origin == [.direct] || existing.name.isEmpty { existing.name = new.name }
+        // "Last updated" means the latest release: the installed copy's date is only a fallback.
+        if existing.lastUpdated == nil || (existing.origin == [.installed] && new.lastUpdated != nil) {
+            existing.lastUpdated = new.lastUpdated
+        }
         existing.origin.formUnion(new.origin)
         existing.summary = existing.summary ?? new.summary
         existing.stars = existing.stars ?? new.stars
-        existing.lastUpdated = existing.lastUpdated ?? new.lastUpdated
         existing.installed = existing.installed ?? new.installed
         if existing.support == .unknown { existing.support = new.support }
         existing.availableFlavors = existing.availableFlavors ?? new.availableFlavors
@@ -351,12 +358,14 @@ private struct Session {
         }
     }
 
-    /// Stored verdicts win over the catalogue's release.json hint. `flavors` is keyed by
-    /// lower-cased `owner/repo`.
-    mutating func apply(_ statuses: [String: SupportStatus], flavors: [String: Set<Flavor>]) {
+    /// Stored verdicts win over the catalogue's release.json hint, and the stored latest
+    /// release date over the catalogue's. `flavors` and `released` are keyed by lower-cased
+    /// `owner/repo`.
+    mutating func apply(_ statuses: [String: SupportStatus], flavors: [String: Set<Flavor>], released: [String: Date] = [:]) {
         for i in results.indices {
             if let status = statuses[Self.key(results[i].id)] { results[i].support = status }
             if let available = flavors[results[i].id.identifier.lowercased()] { results[i].availableFlavors = available }
+            if let date = released[results[i].id.identifier.lowercased()] { results[i].lastUpdated = date }
         }
     }
 

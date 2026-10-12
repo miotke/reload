@@ -43,6 +43,7 @@ sequenceDiagram
 - **No support checks during search.** Results carry the stored verdict and `availableFlavors` (every flavor the latest release ships, nil = not checked; `families` is derived), both read in one query each. Catalogue rows without a `release.json` show `.needsDownload`, since nothing cheaper could tell. Everything else is `.unknown` until it's opened, installed, refreshed, or scrolled into view in Browse ([visible-row checks](refresh.md#visible-row-checks)). `.checking` is never emitted.
 - `search(_:installed:)` returns plain result arrays; `searchUpdates(_:installed:)` returns `SearchUpdate { results, isSearchingGitHub, isComplete }`. `AddonManager` has both, plus `search(_:in:installed:)` so the caller's add-on list is used instead of rescanning `AddOns/` per keystroke.
 - Results are deduplicated by ref, and their `origin` sets are merged.
+- **`lastUpdated` is the latest release's date:** the stored `repo_meta.latest_published_at` when known, else the catalogue's `last_updated`. An installed copy's `publishedAt` is only a fallback, and never for a quota-free install, whose `publishedAt` may be its install time.
 - Cancelling the consumer cancels any work still running.
 - **`SearchQuery.hideIncompatible`** (on by default; it was `compatibleOnly`, and `foreverOnly` before that) applies the rule below. Installed add-ons and direct refs always stay. `SearchQuery.init` has no default flavor; callers pass the installation's.
 

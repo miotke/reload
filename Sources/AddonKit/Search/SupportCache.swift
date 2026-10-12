@@ -10,13 +10,16 @@ public struct SupportRecord: Sendable, Hashable {
     /// Every flavor `tag`'s release.json names, when it was read for this verdict. Stored per
     /// repo in the same transaction; nil leaves what's stored alone.
     public var availableFlavors: Set<Flavor>?
+    /// When `tag` was published, if known; stored with the tag.
+    public var publishedAt: Date?
 
-    public init(ref: AddonRef, status: SupportStatus, tag: String? = nil, checkedAt: Date, availableFlavors: Set<Flavor>? = nil) {
+    public init(ref: AddonRef, status: SupportStatus, tag: String? = nil, checkedAt: Date, availableFlavors: Set<Flavor>? = nil, publishedAt: Date? = nil) {
         self.ref = ref
         self.status = status
         self.tag = tag
         self.checkedAt = checkedAt
         self.availableFlavors = availableFlavors
+        self.publishedAt = publishedAt
     }
 }
 
@@ -166,7 +169,7 @@ public actor SupportCache {
                              record.tag.sqlValue, record.checkedAt.sqlValue])
             // A verdict with a tag also tells us the latest tag; a negative one, that there's none.
             if record.tag != nil || kind == "noReleases" {
-                tags.append([name, record.tag.sqlValue, record.checkedAt.sqlValue])
+                tags.append([name, record.tag.sqlValue, record.checkedAt.sqlValue, record.publishedAt.sqlValue])
             }
         }
         guard !verdicts.isEmpty || !failures.isEmpty else { return }
@@ -184,10 +187,11 @@ public actor SupportCache {
             }
             if !tagRows.isEmpty {
                 let upsert = try db.prepare("""
-                    INSERT INTO repo_meta(full_name, latest_tag, tag_checked_at) VALUES (?, ?, ?)
+                    INSERT INTO repo_meta(full_name, latest_tag, tag_checked_at, latest_published_at) VALUES (?, ?, ?, ?)
                     ON CONFLICT(full_name) DO UPDATE SET
                         latest_published_at = CASE WHEN repo_meta.latest_tag IS excluded.latest_tag
-                            THEN repo_meta.latest_published_at ELSE NULL END,
+                            THEN coalesce(excluded.latest_published_at, repo_meta.latest_published_at)
+                            ELSE excluded.latest_published_at END,
                         latest_tag = excluded.latest_tag, tag_checked_at = excluded.tag_checked_at
                     """)
                 for row in tagRows { try db.step(upsert, row) }
@@ -323,9 +327,18 @@ public actor SupportCache {
             "UPDATE repo_meta SET latest_published_at = ? WHERE full_name = ? AND latest_tag = ?", date, ref.identifier, tag)
     }
 
-    /// Publish date of the stored latest tag, when an API call has revealed it.
+    /// Publish date of the stored latest tag, from an API call or the upload date of its
+    /// release.json.
     public func latestPublishedAt(for ref: AddonRef) async -> Date? {
         try? await database.query("SELECT latest_published_at FROM repo_meta WHERE full_name = ?", ref.identifier).first?.date(0)
+    }
+
+    /// Every known latest-release date, keyed by lower-cased `owner/repo`.
+    public func latestPublishedDates() async -> [String: Date] {
+        let rows = (try? await database.query("SELECT full_name, latest_published_at FROM repo_meta WHERE latest_published_at IS NOT NULL")) ?? []
+        var out: [String: Date] = [:]
+        for row in rows { if let name = row.string(0), let date = row.date(1) { out[name.lowercased()] = date } }
+        return out
     }
 
     /// release.json of `ref`'s release `tag` as stored: nil when it was never fetched,

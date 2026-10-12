@@ -20,6 +20,8 @@ Code: `Sources/AddonKit/GitHub/` (`GitHubAPIClient` for the API, `GitHubWebClien
 | Rate limit | `api.github.com/rate_limit` | No | `addonctl doctor` |
 | Screenshots | any host in the README | n/a | [ScreenshotLoader](../features/details-and-screenshots.md#screenshots) |
 
+The `release.json` asset's `Last-Modified` header is its upload time, so it doubles as the release date (`repo_meta.latest_published_at`) without an API call.
+
 Avoid `releases/latest/download/release.json`: it takes 3 hops and about 350 ms. Why the github.com URLs: [decision 0010](../decisions/0010-quota-free-endpoints.md).
 
 ## Quota

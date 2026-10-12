@@ -123,16 +123,22 @@ public actor GitHubWebClient {
         }
     }
 
-    /// release.json of the release tagged `tag`, or nil if it has none. Not cached here:
-    /// `LatestReleaseStore` stores it by `repo@tag`.
-    func fetchReleaseJSON(owner: String, repo: String, tag: String, background: Bool) async throws -> ReleaseJSON? {
+    /// release.json of the release tagged `tag` (nil if it has none), and when it was
+    /// uploaded: the asset's `Last-Modified`, which is the release date without an API call.
+    /// Not cached here: `LatestReleaseStore` stores it by `repo@tag`.
+    func fetchReleaseJSON(owner: String, repo: String, tag: String, background: Bool) async throws -> (json: ReleaseJSON?, uploadedAt: Date?) {
         let url = Self.releaseDownloadURL(owner: owner, repo: repo, tag: tag, file: "release.json")
         let (data, response) = try await request(url, method: "GET", background: background)
         switch response.statusCode {
-        case 200..<300: return try ReleaseJSON(data: data)
-        case 404: return nil
+        case 200..<300: return (try ReleaseJSON(data: data), Self.lastModified(response))
+        case 404: return (nil, nil)
         default: throw AddonError.http(status: response.statusCode, url: url)
         }
+    }
+
+    static func lastModified(_ response: HTTPURLResponse) -> Date? {
+        guard let value = response.value(forHTTPHeaderField: "Last-Modified") else { return nil }
+        return try? Date(value, strategy: Date.HTTPFormatStyle())
     }
 
     /// `…/owner/repo/releases/tag/<tag>` → `<tag>`; anything else (a repo without releases

@@ -63,7 +63,7 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 | `catalogue` | `full_name` (no case) | catalogue rows; `source` is `catalogue` or `github_search`; `first_seen_at`, `changed_at` |
 | `catalogue_state` | single row | ETag, last fetch, last failure |
 | `support` | `full_name` + `flavor` | verdict (`supported`, `unsupported`, `noReleases`, `needsDownload`; NULL if no check has succeeded yet), version, the tag it was based on, `checked_at`; the last failure's `error_at` and `retry_after` |
-| `repo_meta` | `full_name` | latest tag and when it was seen, publish date if known, stars, README path and ETag, when the API was last asked (`api_checked_at`) and the latest tag then (`api_checked_tag`), and every flavor the latest release ships (`available_flavors`, comma-separated; NULL = not known), with the tag it describes and its source (`release_json` or `inspection`) |
+| `repo_meta` | `full_name` | latest tag and when it was seen, publish date if known (from an API call, or free from the `Last-Modified` of the tag's `release.json` asset), stars, README path and ETag, when the API was last asked (`api_checked_at`) and the latest tag then (`api_checked_tag`), and every flavor the latest release ships (`available_flavors`, comma-separated; NULL = not known), with the tag it describes and its source (`release_json` or `inspection`) |
 | `release_json` | `full_name` + `tag` | the decoded `release.json` of that release (NULL: it has none), about 600 B each |
 | `release_folders` | `full_name` | the tag last downloaded and the top-level folders its zip shipped (JSON), for grouping unmanaged folders |
 | `details` | `full_name` + `flavor` | README, screenshot URLs, and release notes with the tag they belong to (`latest_version`) |

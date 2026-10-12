@@ -23,7 +23,9 @@ public struct InstalledSearchProvider: SearchProvider {
                 items.append(Item(
                     document: SearchDocument(name: addon.name, otherFields: [addon.id.identifier] + addon.folders),
                     result: SearchResult(
-                        id: addon.id, name: addon.name, owner: owner, lastUpdated: addon.publishedAt,
+                        // A quota-free install has no real release date (a negative, synthetic
+                        // release ID); its `publishedAt` is when it was installed.
+                        id: addon.id, name: addon.name, owner: owner, lastUpdated: addon.releaseID >= 0 ? addon.publishedAt : nil,
                         installed: addon, origin: [.installed]
                     )
                 ))

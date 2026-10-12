@@ -86,8 +86,9 @@ final class RedirectingHTTPClient: HTTPClient, Sendable {
 
 extension RedirectingHTTPClient {
     /// Stubs github.com so `owner/repo`'s latest release is `tag`, optionally with a
-    /// release.json listing `flavors` (nil means the release has no release.json).
-    func publishLatest(_ repo: String, tag: String?, flavors: [String]? = ["forever"]) {
+    /// release.json listing `flavors` (nil means the release has no release.json), uploaded
+    /// at `uploadedAt` (an HTTP date) when given.
+    func publishLatest(_ repo: String, tag: String?, flavors: [String]? = ["forever"], uploadedAt: String? = nil) {
         let latest = "https://github.com/\(repo)/releases/latest"
         guard let tag else {
             // A repo without releases redirects to its (empty) releases page.
@@ -103,7 +104,7 @@ extension RedirectingHTTPClient {
             let json = #"{"releases":[{"name":"Addon","version":"\#(tag)","filename":"Addon-\#(tag).zip","nolib":false,"metadata":[\#(metadata)]}]}"#
             let asset = "https://release-assets.test/\(repo)/\(tag)/release.json"
             redirect(download, to: asset)
-            stub(asset, text: json)
+            stub(asset, headers: uploadedAt.map { ["Last-Modified": $0] } ?? [:], body: Data(json.utf8))
         } else {
             stub(download, status: 404)
         }
