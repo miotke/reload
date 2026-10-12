@@ -82,6 +82,12 @@ struct CLIContext: Sendable {
         console.err(errStyle.dim(text))
     }
 
+    /// A short aside on stderr, e.g. that GitHub was asked too (suppressed by `--quiet` and `--json`).
+    func note(_ text: String) {
+        guard !quiet, !json else { return }
+        console.err(errStyle.dim(text))
+    }
+
     func warn(_ text: String) {
         guard !json else { return }
         console.err(errStyle.yellow("warning: ") + text)
