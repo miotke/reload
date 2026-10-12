@@ -10,10 +10,16 @@ public protocol DownloadTransport: Sendable {
 
 /// `URLSession` download tasks with progress from `URLSessionTask.progress`.
 public struct URLSessionDownloadTransport: DownloadTransport {
-    public let session: URLSession
+    /// Add-on zips are a few MB; the largest UI suites are tens of MB. Anything past this is
+    /// cancelled rather than filling the disk.
+    public static let defaultMaxBytes: Int64 = 200 * 1024 * 1024
 
-    public init(session: URLSession = URLSessionHTTPClient.sharedSession) {
+    public let session: URLSession
+    public let maxBytes: Int64
+
+    public init(session: URLSession = URLSessionHTTPClient.sharedSession, maxBytes: Int64 = defaultMaxBytes) {
         self.session = session
+        self.maxBytes = maxBytes
     }
 
     public func download(from url: URL, to destination: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
@@ -21,11 +27,17 @@ public struct URLSessionDownloadTransport: DownloadTransport {
         request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
 
-        let box = TaskBox()
+        let box = TaskBox(maxBytes: maxBytes)
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 let task = session.downloadTask(with: request) { location, response, error in
                     box.invalidate()
+                    // Progress cancels a large download early; this catches one that finished first.
+                    let size = location.flatMap { try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize }.map(Int64.init) ?? 0
+                    if box.exceededLimit || size > box.maxBytes || (response?.expectedContentLength ?? 0) > box.maxBytes {
+                        continuation.resume(throwing: AddonError.invalidArchive("the download is larger than \(ByteCountFormatter.string(fromByteCount: box.maxBytes, countStyle: .file))"))
+                        return
+                    }
                     if let error {
                         continuation.resume(throwing: error)
                         return
@@ -59,12 +71,26 @@ public struct URLSessionDownloadTransport: DownloadTransport {
             var task: URLSessionDownloadTask?
             var observation: NSKeyValueObservation?
             var cancelled = false
+            var exceededLimit = false
         }
 
+        let maxBytes: Int64
         private let state = Mutex(State())
 
+        init(maxBytes: Int64) {
+            self.maxBytes = maxBytes
+        }
+
+        var exceededLimit: Bool { state.withLock { $0.exceededLimit } }
+
         func start(_ task: URLSessionDownloadTask, progress: @escaping @Sendable (Double) -> Void) {
-            let observation = task.progress.observe(\.fractionCompleted) { p, _ in
+            // Download progress counts bytes: the declared length, then what has arrived.
+            let observation = task.progress.observe(\.fractionCompleted) { [weak self] p, _ in
+                if let self, max(p.totalUnitCount, p.completedUnitCount) > self.maxBytes {
+                    self.state.withLock { $0.exceededLimit = true }
+                    task.cancel()
+                    return
+                }
                 progress(min(max(p.fractionCompleted, 0), 1))
             }
             let cancelled = state.withLock { state in

@@ -34,6 +34,7 @@ Nothing touches disk until the whole archive passes these checks:
 - Every entry must stay inside the destination. `..`, absolute paths, `C:` paths and symlink entries are rejected (`unsafeArchivePath`); this blocks "zip-slip" attacks.
 - `__MACOSX/`, `.DS_Store` and loose top-level files (READMEs, `BUILD_INFO.txt`) are skipped, not extracted. WoW ignores files in AddOns, so they're no reason to fail.
 - There must be at least one top-level folder containing a `.toc`. Otherwise the archive is `invalidArchive`.
+- It may unpack to at most 1 GB and 50,000 entries (`ZipExtractor.maxUncompressedBytes`, `maxEntries`), so a small "zip bomb" can't fill the disk. Downloads themselves stop past 200 MB (`URLSessionDownloadTransport.defaultMaxBytes`).
 - `Blizzard_*` folders are rejected.
 
 ### 2. Ownership (`Installer`)

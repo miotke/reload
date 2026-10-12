@@ -124,6 +124,16 @@ func makeAddonZip(folders: [String], marker: String = "v1", named name: String =
         #expect(try FileManager.default.contentsOfDirectory(atPath: destination.path(percentEncoded: false)) == ["A"])
     }
 
+    @Test func rejectsArchivesThatUnpackTooLarge() throws {
+        let tmp = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let zip = try makeTestZip([.file("A/A.toc", "## Interface: 16001"), .file("A/big.lua", String(repeating: "x", count: 4096))], in: tmp)
+        let archive = try ZipExtractor.openArchive(zip)
+        #expect(throws: AddonError.self) { try ZipExtractor.validate(archive, byteLimit: 1024) }
+        #expect(throws: AddonError.self) { try ZipExtractor.validate(archive, entryLimit: 1) }
+        #expect(try ZipExtractor.validate(archive).folders == ["A"])
+    }
+
     @Test func rejectsArchiveWithoutToc() throws {
         let tmp = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: tmp) }

@@ -7,6 +7,11 @@ import ZIPFoundation
 /// escape the destination (`..`, absolute paths, symlinks). `__MACOSX/`, `.DS_Store` and
 /// top-level files are skipped.
 public enum ZipExtractor {
+    /// Limits on what an archive may unpack to, so a small "zip bomb" can't fill the disk.
+    /// Real add-ons unpack to tens of MB in a few thousand files.
+    public static let maxUncompressedBytes: UInt64 = 1024 * 1024 * 1024
+    public static let maxEntries = 50_000
+
     /// Top-level folder names in `archive`, after full validation. Extracts nothing.
     public static func topLevelFolders(in archive: URL) throws -> [String] {
         try validate(openArchive(archive)).folders
@@ -60,13 +65,20 @@ public enum ZipExtractor {
         }
     }
 
-    static func validate(_ zip: Archive) throws -> Plan {
+    static func validate(_ zip: Archive, byteLimit: UInt64 = maxUncompressedBytes, entryLimit: Int = maxEntries) throws -> Plan {
         var entries: [PlannedEntry] = []
         var folders: [String] = []
         var seenFolders = Set<String>()
         var foldersWithToc = Set<String>()
+        var totalBytes: UInt64 = 0
+        var count = 0
 
         for entry in zip {
+            count += 1
+            totalBytes += entry.uncompressedSize
+            guard count <= entryLimit, totalBytes <= byteLimit else {
+                throw AddonError.invalidArchive("archive unpacks to more than \(entryLimit) files or \(byteLimit / 1024 / 1024) MB")
+            }
             let raw = entry.path
             let components = try safeComponents(of: raw)
             guard let top = components.first else { continue }

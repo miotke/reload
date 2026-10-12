@@ -182,4 +182,18 @@ private func release(_ id: Int64, identifier: String = "Owner/Repo", url: String
         }
         #expect(!FileManager.default.fileExists(atPath: tmp.appending(path: "missing.zip").path(percentEncoded: false)))
     }
+
+    @Test func urlSessionTransportStopsOversizedDownloads() async throws {
+        let tmp = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        StubURLProtocol.lock.withLock { StubURLProtocol.routes["https://stub.test/huge.zip"] = (200, Data(repeating: 1, count: 64 * 1024)) }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubURLProtocol.self]
+        let transport = URLSessionDownloadTransport(session: URLSession(configuration: config), maxBytes: 1024)
+        let destination = tmp.appending(path: "huge.zip")
+        await #expect(throws: AddonError.self) {
+            try await transport.download(from: URL(string: "https://stub.test/huge.zip")!, to: destination) { _ in }
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path(percentEncoded: false)))
+    }
 }
