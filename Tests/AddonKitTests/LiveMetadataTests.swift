@@ -29,7 +29,7 @@ struct LiveMetadataTests {
 
     @Test func latestTagSupportAndResolveWithoutTheAPI() async throws {
         let http = CountingClient()
-        let source = GitHubSource(http: http, database: try .inMemory())
+        let source = GitHub(http: http, database: try .inMemory()).latest
         for ref in repos {
             let latest = await source.latestRelease(for: ref, flavor: .forever, policy: .forceRevalidate, needBuild: true)
             let tag = try #require(latest.tag)
@@ -48,16 +48,16 @@ struct LiveMetadataTests {
     }
 
     @Test func readmesAndScreenshots() async throws {
-        let source = GitHubSource(http: URLSessionHTTPClient())
+        let source = GitHub(http: URLSessionHTTPClient()).readmes
         for ref in repos {
-            guard case .found(let markdown, let path, let etag) = try await source.readme(for: ref) else {
+            guard case .found(let markdown, let path, let etag) = try await source.fetch(for: ref) else {
                 Issue.record("no README for \(ref)")
                 continue
             }
             #expect(!markdown.isEmpty)
             #expect(etag != nil)
             // A conditional request with the remembered path is a 304.
-            #expect(try await source.readme(for: ref, knownPath: path, etag: etag) == .notModified)
+            #expect(try await source.fetch(for: ref, knownPath: path, etag: etag) == .notModified)
             let (owner, repo) = try GitHubSource.split(ref)
             let images = ReadmeImages.extract(from: markdown, owner: owner, repo: repo, readmePath: path)
             #expect(images.allSatisfy { !ReadmeImages.isBadgeOrIcon($0) })
@@ -65,9 +65,9 @@ struct LiveMetadataTests {
     }
 
     @Test func missingRepoAndRepoWithoutReleases() async throws {
-        let source = GitHubSource(http: URLSessionHTTPClient())
+        let source = GitHub(http: URLSessionHTTPClient()).latest
         #expect(await source.support(for: AddonRef(source: .github, identifier: "BigWigsMods/does-not-exist-zz9"), flavor: .forever) == .noReleases)
         let none = await source.latestRelease(for: AddonRef(source: .github, identifier: "torvalds/linux"), flavor: .forever, policy: .forceRevalidate)
-        #expect(none == GitHubSource.LatestRelease(tag: nil, status: .noReleases))
+        #expect(none == LatestRelease(tag: nil, status: .noReleases))
     }
 }

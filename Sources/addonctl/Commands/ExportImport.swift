@@ -92,10 +92,9 @@ struct ImportCommand: ContextCommand {
 
     /// Splits the file into installs and already-installed add-ons. Throws on an unparsable ref.
     static func plan(_ file: AddonsFile, installed: [InstalledAddon]) throws -> Plan {
-        let parser = GitHubSource()
         var plan = Plan()
         for entry in file.addons {
-            guard let ref = parser.parse(entry.ref) else { throw AddonError.invalidReference(entry.ref) }
+            guard let ref = AddonRef(parsing: entry.ref) else { throw AddonError.invalidReference(entry.ref) }
             if let addon = installed.first(where: { $0.id == ref }) {
                 plan.existing.append((addon, entry.channel, entry.pinned))
             } else {

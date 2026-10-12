@@ -2,7 +2,7 @@
 
 How an add-on gets from a download onto disk: the install, update, rollback and uninstall flow, the safety checks, and the `Downloader`.
 
-Code: `Sources/AddonKit/Install/` (`Downloader`, `ZipExtractor`, `Installer`). Records are kept by the `InstallStore` ([data-storage.md](../architecture/data-storage.md)). Why it works like a transaction: [decision 0004](../decisions/0004-transactional-installer.md).
+Code: `Sources/AddonKit/Install/` (`Downloader`, `ZipExtractor`, `Installer`); the flows in `AddonManager+Install.swift` and `AddonManager+Updates.swift`. Records are kept by the `InstallStore` ([data-storage.md](../architecture/data-storage.md)). Why it works like a transaction: [decision 0004](../decisions/0004-transactional-installer.md).
 
 ## Install flow
 

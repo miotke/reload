@@ -48,3 +48,5 @@ Schema: migration 3 ([data-storage.md](../architecture/data-storage.md#migration
 ## See also
 
 - [network/caching.md](../network/caching.md), [features/details-and-screenshots.md](../features/details-and-screenshots.md#release-notes), [features/refresh.md](../features/refresh.md)
+
+> **Update 2026-10-12:** the owner moved from `GitHubSource` to `LatestReleaseStore` (`Sources/AddonKit/GitHub/LatestReleaseStore.swift`) in the core refactor. The decision is unchanged.

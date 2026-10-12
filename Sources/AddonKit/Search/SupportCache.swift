@@ -59,7 +59,7 @@ public actor SupportCache {
     /// Background and bulk update checks call the API for a repo at most this often.
     public static let apiCheckInterval: TimeInterval = 6 * 60 * 60
 
-    /// A stored row as `GitHubSource.latestRelease` sees it.
+    /// A stored row as `LatestReleaseStore.latestRelease` sees it.
     struct StoredSupport: Sendable {
         /// Nil when no check has ever succeeded.
         var status: SupportStatus?
@@ -117,7 +117,7 @@ public actor SupportCache {
     }
 
     /// Whether a stored answer is within its lifetime: verdicts 1 h, negative answers 24 h,
-    /// and nothing is retried within 15 min of a failure. Only `GitHubSource.latestRelease`
+    /// and nothing is retried within 15 min of a failure. Only `LatestReleaseStore.latestRelease`
     /// decides with this.
     func isFresh(_ stored: StoredSupport) -> Bool {
         if let retry = stored.retryAfter, retry > now() { return true }
@@ -293,7 +293,7 @@ public actor SupportCache {
     }
 
     /// Records when the stored latest tag was published, once an API call reveals it. Never
-    /// changes the tag itself: that's `GitHubSource.check`'s job.
+    /// changes the tag itself: that's `LatestReleaseStore.check`'s job.
     public func setPublishedAt(_ date: Date, ifLatestTagIs tag: String, for ref: AddonRef) async {
         _ = try? await database.execute(
             "UPDATE repo_meta SET latest_published_at = ? WHERE full_name = ? AND latest_tag = ?", date, ref.identifier, tag)

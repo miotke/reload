@@ -124,7 +124,7 @@ public protocol SearchProvider: Sendable {
 }
 
 /// Checks whether an add-on supports a flavor without downloading it (docs/features/release-selection.md).
-/// Implemented by `GitHubSource`; implementations manage their own rate-limit budget
+/// Implemented by `LatestReleaseStore`; implementations manage their own rate-limit budget
 /// and return `.unknown` rather than spending the reserve kept for installs.
 public protocol SupportChecking: Sendable {
     func support(for ref: AddonRef, flavor: Flavor) async -> SupportStatus

@@ -218,7 +218,7 @@ import Testing
         let clock = MutableClock()
         await h.manager.setClock(clock.now)
         _ = try await h.manager.details(for: other, in: h.installation)
-        #expect(h.http.urls.filter { $0.contains("raw.githubusercontent.com") }.count == GitHubSource.readmeCandidates.count)
+        #expect(h.http.urls.filter { $0.contains("raw.githubusercontent.com") }.count == ReadmeFetcher.candidates.count)
 
         clock.date += 2 * 24 * 3600
         h.http.reset()
@@ -234,8 +234,8 @@ import Testing
     @Test func largeReadmesAreCapped() {
         let line = String(repeating: "x", count: 99) + "\n"
         let big = Data(String(repeating: line, count: 6_000).utf8)
-        let capped = GitHubSource.capped(big)
-        #expect(capped.utf8.count <= GitHubSource.maxReadmeBytes)
+        let capped = ReadmeFetcher.capped(big)
+        #expect(capped.utf8.count <= ReadmeFetcher.maxBytes)
         #expect(capped.hasSuffix("x"))
     }
 }

@@ -59,6 +59,8 @@ sequenceDiagram
 
 Unknown families (nil: no `release.json`, never checked) are always kept. A verdict of `.unsupported` alone no longer hides a row: on Forever that's often a Retail-only add-on.
 
+Front ends ask `BrowseFilter.isHidden(_:for:isInstalled:)`, which also keeps installed add-ons, and `BrowseFilter.hasConfirmedBuild(_:for:)` for which rows to de-emphasise.
+
 ## GitHub fallback
 
 - **Trigger:** fewer than 3 local results, a query of 3+ characters and no direct ref; or **Search GitHub for More Results** / `addonctl search --github` (`includeLiveGitHub`).
