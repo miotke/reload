@@ -53,7 +53,7 @@ final class RefreshStatus {
 struct BrowseOptions: Equatable {
     var query = ""
     var home: BrowseHome = .popular
-    var foreverOnly = true
+    var compatibleOnly = true
     var sort: ColumnSort<BrowseColumn>?
 }
 
@@ -228,7 +228,7 @@ final class InstallationModel {
             results = searchResults
         }
         // The home lists come back unfiltered, and live patches can turn a search result unsupported.
-        results = results.filter { !browseOptions.foreverOnly || !Self.hiddenByForeverOnly($0.support) }
+        results = results.filter { !browseOptions.compatibleOnly || !Self.hiddenByCompatibleOnly($0.support) }
         var rows = results.map { BrowseRow($0, now: now) }
         if let sort = browseOptions.sort { rows.sort(using: sort) }
         guard rows != browseRows else { return }
@@ -236,7 +236,7 @@ final class InstallationModel {
         browseRowIndex = Dictionary(rows.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
-    static func hiddenByForeverOnly(_ status: SupportStatus) -> Bool {
+    static func hiddenByCompatibleOnly(_ status: SupportStatus) -> Bool {
         switch status {
         case .unsupported, .noReleases: true
         default: false

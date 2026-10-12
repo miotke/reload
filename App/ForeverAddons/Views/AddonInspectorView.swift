@@ -112,7 +112,7 @@ struct AddonDetailView: View {
             Text(name).font((style == .window ? Font.largeTitle : .title2).weight(.semibold)).textSelection(.enabled)
             HStack(spacing: 8) {
                 if let owner { Text("by \(owner)").foregroundStyle(.secondary) }
-                if let support { SupportBadge(status: support) }
+                if let support { SupportBadge(status: support, flavor: state.installation.flavor) }
             }
             .font(.callout)
             if let summary {
@@ -363,7 +363,7 @@ private struct UnmanagedInspector: View {
                         row("Interface", interfaces.map(String.init).joined(separator: ", "))
                     }
                     if let toc {
-                        row("Forever", toc.supports(state.installation.flavor) ? "Supported by TOC" : "Not listed in TOC")
+                        row(state.installation.flavor.displayName, toc.supports(state.installation.flavor) ? "Supported by TOC" : "Not listed in TOC")
                     }
                     if let suggestedRef { row("Suggested", suggestedRef.identifier) }
                 }

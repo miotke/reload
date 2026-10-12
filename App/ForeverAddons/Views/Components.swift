@@ -1,9 +1,10 @@
 import AddonKit
 import SwiftUI
 
-/// Forever-support badge for search results (docs/design.md §7.3).
+/// Support badge for search results, naming the installation's game.
 struct SupportBadge: View {
     var status: SupportStatus
+    var flavor: Flavor
 
     var body: some View {
         Text(text)
@@ -18,7 +19,7 @@ struct SupportBadge: View {
 
     private var text: String {
         switch status {
-        case .supported: "✓ Forever"
+        case .supported: "✓ \(flavor.displayName)"
         case .checking: "⋯ checking"
         case .unknown, .needsDownload: "? unknown"
         case .unsupported: "— not yet"
@@ -36,11 +37,11 @@ struct SupportBadge: View {
 
     private var help: String {
         switch status {
-        case .supported(let version): "Supports Forever (\(version))"
-        case .checking: "Checking for a Forever build…"
-        case .unknown: "Forever support hasn't been checked yet"
+        case .supported(let version): "Supports \(flavor.displayName) (\(version))"
+        case .checking: "Checking for a \(flavor.displayName) build…"
+        case .unknown: "\(flavor.displayName) support hasn't been checked yet"
         case .needsDownload: "Has releases but no release.json; support is confirmed when installing"
-        case .unsupported: "No Forever build yet"
+        case .unsupported: "No \(flavor.displayName) build yet"
         case .noReleases: "This repository has no GitHub releases"
         }
     }
@@ -118,7 +119,7 @@ extension RefreshProgress {
         return switch phase {
         case .catalogue: "Downloading the add-on catalogue…"
         case .updates: "Checking for updates…"
-        case .support: "Checking Forever support…"
+        case .support: "Checking support…"
         case .finished: "Done"
         }
     }

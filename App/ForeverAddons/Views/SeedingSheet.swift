@@ -21,7 +21,7 @@ struct SeedingSheet: View {
                         .font(.title3.weight(.semibold))
                     Text("""
                         ForeverAddons is downloading the add-on catalogue and checking your add-ons \
-                        for updates and Forever support. This takes longer the first time.
+                        for updates and \(state.installation.flavor.displayName) support. This takes longer the first time.
                         """)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
