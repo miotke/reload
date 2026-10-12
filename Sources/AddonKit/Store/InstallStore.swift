@@ -164,7 +164,9 @@ public actor InstallStore {
     // MARK: - Reconcile
 
     /// Compares the store with `AddOns/` on disk (docs/architecture/data-storage.md). Managed add-ons come
-    /// first (sorted by name), then unmanaged folders (sorted by folder name).
+    /// first (sorted by name), then unmanaged folders (sorted by folder name), one each, with
+    /// the TOC the client loads for the installation's flavor and only TOC-linked repos as
+    /// candidates. `AddonManager.addons(in:)` adds catalogue suggestions and grouping.
     /// `Blizzard_*` and hidden entries are never listed.
     public func reconcile(_ installation: Installation) throws -> [AddonStatus] {
         let fm = FileManager.default
@@ -185,26 +187,9 @@ public actor InstallStore {
             .filter { Self.isDirectory(addonsDirectory.appending(path: $0, directoryHint: .isDirectory)) }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
         for folder in unmanaged {
-            let toc = Self.readToc(folder: folder, in: addonsDirectory)
-            statuses.append(.unmanaged(folder: folder, toc: toc, suggestedRef: toc?.website.flatMap(Self.githubRef(fromWebsite:))))
+            statuses.append(.unmanaged(UnmanagedFolder(reading: folder, in: addonsDirectory, flavor: installation.flavor)))
         }
         return statuses
-    }
-
-    /// Parses `F/F.toc`, or else the first `F/F*.toc` (preferring base-name matches).
-    static func readToc(folder: String, in addonsDirectory: URL) -> Toc? {
-        let dir = addonsDirectory.appending(path: folder, directoryHint: .isDirectory)
-        guard let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path(percentEncoded: false)) else { return nil }
-        let lowerFolder = folder.lowercased()
-        let candidates = files.filter {
-            let lower = $0.lowercased()
-            return lower.hasPrefix(lowerFolder) && lower.hasSuffix(".toc")
-        }
-        let chosen = candidates.first { $0.lowercased() == lowerFolder + ".toc" }
-            ?? candidates.sorted().first { TocFileName($0)?.addonName.lowercased() == lowerFolder }
-            ?? candidates.sorted().first
-        guard let chosen, let data = try? Data(contentsOf: dir.appending(path: chosen)) else { return nil }
-        return Toc(parsing: data)
     }
 
     /// `https://github.com/owner/repo[/…]` → `github:owner/repo`.

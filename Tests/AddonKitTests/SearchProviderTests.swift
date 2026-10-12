@@ -119,12 +119,12 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
     let statuses: [AddonStatus] = [
         .managed(sampleInstalledAddon("BigWigsMods/BigWigs", name: "BigWigs", folders: ["BigWigs", "BigWigs_Core"]), missingFolders: []),
         .managed(sampleInstalledAddon("funkydude/BugSack", name: "BugSack", folders: ["BugSack"]), missingFolders: []),
-        .unmanaged(
+        .unmanaged(UnmanagedFolder(
             folder: "Baganator",
             toc: Toc(parsing: "## Title: |cff00ff00Baganator|r\n## Notes: Bag replacement\n"),
-            suggestedRef: AddonRef(source: .github, identifier: "plusmouse/Baganator")
-        ),
-        .unmanaged(folder: "MysteryAddon", toc: nil, suggestedRef: nil),
+            candidates: [AdoptionCandidate(ref: AddonRef(source: .github, identifier: "plusmouse/Baganator"), name: "Baganator", reason: "", source: .tocLink)]
+        )),
+        .unmanaged(UnmanagedFolder(folder: "MysteryAddon")),
     ]
 
     @Test func matchesManagedByNameAndCamelCase() {

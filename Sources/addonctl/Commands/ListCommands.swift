@@ -29,7 +29,7 @@ struct ListCommand: ContextCommand {
             context.say(missing ? "No add-ons have missing folders." : "No add-ons installed. Try `addonctl search <words>`.")
             return
         }
-        context.print(Format.listTable(statuses, style: context.style))
+        context.print(Format.listTable(statuses, flavor: installation.flavor, style: context.style))
         let managedCount = statuses.filter { if case .managed = $0 { true } else { false } }.count
         context.detail("\(managedCount) managed in \(installation.addonsDirectory.path(percentEncoded: false))")
     }

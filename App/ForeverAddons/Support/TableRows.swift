@@ -29,6 +29,35 @@ extension [SearchResult] {
     }
 }
 
+/// An add-on's primary action, from the installation's managed list and stored update state
+/// (`InstallationModel.installAction(for:)`). Browse rows and the inspector both show it.
+nonisolated enum InstallAction: Hashable, Sendable {
+    case install
+    /// `ref` is the installed record's, whose case may differ from the result's.
+    case installed(ref: AddonRef, version: String)
+    case update(ref: AddonRef, version: String, available: String)
+
+    init(installed: InstalledAddon?, update: UpdateState?) {
+        guard let installed else {
+            self = .install
+            return
+        }
+        if case .available(let release) = update, !installed.pinned {
+            self = .update(ref: installed.id, version: installed.version, available: release.version)
+        } else {
+            self = .installed(ref: installed.id, version: installed.version)
+        }
+    }
+
+    /// The installed record's ref, or nil when not installed.
+    var installedRef: AddonRef? {
+        switch self {
+        case .install: nil
+        case .installed(let ref, _), .update(let ref, _, _): ref
+        }
+    }
+}
+
 nonisolated struct BrowseRow: Identifiable, Hashable, Sendable {
     var id: String
     var ref: AddonRef
@@ -40,11 +69,13 @@ nonisolated struct BrowseRow: Identifiable, Hashable, Sendable {
     var starsText: String
     var lastUpdated: Date?
     var updatedText: String
-    var isInstalled: Bool
+    /// From the installation's managed list, never from the search result.
+    var action: InstallAction
+    var isInstalled: Bool { action != .install }
     /// Found by a live GitHub search rather than the local catalogue.
     var isFromGitHub: Bool
 
-    init(_ result: SearchResult, now: Date = .now) {
+    init(_ result: SearchResult, action: InstallAction? = nil, now: Date = .now) {
         id = result.id.description
         ref = result.id
         name = result.name
@@ -55,7 +86,7 @@ nonisolated struct BrowseRow: Identifiable, Hashable, Sendable {
         starsText = result.stars.map { $0.formatted() } ?? "—"
         lastUpdated = result.lastUpdated
         updatedText = result.lastUpdated.map { DayLabel.string(for: $0, now: now) } ?? "—"
-        isInstalled = result.installed != nil
+        self.action = action ?? InstallAction(installed: result.installed, update: nil)
         isFromGitHub = result.origin.contains(.github)
     }
 }
@@ -124,6 +155,8 @@ nonisolated struct InstalledRow: Identifiable, Hashable, Sendable {
     var missingFolders: [String]
     var condition: Condition
     var failure: String?
+    /// Unmanaged only: the game doesn't load this folder for the installation's flavor.
+    var isNotLoaded = false
 
     var isManaged: Bool { ref != nil }
 
@@ -156,13 +189,20 @@ nonisolated struct InstalledRow: Identifiable, Hashable, Sendable {
                 case nil: condition = .unchecked
                 }
             }
-        case .unmanaged(let folder, let toc, _):
-            name = folder
-            subtitle = toc?.title.flatMap { $0 == folder ? nil : $0 }
-            version = toc?.version ?? ""
+        case .unmanaged(let unmanaged):
+            name = unmanaged.title
+            subtitle = Self.unmanagedSubtitle(unmanaged)
+            version = unmanaged.version ?? ""
             condition = .unmanaged
+            isNotLoaded = !unmanaged.supportsFlavor
         }
         installedText = installedAt.map { DayLabel.string(for: $0, now: now) } ?? "—"
+    }
+
+    /// "2 folders" for a group, the folder name when the title differs from it, else nil.
+    static func unmanagedSubtitle(_ unmanaged: UnmanagedFolder) -> String? {
+        if unmanaged.isGroup { return "\(unmanaged.folders.count) folders" }
+        return unmanaged.title.caseInsensitiveCompare(unmanaged.folder) == .orderedSame ? nil : unmanaged.folder
     }
 }
 

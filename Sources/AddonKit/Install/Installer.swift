@@ -234,6 +234,40 @@ public struct Installer: Sendable {
         }
     }
 
+    /// Moves folders nobody manages out of `installation` with the trash handler. Checks every
+    /// name before moving anything, so a refusal leaves `AddOns/` untouched. Duplicates
+    /// (compared case-insensitively) are removed once. Returns the names as found on disk.
+    /// - Throws: `AddonError.cannotRemove` for `Blizzard_*`, a folder in `managed`, a name
+    ///   that isn't one folder directly in `AddOns/`, or a folder that isn't there.
+    public func removeUnmanaged(_ folders: [String], from installation: Installation, managed: [InstalledAddon]) throws -> [String] {
+        let fm = FileManager.default
+        let addonsDirectory = installation.addonsDirectory
+        let onDisk = (try? fm.contentsOfDirectory(atPath: addonsDirectory.path(percentEncoded: false))) ?? []
+        var targets: [String] = []
+        for folder in folders {
+            guard Self.isSafeFolderName(folder), folder != "..", folder != "." else {
+                throw AddonError.cannotRemove(folder: folder, reason: "isn't a folder in Interface/AddOns")
+            }
+            guard !Self.isProtected(folder) else {
+                throw AddonError.cannotRemove(folder: folder, reason: "belongs to the game")
+            }
+            if let owner = managed.first(where: { $0.folders.contains { Self.same($0, folder) } }) {
+                throw AddonError.cannotRemove(folder: folder, reason: "is managed as \(owner.id.identifier); uninstall that instead")
+            }
+            var isDirectory: ObjCBool = false
+            guard let name = onDisk.first(where: { Self.same($0, folder) }),
+                  fm.fileExists(atPath: addonsDirectory.appending(path: name).path(percentEncoded: false), isDirectory: &isDirectory),
+                  isDirectory.boolValue else {
+                throw AddonError.cannotRemove(folder: folder, reason: "isn't in Interface/AddOns")
+            }
+            if !targets.contains(where: { Self.same($0, name) }) { targets.append(name) }
+        }
+        for name in targets {
+            try trash(addonsDirectory.appending(path: name, directoryHint: .isDirectory))
+        }
+        return targets
+    }
+
     // MARK: - Helpers
 
     static func isProtected(_ folder: String) -> Bool {

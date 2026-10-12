@@ -23,6 +23,15 @@ struct ContentView: View {
                 AdoptSheet(target: target, state: state)
             }
         }
+        .confirmationDialog(
+            model.pendingRemoval?.title ?? "",
+            isPresented: Binding(get: { model.pendingRemoval != nil }, set: { if !$0 { model.pendingRemoval = nil } }),
+            presenting: model.pendingRemoval
+        ) { request in
+            Button(request.confirmLabel, role: .destructive) { model.performRemoval(request) }
+        } message: { request in
+            Text(request.message)
+        }
         .sheet(isPresented: $model.isSeedingPresented, onDismiss: model.seedingSheetDidClose) {
             if let state = model.seeding {
                 SeedingSheet(model: model, state: state)

@@ -22,6 +22,7 @@ Everything in AddonKit throws `AddonError`. Each case has a user-facing `errorDe
 | `notInstalled(AddonRef)` | … isn't installed | update, uninstall, rollback, pin, channel | 1 |
 | `noRollbackAvailable(AddonRef)` | No previous version … is cached | `rollback` | 1 |
 | `installationNotFound(String)` | Installation … not found | `InstallationLocator.installation(at:)` | 1 |
+| `cannotRemove(folder:reason:)` | Can't move … to the Trash: it … | `removeUnmanaged` (Blizzard, managed, outside `AddOns/`, missing); nothing is moved | 1 |
 
 The installing rules behind the archive and folder errors are in [installing.md](../features/installing.md).
 

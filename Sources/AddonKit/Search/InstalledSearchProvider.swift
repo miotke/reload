@@ -27,12 +27,13 @@ public struct InstalledSearchProvider: SearchProvider {
                         installed: addon, origin: [.installed]
                     )
                 ))
-            case .unmanaged(let folder, let toc, let suggestedRef):
-                guard let ref = suggestedRef else { continue }
-                let title = toc?.title.flatMap(Self.nonEmpty)
-                let notes = toc?.notes.flatMap(Self.nonEmpty)
+            case .unmanaged(let unmanaged):
+                guard let ref = unmanaged.suggestedRef else { continue }
+                let folder = unmanaged.folder
+                let title = unmanaged.toc?.displayTitle.flatMap(Self.nonEmpty)
+                let notes = unmanaged.toc?.notes.flatMap(Self.nonEmpty)
                 items.append(Item(
-                    document: SearchDocument(name: title ?? folder, otherFields: [folder, ref.identifier, notes]),
+                    document: SearchDocument(name: title ?? folder, otherFields: unmanaged.folders + [ref.identifier, notes]),
                     result: SearchResult(
                         id: ref, name: title ?? folder, summary: notes, owner: Self.owner(of: ref), origin: [.installed]
                     )

@@ -65,23 +65,68 @@ public enum ZipInspector {
         }
 
         // 2. Otherwise the TOC the client would load: the first shared family TOC in the
-        //    flavor's order (`_Mainline`, `_Classic`), else the base one.
+        //    flavor's order (`_Mainline`, `_Classic`) whose interface is in range, else the base one.
         var rejected: [String] = []
         for name in names {
-            let tocs = folders[name]!
-            let shared = tocs.compactMap { toc in toc.file.sharedRank(for: flavor).map { (rank: $0, toc: toc) } }
-                .min { $0.rank < $1.rank }?.toc
-            guard let toc = shared ?? tocs.first(where: { $0.file.suffix == nil }) else { continue }
-            let parsed = Toc(parsing: try listing.read(toc.path))
-            if parsed.supports(flavor) {
-                let interface = parsed.interfaces.first { flavor.rules.contains(interface: $0) }!
-                return result(true, toc.path, "\(toc.path) lists interface \(interface)")
+            guard let loaded = try loadedToc(folders[name]!, flavor: flavor, read: { Toc(parsing: try listing.read($0)) }) else { continue }
+            if loaded.supported {
+                let interface = loaded.toc.interfaces.first { flavor.rules.contains(interface: $0) }!
+                return result(true, loaded.entry.path, "\(loaded.entry.path) lists interface \(interface)")
             }
-            let interfaces = parsed.interfaces.map(String.init).joined(separator: ", ")
-            rejected.append("\(toc.path) [\(interfaces.isEmpty ? "no interface" : interfaces)]")
+            let interfaces = loaded.toc.interfaces.map(String.init).joined(separator: ", ")
+            rejected.append("\(loaded.entry.path) [\(interfaces.isEmpty ? "no interface" : interfaces)]")
         }
         let why = rejected.isEmpty ? "no \(flavor.rawValue) or base TOC" : "no \(flavor.rawValue) interface in " + rejected.joined(separator: "; ")
         return result(false, nil, why)
+    }
+
+    /// The TOC the game client loads for `flavor` from one add-on folder's own TOCs: one with
+    /// the flavor's own suffix (which settles support on its own), else the first shared TOC
+    /// in the flavor's order, else the base TOC. A shared or base TOC supports the flavor only
+    /// when its interface is in range; the client still loads a shared one ahead of the base.
+    /// Nil when the folder has none of these.
+    static func loadedToc(
+        _ tocs: [TocEntry], flavor: Flavor, read: (String) throws -> Toc
+    ) rethrows -> (entry: TocEntry, toc: Toc, supported: Bool)? {
+        if let specific = tocs.first(where: { $0.file.isSpecific(to: flavor) }) {
+            return (specific, try read(specific.path), true)
+        }
+        let shared = tocs.compactMap { toc in toc.file.sharedRank(for: flavor).map { (rank: $0, toc: toc) } }
+            .min { $0.rank < $1.rank }?.toc
+        guard let entry = shared ?? tocs.first(where: { $0.file.suffix == nil }) else { return nil }
+        let parsed = try read(entry.path)
+        return (entry, parsed, parsed.supports(flavor))
+    }
+
+    /// Every TOC of an add-on folder on disk, plus the one the client loads for `flavor`
+    /// (docs/architecture/data-storage.md#reconcile). Unreadable TOCs are skipped.
+    public static func readTocs(addonFolder: URL, flavor: Flavor) -> FolderTocs {
+        guard let listing = try? FolderListing(folder: addonFolder) else { return FolderTocs() }
+        let name = addonFolder.lastPathComponent
+        let byFolder = addonFolders(in: listing.paths)
+        var own = byFolder[name] ?? byFolder.first { $0.key.caseInsensitiveCompare(name) == .orderedSame }?.value ?? []
+        // A folder whose TOCs don't carry its name (renamed by hand) still has hints worth reading.
+        if own.isEmpty {
+            own = listing.paths.sorted().compactMap { path in
+                let file = String(path.split(separator: "/").last ?? "")
+                guard !file.hasPrefix("._"), let name = TocFileName(file) else { return nil }
+                return TocEntry(path: path, file: name)
+            }
+        }
+        var parsed: [String: Toc] = [:]
+        for entry in own {
+            if let data = try? listing.read(entry.path) { parsed[entry.path] = Toc(parsing: data) }
+        }
+        func file(_ path: String) -> String { String(path.split(separator: "/").last ?? Substring(path)) }
+        let readable = own.filter { parsed[$0.path] != nil }
+        let all = readable.map { FolderTocs.File(name: file($0.path), toc: parsed[$0.path]!) }
+        guard let loaded = loadedToc(readable, flavor: flavor, read: { parsed[$0]! }) else {
+            return FolderTocs(all: all, loaded: all.first, isLoaded: false, supportsFlavor: false)
+        }
+        return FolderTocs(
+            all: all, loaded: FolderTocs.File(name: file(loaded.entry.path), toc: loaded.toc),
+            isLoaded: true, supportsFlavor: loaded.supported
+        )
     }
 
     struct TocEntry {
@@ -167,5 +212,35 @@ struct FolderListing: FileListing {
         let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
         guard size <= ZipInspector.maxTocSize else { throw AddonError.invalidArchive("\(path) is too large") }
         return try Data(contentsOf: url)
+    }
+}
+
+/// An add-on folder's TOCs as read from disk (`ZipInspector.readTocs`).
+public struct FolderTocs: Sendable, Hashable {
+    public struct File: Sendable, Hashable {
+        /// e.g. `Questie_Camelot.toc`
+        public var name: String
+        public var toc: Toc
+
+        public init(name: String, toc: Toc) {
+            self.name = name
+            self.toc = toc
+        }
+    }
+
+    /// Every readable TOC, in name order.
+    public var all: [File]
+    /// The TOC the client loads for the flavor. When it loads none, the first TOC, for display.
+    public var loaded: File?
+    /// False when `loaded` is only a stand-in because the client loads no TOC from this folder.
+    public var isLoaded: Bool
+    /// The loaded TOC is for the installation's flavor.
+    public var supportsFlavor: Bool
+
+    public init(all: [File] = [], loaded: File? = nil, isLoaded: Bool = false, supportsFlavor: Bool = false) {
+        self.all = all
+        self.loaded = loaded
+        self.isLoaded = isLoaded
+        self.supportsFlavor = supportsFlavor
     }
 }

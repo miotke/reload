@@ -57,7 +57,7 @@ enum Format {
         case .noReleases: style.dim("— no releases")
         case .needsDownload: style.yellow("? needs download")
         case .checking: style.dim("… checking")
-        case .unknown: style.yellow("? unknown")
+        case .unknown: style.dim("· not checked")
         }
     }
 
@@ -83,7 +83,7 @@ enum Format {
         return Table(headers: ["NAME", "REPO", flavor.displayName.uppercased(), "UPDATED", ""], rows: rows).render(style: style)
     }
 
-    static func listTable(_ statuses: [AddonStatus], style: Style) -> String {
+    static func listTable(_ statuses: [AddonStatus], flavor: Flavor? = nil, style: Style) -> String {
         let rows = statuses.map { status -> [String] in
             switch status {
             case .managed(let addon, let missing):
@@ -93,12 +93,29 @@ enum Format {
                     state = state.isEmpty ? note : state + ", " + note
                 }
                 return [addon.name, addon.version, style.dim(ref(addon.id)), addon.channel.rawValue, state]
-            case .unmanaged(let folder, let toc, let suggested):
-                let source = suggested.map { style.dim("→ \(ref($0))?") } ?? style.dim("—")
-                return [folder, toc?.version ?? "—", source, "—", style.dim("unmanaged")]
+            case .unmanaged(let unmanaged):
+                let source = unmanaged.suggestedRef.map { style.dim("→ \(ref($0))?") } ?? style.dim("—")
+                return [unmanagedName(unmanaged), unmanaged.version ?? "—", source, "—", unmanagedState(unmanaged, flavor: flavor, style: style)]
             }
         }
         return Table(headers: ["NAME", "VERSION", "SOURCE", "CHANNEL", "STATE"], rows: rows).render(style: style)
+    }
+
+    /// The loaded TOC's title, with the folder (or group size) when that says more.
+    static func unmanagedName(_ unmanaged: UnmanagedFolder) -> String {
+        let title = unmanaged.title
+        if unmanaged.isGroup { return "\(title) (\(unmanaged.folders.joined(separator: ", ")))" }
+        return title.caseInsensitiveCompare(unmanaged.folder) == .orderedSame ? title : "\(title) (\(unmanaged.folder))"
+    }
+
+    /// "unmanaged", whether the game loads it, and why a repo is suggested.
+    static func unmanagedState(_ unmanaged: UnmanagedFolder, flavor: Flavor?, style: Style) -> String {
+        var parts = ["unmanaged"]
+        if let flavor, !unmanaged.supportsFlavor { parts.append("not loaded by \(flavor.displayName)") }
+        if let suggestion = unmanaged.suggestion {
+            parts.append(unmanaged.isAmbiguous ? "\(unmanaged.candidates.count) candidates" : suggestion.reason)
+        }
+        return style.dim(parts.joined(separator: " · "))
     }
 
     static func installsTable(_ installations: [Installation], defaultID: String?, style: Style) -> String {

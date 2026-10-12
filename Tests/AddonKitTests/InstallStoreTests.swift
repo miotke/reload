@@ -170,18 +170,25 @@ private func makeInstallation(in tmp: URL, id: String = "abc123") throws -> Inst
         #expect(statuses.count == 5)
         #expect(statuses[0] == .managed(managed, missingFolders: ["Managed_Gone"]))
 
-        guard case .unmanaged(let bwFolder, let bwToc, let bwRef) = statuses[1] else { Issue.record("expected unmanaged"); return }
-        #expect(bwFolder == "BigWigs")
-        #expect(bwToc?.title == "BigWigs")
-        #expect(bwRef == AddonRef(source: .github, identifier: "BigWigsMods/BigWigs"))
+        // Forever loads `_Mainline` ahead of the base TOC; without a Forever interface it isn't
+        // supported. The GitHub link still comes from the base TOC.
+        let bigWigs = try #require(statuses[1].unmanagedFolder)
+        #expect(bigWigs.folder == "BigWigs")
+        #expect(bigWigs.tocFile == "BigWigs_Mainline.toc")
+        #expect(bigWigs.toc?.title == "Wrong")
+        #expect(!bigWigs.supportsFlavor)
+        #expect(bigWigs.suggestedRef == AddonRef(source: .github, identifier: "BigWigsMods/BigWigs"))
+        #expect(bigWigs.suggestion?.reason == "TOC links to github.com/BigWigsMods/BigWigs")
 
-        guard case .unmanaged(let dFolder, let dToc, let dRef) = statuses[2] else { Issue.record("expected unmanaged"); return }
-        #expect(dFolder == "Details")
-        #expect(dToc?.title == "Details")
-        #expect(dRef == AddonRef(source: .github, identifier: "Tercioo/Details-Damage-Meter"))
+        let details = try #require(statuses[2].unmanagedFolder)
+        #expect(details.folder == "Details")
+        #expect(details.tocFile == "Details_Camelot.toc")
+        #expect(details.toc?.title == "Details")
+        #expect(details.suggestedRef == AddonRef(source: .github, identifier: "Tercioo/Details-Damage-Meter"))
 
-        #expect(statuses[3] == .unmanaged(folder: "NoToc", toc: nil, suggestedRef: nil))
-        guard case .unmanaged("WebOnly", .some, nil) = statuses[4] else { Issue.record("unexpected \(statuses[4])"); return }
+        #expect(statuses[3] == .unmanaged(UnmanagedFolder(folder: "NoToc")))
+        let webOnly = try #require(statuses[4].unmanagedFolder)
+        #expect(webOnly.folder == "WebOnly" && webOnly.toc != nil && webOnly.suggestedRef == nil)
     }
 
     @Test func reconcileWithoutAddOnsFolder() async throws {

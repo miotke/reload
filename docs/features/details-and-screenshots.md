@@ -13,11 +13,13 @@ For any selected add-on, installed or not:
 | Part | Contents |
 |---|---|
 | Header | Name, author, summary, support badge for the installation's flavor |
-| Actions | Install / Update / Roll Back / Uninstall |
+| Actions | Install, or "Installed v…" with Update / Roll Back / Uninstall, from the managed list ([layout.md](../app/layout.md#installed-state)) |
 | Details | Latest version and date, stars, last update, license, topics, GitHub and homepage links |
 | Screenshots | A strip of README images |
 | README | Rendered Markdown |
 | Installed only | Installed version, dates, channel, pin, folders, changelog |
+
+Unmanaged folders get their own inspector, which shows the suggested repo's summary, screenshots and README through the same `details(for:in:)` ([layout.md](../app/layout.md#unmanaged-folders-inspector-and-adopt-sheet)).
 
 ## Where the fields come from
 

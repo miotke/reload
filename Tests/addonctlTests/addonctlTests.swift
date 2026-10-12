@@ -22,6 +22,17 @@ func makeAddon(_ identifier: String, name: String? = nil, version: String = "v1"
 
 func ref(_ identifier: String) -> AddonRef { AddonRef(source: .github, identifier: identifier) }
 
+/// An unmanaged entry suggesting `suggested` (if given) for `reason`.
+func unmanaged(
+    _ folder: String, toc: Toc? = nil, folders: [String]? = nil, supports: Bool = true,
+    suggested: [String] = [], reason: String = "Matched folder name", source: AdoptionCandidate.Source = .catalogueName
+) -> AddonStatus {
+    .unmanaged(UnmanagedFolder(
+        folder: folder, folders: folders, toc: toc, isLoaded: supports, supportsFlavor: supports,
+        candidates: suggested.map { AdoptionCandidate(ref: ref($0), name: $0, reason: reason, source: source) }
+    ))
+}
+
 func temporaryDirectory() throws -> URL {
     let url = FileManager.default.temporaryDirectory.appending(path: "addonctlTests-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -154,9 +165,9 @@ func jsonObject(_ text: String) throws -> [String: Any] {
                          support: .unknown, origin: [.catalogue]),
         ]
         #expect(Format.searchTable(results, flavor: .forever, style: .plain, now: now) == """
-              NAME        REPO                    FOREVER    UPDATED
-              BigWigs     BigWigsMods/BigWigs     ✓ v426.4   2 days ago  (installed)
-              LittleWigs  BigWigsMods/LittleWigs  ? unknown  1 week ago
+              NAME        REPO                    FOREVER        UPDATED
+              BigWigs     BigWigsMods/BigWigs     ✓ v426.4       2 days ago  (installed)
+              LittleWigs  BigWigsMods/LittleWigs  · not checked  1 week ago
             """)
     }
 
@@ -164,19 +175,61 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         let statuses: [AddonStatus] = [
             .managed(makeAddon("a/Alpha", pinned: true), missingFolders: []),
             .managed(makeAddon("b/Beta"), missingFolders: ["Beta"]),
-            .unmanaged(folder: "Gamma", toc: Toc(fields: ["version": "3"]), suggestedRef: ref("g/Gamma")),
+            unmanaged("Gamma", toc: Toc(fields: ["version": "3"]), suggested: ["g/Gamma"]),
         ]
-        let text = Format.listTable(statuses, style: .plain)
+        let text = Format.listTable(statuses, flavor: .forever, style: .plain)
         #expect(text.contains("Alpha  v1       a/Alpha     stable   pinned"))
         #expect(text.contains("missing: Beta"))
-        #expect(text.contains("Gamma  3        → g/Gamma?  —        unmanaged"))
+        #expect(text.contains("Gamma  3        → g/Gamma?  —        unmanaged · Matched folder name"))
+    }
+
+    @Test func listTableShowsLoadedTocTitleAndGroups() {
+        let toc = Toc(parsing: "## Title: Questie|cFF00FF00 v12.0.4|r\n")
+        let statuses: [AddonStatus] = [
+            unmanaged("Questie", toc: toc, folders: ["Questie", "QuestieDB"], suggested: ["Questie/Questie"],
+                      reason: "Matched CurseForge project 334372", source: .curseForge),
+            unmanaged("OldThing", toc: Toc(parsing: "## Title: Old Thing\n"), supports: false),
+            unmanaged("Two", suggested: ["a/Two", "b/Two"]),
+        ]
+        let text = Format.listTable(statuses, flavor: .forever, style: .plain)
+        #expect(text.contains("Questie (Questie, QuestieDB)  v12.0.4  → Questie/Questie?  —        unmanaged · Matched CurseForge project 334372"))
+        #expect(text.contains("Old Thing (OldThing)  ") && text.contains("unmanaged · not loaded by Forever"))
+        #expect(text.contains("unmanaged · 2 candidates"))
+    }
+
+    @Test func adoptPlanUsesCandidates() {
+        let statuses: [AddonStatus] = [
+            .managed(makeAddon("a/Alpha"), missingFolders: []),
+            unmanaged("Questie", folders: ["Questie", "QuestieDB"], suggested: ["Questie/Questie"], reason: "Matched CurseForge project 334372", source: .curseForge),
+            unmanaged("Nothing"),
+            unmanaged("Two", suggested: ["a/Two", "b/Two"]),
+        ]
+        let plan = AdoptCommand.plan(statuses)
+        #expect(plan.count == 2)
+        guard case .adopt(let questie, let candidate) = plan[0], case .choose(let two) = plan[1] else {
+            Issue.record("unexpected plan \(plan)")
+            return
+        }
+        #expect(questie.folders == ["Questie", "QuestieDB"])
+        #expect(two.folder == "Two")
+        #expect(AdoptCommand.question(folders: questie.folders, ref: candidate.ref, reason: candidate.reason)
+            == "Adopt Questie, QuestieDB as Questie/Questie (Matched CurseForge project 334372)? The latest release is installed over it.")
+        #expect(AdoptCommand.unmanaged(named: "questiedb", in: statuses)?.folder == "Questie")
+    }
+
+    @Test func removeUnmanagedConfirmation() {
+        let statuses = [unmanaged("Questie", folders: ["Questie", "QuestieDB"], suggested: ["Questie/Questie"])]
+        #expect(RemoveCommand.unmanagedQuestion(["Questie", "QuestieDB"], statuses: statuses)
+            == "Move Questie, QuestieDB (2 unmanaged folders) to the Trash?")
+        #expect(RemoveCommand.unmanagedQuestion(["Questie"], statuses: statuses)
+            == "Move Questie (1 unmanaged folder) to the Trash? QuestieDB is grouped with it but stays.")
     }
 
     @Test func listFilter() {
         let statuses: [AddonStatus] = [
             .managed(makeAddon("a/Alpha"), missingFolders: []),
             .managed(makeAddon("b/Beta"), missingFolders: ["Beta"]),
-            .unmanaged(folder: "Gamma", toc: nil, suggestedRef: nil),
+            unmanaged("Gamma"),
         ]
         #expect(ListCommand.filter(statuses, unmanaged: false, missing: false).count == 2)
         #expect(ListCommand.filter(statuses, unmanaged: true, missing: false).count == 3)
@@ -292,7 +345,7 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         struct Payload: Encodable { var addons: [AddonStatusJSON] }
         let text = try JSONOutput.document(Payload(addons: [
             AddonStatusJSON(.managed(makeAddon("a/A"), missingFolders: ["A"])),
-            AddonStatusJSON(.unmanaged(folder: "F", toc: Toc(fields: ["title": "Eff", "version": "9"]), suggestedRef: ref("f/F"))),
+            AddonStatusJSON(unmanaged("F", toc: Toc(fields: ["title": "Eff", "version": "9"]), folders: ["F", "G"], suggested: ["f/F"])),
         ]))
         let addons = try #require(try jsonObject(text)["addons"] as? [[String: Any]])
         #expect(addons[0]["kind"] as? String == "managed")
@@ -300,6 +353,11 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         #expect(addons[1]["kind"] as? String == "unmanaged")
         #expect(addons[1]["title"] as? String == "Eff")
         #expect((addons[1]["suggestedRef"] as? [String: String])?["identifier"] == "f/F")
+        #expect(addons[1]["folders"] as? [String] == ["F", "G"])
+        #expect(addons[1]["supportsFlavor"] as? Bool == true)
+        let candidate = try #require((addons[1]["candidates"] as? [[String: Any]])?.first)
+        #expect(candidate["reason"] as? String == "Matched folder name")
+        #expect(candidate["confidence"] as? String == "medium")
     }
 
     @Test func errorDocument() throws {
@@ -483,6 +541,26 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         #expect(throws: (any Error).self) { try AddonCtl.parseAsRoot(["channel", "x", "nightly"]) }
         #expect(throws: (any Error).self) { try AddonCtl.parseAsRoot(["config", "set", "github-token", "secret"]) }
         #expect(throws: (any Error).self) { try AddonCtl.parseAsRoot(["adopt", "OnlyFolder"]) }
+        #expect(throws: (any Error).self) { try AddonCtl.parseAsRoot(["remove", "--unmanaged"]) }
+    }
+
+    @Test func removeUnmanagedParses() throws {
+        let command = try #require(try AddonCtl.parseAsRoot(["rm", "--unmanaged", "Questie", "QuestieDB", "--yes"]) as? RemoveCommand)
+        #expect(command.unmanaged)
+        #expect(command.refs == ["Questie", "QuestieDB"])
+        #expect(command.global.yes)
+        #expect((try AddonCtl.parseAsRoot(["remove", "a/b"]) as? RemoveCommand)?.unmanaged == false)
+    }
+
+    /// Without a terminal, removing needs `--yes`; with it, no prompt is shown.
+    @Test func removeUnmanagedNeedsConfirmation() throws {
+        let env = ["ADDONS_DATA_DIR": NSTemporaryDirectory() + "addonctlTests-\(UUID().uuidString)"]
+        let piped = Console(stdinIsTTY: false, stdoutIsTTY: false, stderrIsTTY: false)
+        var options = try GlobalOptions.parse([])
+        let context = CLIContext(options: options, environment: env, console: piped)
+        #expect(throws: CLIError.confirmationRequired("remove")) { try context.confirm("Move?", action: "remove") }
+        options.yes = true
+        #expect(try CLIContext(options: options, environment: env, console: piped).confirm("Move?", action: "remove"))
     }
 
     @Test func tokenMask() {

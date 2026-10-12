@@ -16,14 +16,14 @@ Every `addonctl` command, how `<ref>` arguments are resolved, and how the instal
 | `search <query…>` | `s` | Same local-first search as the Browse tab; see [search](#search). Prints NAME / REPO / *<FLAVOR>* / UPDATED (e.g. `FOREVER`, the installation's display name). `--github` adds a deeper live GitHub search, `--all` keeps add-ons verified unsupported, `--limit N` (default 20) |
 | `info <ref>` | `show` | Description, website, support for the installation's flavor, latest version, installed version, update status, owned folders, rollback target; see [info](#info). `--changelog` adds release notes, `--prerelease` looks at prereleases |
 | `install <ref…>` | `i`, `add` | Installs one after another with a progress row each. `--prerelease`, `--force` (overwrite unmanaged folders), `--version <tag>` (pins it; see [limits](config.md#limits)). Re-installing keeps the add-on's channel unless `--prerelease` is given; new installs use `default-channel` |
-| `remove <ref…>` | `rm`, `uninstall` | Moves folders to the Trash after confirmation |
+| `remove <ref…>` | `rm`, `uninstall` | Moves folders to the Trash after confirmation. `--unmanaged <folder…>` moves unmanaged folders instead; it refuses `Blizzard_*`, managed folders and anything outside `AddOns/` before moving any ([installing.md](../features/installing.md#removing-unmanaged-folders)) |
 | `update [<ref…>]` | `upgrade`, `up` | Checks, then installs only what has an update; see [update](#update). Pinned add-ons are listed as skipped. `--dry-run` shows the `outdated` table and what would be skipped |
 | `outdated` | | NAME / INSTALLED / LATEST / CHANNEL / PUBLISHED for available updates. Always revalidates. Exit code 10 if any |
-| `list` | `ls` | Managed add-ons with version, repo, channel and state (pinned, missing folders). `--unmanaged` adds unmanaged folders with their suggested ref; `--missing` shows only add-ons with missing folders |
+| `list` | `ls` | Managed add-ons with version, repo, channel and state (pinned, missing folders). `--unmanaged` adds unmanaged folders: the title and version of the TOC the game loads, the suggested ref, and in STATE "not loaded by Forever" when it isn't plus the suggestion's reason ("Matched CurseForge project 334372") or "N candidates". Grouped folders are one row, `Questie (Questie, QuestieDB)`. `--missing` shows only add-ons with missing folders |
 | `pin <ref…>` / `unpin <ref…>` | | Pin or unpin, so `update` skips them |
 | `channel <ref> stable\|prerelease` | | Set the release channel (applies on the next `update`) |
 | `rollback <ref>` | | Reinstall `previousRelease` from the download cache and pin it. Asks first |
-| `adopt [<folder> <ref>]` | | Start managing an unmanaged folder. With no arguments, walks every unmanaged folder that has a suggested ref (from the TOC's `X-Website`), grouping folders of the same add-on, and asks for each |
+| `adopt [<folder> <ref>]` | | Start managing an unmanaged folder (or its group). With no arguments, walks every unmanaged entry with a [candidate](../features/installing.md#adopting-unmanaged-folders) and asks "Adopt Questie, QuestieDB as Questie/Questie (Matched CurseForge project 334372)?". Ambiguous ones get a numbered pick on a terminal and are skipped with a warning otherwise |
 | `resolve <ref>` | | Dry run: flavor, channel, version, release id, asset, download URL and the numbered [reasoning trail](../features/release-selection.md#reasoning-trail). `--prerelease` |
 | `installs` | | Lists installations (runs detection) with `*` on the default. Subcommands: `add <path>`, `remove <id>` (forgets it; files stay), `default <id\|path>` |
 | `export [-o file]` | | Writes [`addons.json`](config.md#addonsjson) to stdout or a file |
@@ -33,11 +33,11 @@ Every `addonctl` command, how `<ref>` arguments are resolved, and how the instal
 | `cache info\|clear` | | Sizes of caches and the metadata database; `clear` empties Caches, `clear --metadata` also empties the database ([maintenance.md](maintenance.md#cache)) |
 | `doctor` | | Installations, `AddOns` folders, store integrity, the metadata database, refresh state, GitHub quota, token source, whether WoW is running. Exit 1 if any check fails ([maintenance.md](maintenance.md#doctor)) |
 
-Destructive commands (`remove`, `adopt`, `rollback`, `cache clear`) need confirmation: a `[y/N]` prompt on a terminal, otherwise `--yes`, or they fail with exit 2.
+Destructive commands (`remove`, `remove --unmanaged`, `adopt`, `rollback`, `cache clear`) need confirmation: a `[y/N]` prompt on a terminal, otherwise `--yes`, or they fail with exit 2.
 
 ## search
 
-- **No support checks.** Badges are the stored verdicts: `✓ <version>`, `— not yet`, `— no releases`, `? needs download` (no `release.json`) or `? unknown` (never checked).
+- **No support checks.** Badges are the stored verdicts: `✓ <version>`, `— not yet`, `— no releases`, `? needs download` (no `release.json`) or `· not checked` (never checked for this flavor).
 - It asks GitHub only when there are fewer than 3 local matches (3+ character query), or with `--github`. When it does so on its own, it prints `Few local matches, so GitHub was searched too.` on stderr.
 - A spinner shows "Searching GitHub…" while the live search runs (terminal only).
 - `--json` output gains `searchedGitHub`.

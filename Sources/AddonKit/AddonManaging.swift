@@ -47,6 +47,16 @@ public protocol AddonManaging: Sendable {
     func setChannel(_ channel: Channel, for ref: AddonRef, in installation: Installation) async throws
     /// Start managing an unmanaged folder as `ref` (reinstalls over it after confirmation).
     func adopt(folder: String, as ref: AddonRef, in installation: Installation) async throws -> InstalledAddon
+    /// Installs the release an `adoptionPreview` resolved, over the unmanaged folders it ships.
+    func adopt(_ release: ResolvedRelease, in installation: Installation) async throws -> InstalledAddon
+    /// Likely repositories for an unmanaged folder, best first, with reasons. Local only.
+    func adoptionCandidates(folder: String, in installation: Installation) async -> [AdoptionCandidate]
+    /// Resolves and downloads `ref`'s release for the flavor and lists the folders adopting
+    /// it would replace. Spends no API quota for add-ons with a release.json.
+    func adoptionPreview(for ref: AddonRef, folders: [String], in installation: Installation) async throws -> AdoptionPreview
+    /// Moves unmanaged folders to the Trash; refuses `Blizzard_*`, managed and unknown folders.
+    @discardableResult
+    func removeUnmanaged(folders: [String], from installation: Installation) async throws -> [String]
 
     /// Call after the GitHub token in the Keychain changes.
     func tokenDidChange() async

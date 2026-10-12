@@ -183,14 +183,21 @@ public enum ResolveResult: Sendable {
 /// Status of one managed or unmanaged add-on in an installation.
 public enum AddonStatus: Sendable, Hashable, Identifiable {
     case managed(InstalledAddon, missingFolders: [String])
-    /// A folder in `AddOns/` that no managed add-on owns.
-    case unmanaged(folder: String, toc: Toc?, suggestedRef: AddonRef?)
+    /// A folder in `AddOns/` that no managed add-on owns, or a group of them one release covers.
+    case unmanaged(UnmanagedFolder)
 
     public var id: String {
         switch self {
         case .managed(let addon, _): addon.id.description
-        case .unmanaged(let folder, _, _): "unmanaged:\(folder)"
+        case .unmanaged(let folder): Self.unmanagedID(folder.folder)
         }
+    }
+
+    /// The row ID of the unmanaged entry named after `folder`.
+    public static func unmanagedID(_ folder: String) -> String { "unmanaged:\(folder)" }
+
+    public var unmanagedFolder: UnmanagedFolder? {
+        if case .unmanaged(let folder) = self { folder } else { nil }
     }
 }
 

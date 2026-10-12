@@ -50,6 +50,38 @@ public struct Toc: Sendable, Hashable {
     public var curseProjectID: String? { self["X-Curse-Project-ID"] }
     public var wowInterfaceID: String? { self["X-WoWI-ID"] }
     public var wagoID: String? { self["X-Wago-ID"] }
+    /// `## X-Github:`, which some authors use instead of (or as well as) `X-Website`.
+    public var github: String? { self["X-Github"] }
+
+    /// `version`, unless it's empty or an unexpanded packager token (`@project-version@`).
+    public var declaredVersion: String? {
+        guard let version = version?.trimmingCharacters(in: .whitespaces), !version.isEmpty, !version.hasPrefix("@") else { return nil }
+        return version
+    }
+
+    /// The version to show: `## Version`, else one written in the title
+    /// (`Questie|cFF00FF00 v12.0.4|r` → `v12.0.4`).
+    public var displayVersion: String? {
+        declaredVersion ?? title.flatMap { Toc.splitVersion(fromTitle: $0)?.version }
+    }
+
+    /// The title without colour codes or a version written into it (`Questie v12.0.4` → `Questie`).
+    public var displayTitle: String? {
+        guard let title, !title.isEmpty else { return nil }
+        return Toc.splitVersion(fromTitle: title)?.title ?? title
+    }
+
+    /// Separates a version token (`v12.0.4`, `1.2.3`, `(v2.1)`) from a title. Nil when the
+    /// title has none, or is nothing but a version.
+    static func splitVersion(fromTitle title: String) -> (title: String, version: String)? {
+        let pattern = #/(?:^|\s)[(\[]?(?<version>[vV]\d+(?:\.\d+)*[A-Za-z0-9.\-]*|\d+(?:\.\d+)+[A-Za-z0-9.\-]*)[)\]]?(?=\s|$)/#
+        guard let match = title.firstMatch(of: pattern) else { return nil }
+        let rest = (title[..<match.range.lowerBound] + " " + title[match.range.upperBound...])
+            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            .trimmingCharacters(in: CharacterSet(charactersIn: " -–—:|"))
+        guard !rest.isEmpty else { return nil }
+        return (rest, String(match.output.version))
+    }
 
     public var requiredDependencies: [String] {
         Toc.list(self["Dependencies"] ?? self["RequiredDeps"] ?? self["Dep"])
