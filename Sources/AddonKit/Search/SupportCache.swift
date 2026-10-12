@@ -101,9 +101,20 @@ public actor SupportCache {
                         status = excluded.status, version = excluded.version,
                         tag = coalesce(excluded.tag, support.tag), checked_at = excluded.checked_at
                     """, row.0, flavorName, row.1, row.2, row.3, row.4)
+                // A verdict with a tag also tells us the latest tag; a negative one, that
+                // there's none.
+                if row.3 != nil || row.1 == "noReleases" {
+                    try db.execute("""
+                        INSERT INTO repo_meta(full_name, latest_tag, tag_checked_at) VALUES (?, ?, ?)
+                        ON CONFLICT(full_name) DO UPDATE SET
+                            latest_published_at = CASE WHEN repo_meta.latest_tag IS excluded.latest_tag
+                                THEN repo_meta.latest_published_at ELSE NULL END,
+                            latest_tag = excluded.latest_tag, tag_checked_at = excluded.tag_checked_at
+                        """, row.0, row.3, row.4)
+                }
             }
         }
-        await database.notify(["support"], repos: Set(rows.map(\.0)))
+        await database.notify(["support", "repo_meta"], repos: Set(rows.map(\.0)))
     }
 
     public func removeAll() async {

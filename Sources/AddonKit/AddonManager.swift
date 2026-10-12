@@ -281,7 +281,7 @@ public actor AddonManager: AddonManaging {
 
     /// `progress` is called once per add-on as its check lands, with the number done so far.
     func checkForUpdates(
-        in installation: Installation, progress: @Sendable (InstalledAddon, Int) -> Void
+        in installation: Installation, background: Bool = false, progress: @Sendable (InstalledAddon, Int) -> Void
     ) async throws -> [AddonRef: UpdateState] {
         let addons = try await store.addons(in: installation)
         var states: [AddonRef: UpdateState] = [:]
@@ -292,7 +292,7 @@ public actor AddonManager: AddonManaging {
             func addNext() {
                 guard let addon = pending.popFirst() else { return }
                 group.addTask {
-                    let (state, etag) = await self.updateState(of: addon, in: installation)
+                    let (state, etag) = await self.updateState(of: addon, in: installation, background: background)
                     return (addon, state, etag)
                 }
             }
@@ -508,27 +508,6 @@ public actor AddonManager: AddonManaging {
         }
     }
 
-    // MARK: - Details & refresh
-
-    // TODO: Core agent replaces these placeholders (docs/core.md, docs/search.md).
-    public func details(for ref: AddonRef, in installation: Installation) async throws -> AddonDetails {
-        let owner = String(ref.identifier.split(separator: "/").first ?? "")
-        let name = String(ref.identifier.split(separator: "/").last ?? "")
-        return AddonDetails(ref: ref, name: name, owner: owner, repositoryURL: URL(string: "https://github.com/\(ref.identifier)")!)
-    }
-
-    public nonisolated func refresh(in installation: Installation, force: Bool) -> AsyncStream<RefreshProgress> {
-        AsyncStream { continuation in
-            let task = Task {
-                let updates = try? await self.checkForUpdates(in: installation)
-                continuation.yield(RefreshProgress(phase: .finished, updates: updates ?? [:]))
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
-    }
-
-    public func lastRefresh(in installation: Installation) async -> Date? { nil }
 
     // MARK: - Maintenance
 

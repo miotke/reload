@@ -82,6 +82,48 @@ Known quirk: "bag" ranks the Bagnon plugins above BetterBags, because a name sta
 
 Results that are already installed are marked.
 
+## Refresh
+
+`AddonManager.refresh(in:force:)` → `AsyncStream<RefreshProgress>` does the background network work. `lastRefresh(in:)` says when it last finished for an installation (stored in `refresh_state`).
+
+```mermaid
+flowchart LR
+    T{Last refresh<br/>under 2 h ago<br/>and not forced?} -- yes --> F1[.finished with the stored<br/>update states]
+    T -- no --> C[catalogue<br/>24 h TTL / ETag;<br/>now if forced]
+    C --> U[updates<br/>installed add-ons]
+    U --> S[support<br/>see targets below, 4 at a time]
+    S --> F2[.finished with<br/>this refresh's states]
+```
+
+| Refresh | Support targets |
+|---|---|
+| First ever for this installation | the 200 most recently updated catalogue repos with a `release.json`, plus installed add-ons without a fresh verdict |
+| Later (every 2 h, or forced) | installed add-ons without a fresh verdict; repos whose catalogue `last_updated` is newer than their verdict; repos new to the catalogue (with `release.json`); the 20 oldest verdicts past 14 days |
+
+- A forced refresh runs the installed checks and a catalogue revalidation at once, but never re-seeds.
+- Repos without a `release.json` are never requested; search shows them as `.needsDownload`.
+- Stored update states are corrected on the way out: an `.available` release that's since been installed comes back `.upToDate`.
+- **Politeness:** github.com only (no API quota for `release.json` add-ons), 4 checks at a time, jittered retries, and a global pause on 429/403. Requests stay off Low Data Mode networks.
+- **Writes** are batched (25 verdicts or 1 s per transaction), so watchers see a handful of commits.
+- **Progress** is coalesced to about 10 Hz: counts and a short message ("Checked BigWigs"), never result lists. The stream keeps only the newest few elements; `.finished` is always last, and cancelling the consumer stops the work without recording a refresh.
+
+## Details
+
+`AddonManager.details(for:in:)` gathers the inspector's `AddonDetails`. Opening an add-on is one of the times the core goes to the network:
+
+| Field | Source |
+|---|---|
+| name, owner, summary, last updated | the `catalogue` row (also for repos found by live search), else the installed record or repo name |
+| stars | `repo_meta`, from live search results |
+| support, latest version | the stored verdict, re-checked first if older than 24 h (quota-free) |
+| README | raw.githubusercontent.com, see below |
+| screenshots | images in the README, see below |
+| latest release date and notes | the API resolve, only while quota is comfortable; otherwise the last stored ones |
+
+- The result is stored in `details` and reused for 24 h. If the README couldn't be fetched, nothing is stored, so a network blip isn't kept for a day.
+- **README:** `HEAD` on raw.githubusercontent.com is the default branch, which the catalogue doesn't give us. The paths GitHub itself uses are tried in order (`README.md`, `.github/README.md`, `readme.md`, `Readme.md`, `docs/README.md`, `README.markdown`, `README.MD`, `README`). The path that worked and its ETag are kept in `repo_meta`, so the next check is one conditional request; "no README" is remembered too. READMEs are capped at 512 KB. The API's `/readme` is only asked with a token, when every path 404s.
+- **Screenshots** (`ReadmeImages`): Markdown inline and reference images and HTML `<img src>`, in document order and de-duplicated, ignoring code blocks and comments. Relative paths resolve against the README's folder on raw.githubusercontent.com; `github.com/…/blob/…` and `…/raw/…` links become raw URLs. Badges (shields.io and similar hosts, CI status images, anything with "badge" in the path), SVGs, favicons, `NNxNN` icons and images an `<img>` sizes at 64 px or less are dropped.
+
 ## Metadata database
 
 `<applicationSupport>/metadata.sqlite`, through `MetadataDatabase` ([core.md](core.md#metadata-database)). It's Application Support rather than Caches because it holds state worth keeping: verdicts, refresh times and remembered searches.

@@ -300,10 +300,12 @@ public actor GitHubSource: Source, SupportChecking {
     /// Only the latest stable release is considered. Other failures give `.unknown`, which
     /// isn't retried for 15 minutes. If github.com fails while API quota is comfortable, the
     /// API path (`apiSupport`) answers instead.
-    public func check(_ ref: AddonRef, flavor: Flavor, background: Bool = false) async -> SupportCheck {
+    /// `reuse: false` skips the in-memory answer, for callers that already know the stored
+    /// verdict is stale (refresh, details).
+    public func check(_ ref: AddonRef, flavor: Flavor, background: Bool = false, reuse: Bool = true) async -> SupportCheck {
         guard ref.source == .github, let (owner, repo) = try? Self.split(ref) else { return SupportCheck(status: .unknown) }
         let key = Self.cacheKey(ref) + "#" + flavor.rawValue
-        if let hit = supportCache[key] {
+        if reuse, let hit = supportCache[key] {
             let ttl = hit.check.status == .unknown ? Self.errorTTL : Self.supportTTL
             if now().timeIntervalSince(hit.checkedAt) < ttl { return hit.check }
         }
@@ -500,6 +502,70 @@ public actor GitHubSource: Source, SupportChecking {
         await trackRateLimit(response)
         if response.statusCode == 403 || response.statusCode == 429 { throw await apiError(response, data: data, url: url) }
         return (data, response)
+    }
+
+    // MARK: - README
+
+    public enum ReadmeResult: Sendable, Hashable {
+        /// `etag` and `path` are what to send next time.
+        case found(markdown: String, path: String, etag: String?)
+        /// The stored copy at `knownPath` is still current.
+        case notModified
+        /// The repo has no README anywhere we look.
+        case none
+    }
+
+    /// Where GitHub looks for a README, most common first. `HEAD` on raw.githubusercontent.com
+    /// is the default branch, which the catalogue doesn't tell us.
+    public static let readmeCandidates = [
+        "README.md", ".github/README.md", "readme.md", "Readme.md", "docs/README.md",
+        "README.markdown", "README.MD", "README",
+    ]
+    /// Longer READMEs are cut at a line break below this size.
+    public static let maxReadmeBytes = 512 * 1024
+
+    /// The README of `ref`, quota-free from raw.githubusercontent.com. A known path is tried
+    /// first (with its ETag, so an unchanged README is a 304). Only with a token, and only
+    /// when every candidate 404s, is the API's `/readme` asked (1 call).
+    public func readme(for ref: AddonRef, knownPath: String? = nil, etag: String? = nil) async throws -> ReadmeResult {
+        let (owner, repo) = try Self.split(ref)
+        var candidates = Self.readmeCandidates
+        if let knownPath, !knownPath.isEmpty {
+            candidates.removeAll { $0 == knownPath }
+            candidates.insert(knownPath, at: 0)
+        }
+        for path in candidates {
+            let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
+            let url = URL(string: "https://raw.githubusercontent.com/\(owner)/\(repo)/HEAD/\(encoded)")!
+            var headers: [String: String] = [:]
+            if path == knownPath, let etag { headers["If-None-Match"] = etag }
+            let (data, response) = try await webRequest(url, headers: headers)
+            switch response.statusCode {
+            case 304:
+                return .notModified
+            case 200..<300:
+                return .found(markdown: Self.capped(data), path: path, etag: response.value(forHTTPHeaderField: "ETag"))
+            case 404:
+                continue
+            default:
+                throw AddonError.http(status: response.statusCode, url: url)
+            }
+        }
+        guard hasToken(), await quotaIsComfortable() else { return .none }
+        struct Readme: Decodable { var path: String; var content: String?; var encoding: String? }
+        let url = Self.apiBase.appending(path: "repos/\(owner)/\(repo)/readme")
+        let (data, response) = try await apiGet(url)
+        guard response.statusCode == 200, let readme = try? JSONDecoder().decode(Readme.self, from: data),
+              let content = readme.content, readme.encoding == "base64",
+              let decoded = Data(base64Encoded: content, options: .ignoreUnknownCharacters) else { return .none }
+        return .found(markdown: Self.capped(decoded), path: readme.path, etag: nil)
+    }
+
+    static func capped(_ data: Data) -> String {
+        guard data.count > maxReadmeBytes else { return String(decoding: data, as: UTF8.self) }
+        var cut = data.prefix(maxReadmeBytes)
+        if let newline = cut.lastIndex(of: UInt8(ascii: "\n")) { cut = cut[..<newline] }
+        return String(decoding: cut, as: UTF8.self)
     }
 
     /// Releases for `ref`, revalidating the in-memory copy with its ETag.

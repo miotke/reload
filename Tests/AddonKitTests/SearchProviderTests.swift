@@ -99,7 +99,7 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         ])
         var iterator = changes.makeAsyncIterator()
         let change = try #require(await iterator.next())
-        #expect(change.tables == ["support"])
+        #expect(change.tables == ["support", "repo_meta"])
         #expect(change.repos == ["bigwigsmods/bigwigs", "deadlybossmods/deadlybossmods"])
     }
 }

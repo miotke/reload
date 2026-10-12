@@ -59,7 +59,8 @@ Sources/AddonKit/
 | Install | `resolve(_:for:channel:)`, `install(_:into:channel:force:progress:)`, `adopt(folder:as:in:)` |
 | Updates | `checkForUpdates(in:)`, `update(_:in:)` → `AsyncStream<OperationEvent>` |
 | Changes | `uninstall`, `rollback`, `setPinned`, `setChannel` |
-| Misc | `tokenDidChange()`, `rateLimit()`, `clearCaches()` |
+| Metadata | `refresh(in:force:)` → `AsyncStream<RefreshProgress>`, `lastRefresh(in:)`, `details(for:in:)` ([search.md](search.md#refresh)) |
+| Misc | `tokenDidChange()`, `rateLimit()`, `clearCaches()`, `database.changes()` |
 
 ### Behaviour worth knowing
 
