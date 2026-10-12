@@ -48,8 +48,17 @@ nonisolated struct InlineText: Hashable, Sendable, ExpressibleByStringLiteral {
 
     func rendered(baseURL: URL?) -> InlineText {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        let attributed = (try? AttributedString(markdown: source, options: options, baseURL: baseURL)) ?? AttributedString(source)
+        var attributed = (try? AttributedString(markdown: source, options: options, baseURL: baseURL)) ?? AttributedString(source)
+        // READMEs are untrusted: a `file:`, `x-apple…` or app-scheme link would open
+        // something on this Mac when clicked. Only web links stay clickable.
+        for run in attributed.runs {
+            if let link = run.link, !Self.isWebLink(link) { attributed[run.range].link = nil }
+        }
         return InlineText(source: source, attributed: attributed)
+    }
+
+    static func isWebLink(_ url: URL) -> Bool {
+        ["http", "https"].contains(url.scheme?.lowercased() ?? "")
     }
 
     var display: AttributedString { attributed ?? AttributedString(source) }

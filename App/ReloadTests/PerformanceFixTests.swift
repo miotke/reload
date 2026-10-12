@@ -159,6 +159,17 @@ func pngData(width: Int, height: Int) throws -> Data {
     }
 }
 
+@Suite struct MarkdownLinkTests {
+    /// A README can't make a click open a local file or another app.
+    @Test func onlyWebLinksStayClickable() throws {
+        let base = URL(string: "https://github.com/o/r/blob/HEAD/")!
+        let text = InlineText("[web](https://example.com) [file](file:///Applications/Calculator.app) [app](x-apple.systempreferences:x) [rel](docs/a.md)").rendered(baseURL: base)
+        let links = try #require(text.attributed).runs.compactMap(\.link).map(\.absoluteString)
+        #expect(links == ["https://example.com", "https://github.com/o/r/blob/HEAD/docs/a.md"])
+        #expect(String(try #require(text.attributed).characters) == "web file app rel")
+    }
+}
+
 @Suite struct RecentKeysTests {
     @Test func evictsTheLeastRecentlyUsed() {
         var keys = RecentKeys<Int>(limit: 3)

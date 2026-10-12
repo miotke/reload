@@ -61,7 +61,7 @@ Opening an add-on is one of the times the core goes to the network.
 
 **Rendering (app):**
 - Parsed **off the main actor** by `MarkdownParser`: headings, paragraphs, lists, code, quotes, tables and rules. Images, HTML tags and comments are stripped. Each block's inline Markdown is rendered to an `AttributedString` in the same pass (`renderedBlocks`), so `MarkdownView` parses nothing on the main actor.
-- Rendered lazily by `MarkdownView`; relative links were resolved against the repository while parsing.
+- Rendered lazily by `MarkdownView`; relative links were resolved against the repository while parsing. Only `http` and `https` links stay clickable: a README is untrusted, and a `file:` or app-scheme link would open something on the Mac. A repo homepage is dropped unless it is a web link.
 - Parsed results are cached. Changelogs use the same renderer.
 - Cost: 19 ms for a 32 KB README ([measurements](../performance/measurements.md)), which is why it can't run on the main actor.
 

@@ -289,7 +289,8 @@ public struct AddonDetails: Sendable, Hashable {
         self.owner = owner
         self.summary = summary
         self.repositoryURL = repositoryURL
-        self.homepage = homepage
+        // Repo metadata is untrusted; only web links are kept.
+        self.homepage = homepage.flatMap { ["http", "https"].contains($0.scheme?.lowercased() ?? "") ? $0 : nil }
         self.stars = stars
         self.lastUpdated = lastUpdated
         self.topics = topics
