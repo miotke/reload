@@ -25,7 +25,7 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
         #expect(!http.urls.contains("https://github.com/o/r/releases/tag/v2.0"))
         #expect(http.requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == nil })
         // The answer is stored, with its tag.
-        #expect(await source.store.record(for: ref)?.tag == "v2.0")
+        #expect(await source.store.record(for: ref, flavor: .forever)?.tag == "v2.0")
         #expect(await source.store.latestTag(for: ref)?.tag == "v2.0")
     }
 
@@ -66,7 +66,7 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
         let source = await source(http)
         #expect(await source.check(ref, flavor: .forever, policy: .preferStored) == SupportCheck(status: .unknown, tag: nil))
         #expect(http.requests.isEmpty)
-        #expect(await source.store.record(for: ref) == nil, "nothing written")
+        #expect(await source.store.record(for: ref, flavor: .forever) == nil, "nothing written")
 
         _ = await source.check(ref, flavor: .forever)
         http.reset()
@@ -90,7 +90,7 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
         clock.date += 120
         _ = await source.check(ref, flavor: .forever)
         #expect(http.urls == ["https://github.com/o/r/releases/latest"], "stale, same tag: one HEAD, verdict reused")
-        let stored = try #require(await source.store.record(for: ref))
+        let stored = try #require(await source.store.record(for: ref, flavor: .forever))
         #expect(stored.checkedAt == clock.date, "the revalidation is written")
     }
 
@@ -106,7 +106,7 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
         http.stub("https://api.github.com/repos/o/err/releases?per_page=10", status: 500)
         _ = await source.check(ref, flavor: .forever)
         #expect(await source.check(broken, flavor: .forever).status == .unknown)
-        #expect(await source.store.status(for: broken) == nil, "a failure is never shown")
+        #expect(await source.store.status(for: broken, flavor: .forever) == nil, "a failure is never shown")
         http.reset()
 
         clock.date += 10 * 60

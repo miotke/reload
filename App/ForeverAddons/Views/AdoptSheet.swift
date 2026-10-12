@@ -24,7 +24,7 @@ struct AdoptSheet: View {
             .formStyle(.grouped)
             .scrollDisabled(true)
 
-            Text("ForeverAddons will install the latest Forever release of this repository over the existing folder, then keep it up to date.")
+            Text("ForeverAddons will install the latest \(state.installation.flavor.displayName) release of this repository over the existing folder, then keep it up to date.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

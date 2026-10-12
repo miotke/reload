@@ -118,7 +118,7 @@ enum BatchInstaller {
             // AddonKit can only install the release the selector picks; accept the tag if it matches.
             let release = try await manager.resolve(request.ref, for: installation, channel: request.channel)
             if !Self.tagsMatch(release.version, wanted) {
-                let problem = "\(Format.ref(request.ref)) \(wanted) isn't the current Forever release (\(release.version)); installing older releases isn't supported yet."
+                let problem = "\(Format.ref(request.ref)) \(wanted) isn't the current \(installation.flavor.displayName) release (\(release.version)); installing older releases isn't supported yet."
                 guard !request.strictVersion else { throw CLIError.general(problem) }
                 context.warn(problem + " Installing \(release.version) instead.")
             }

@@ -20,7 +20,7 @@ public enum AddonError: Error, Sendable, Equatable, LocalizedError {
         switch self {
         case .invalidReference(let s): "Not a valid add-on reference: \(s)"
         case .notFound(let ref): "\(ref.identifier) was not found."
-        case .noCompatibleRelease(let ref, let flavor): "\(ref.identifier) has no \(flavor.rawValue.capitalized) build yet."
+        case .noCompatibleRelease(let ref, let flavor): "\(ref.identifier) has no \(flavor.displayName) build yet."
         case .rateLimited(let reset):
             if let reset { "GitHub rate limit reached. Try again \(reset.formatted(.relative(presentation: .named)))." }
             else { "GitHub rate limit reached." }

@@ -47,10 +47,10 @@ import Testing
         #expect(support.last?.total == 4)
 
         let cache = SupportCache(database: h.manager.database)
-        #expect(await cache.status(for: AddonRef(source: .github, identifier: "A/Alpha")) == .supported(version: "v1"))
-        #expect(await cache.status(for: AddonRef(source: .github, identifier: "B/Beta")) == .unsupported)
-        #expect(await cache.status(for: AddonRef(source: .github, identifier: "D/Delta")) == .needsDownload)
-        #expect(await cache.status(for: AddonRef(source: .github, identifier: "C/Gamma")) == nil)
+        #expect(await cache.status(for: AddonRef(source: .github, identifier: "A/Alpha"), flavor: .forever) == .supported(version: "v1"))
+        #expect(await cache.status(for: AddonRef(source: .github, identifier: "B/Beta"), flavor: .forever) == .unsupported)
+        #expect(await cache.status(for: AddonRef(source: .github, identifier: "D/Delta"), flavor: .forever) == .needsDownload)
+        #expect(await cache.status(for: AddonRef(source: .github, identifier: "C/Gamma"), flavor: .forever) == nil)
         #expect(!h.http.urls.contains { $0.contains("C/Gamma") }, "no release.json: no request")
         #expect(h.http.apiRequests.isEmpty)
         #expect(await h.manager.lastRefresh(in: h.installation) != nil)
@@ -112,7 +112,7 @@ import Testing
         #expect(h.http.urls.contains("https://github.com/A/Alpha/releases/latest"))
         #expect(h.http.urls.contains("https://github.com/E/Epsilon/releases/latest"), "new to the catalogue")
         #expect(!h.http.urls.contains { $0.contains("B/Beta") || $0.contains("D/Delta") })
-        #expect(await SupportCache(database: h.manager.database).status(for: AddonRef(source: .github, identifier: "A/Alpha")) == .supported(version: "v1.1"))
+        #expect(await SupportCache(database: h.manager.database).status(for: AddonRef(source: .github, identifier: "A/Alpha"), flavor: .forever) == .supported(version: "v1.1"))
     }
 
     @Test func throttleExpiresAfterTwoHours() async throws {

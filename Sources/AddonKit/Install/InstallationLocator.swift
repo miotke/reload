@@ -91,8 +91,8 @@ public struct InstallationLocator: Sendable {
             gameVersion = info.version(forProduct: productCode)
         }
         let flavor = gameVersion.flatMap(Flavor.from(gameVersion:))
-            ?? Self.flavor(forSubfolder: subfolder)
-            ?? productCode.flatMap(Self.flavor(forProduct:))
+            ?? Flavor.from(subfolder: subfolder)
+            ?? productCode.flatMap(Flavor.from(productCode:))
         guard let flavor else { throw AddonError.installationNotFound(root.path) }
         return Installation(
             id: Self.installationID(for: root),
@@ -110,14 +110,6 @@ public struct InstallationLocator: Sendable {
             }
         }
         return nil
-    }
-
-    static func flavor(forSubfolder name: String) -> Flavor? {
-        Flavor.allCases.first { $0.rules.knownSubfolders.keys.contains { $0.caseInsensitiveCompare(name) == .orderedSame } }
-    }
-
-    static func flavor(forProduct code: String) -> Flavor? {
-        Flavor.allCases.first { $0.rules.knownSubfolders.values.contains(code) }
     }
 
     /// Product code from `<root>/.flavor.info` (a one-column BPSV file), if present.

@@ -61,7 +61,7 @@ public struct Toc: Sendable, Hashable {
 
     /// True if any interface value belongs to `flavor`.
     public func supports(_ flavor: Flavor) -> Bool {
-        interfaces.contains { flavor.rules.interfaceRange.contains($0) }
+        interfaces.contains { flavor.rules.contains(interface: $0) }
     }
 
     static func list(_ raw: String?) -> [String] {
@@ -88,6 +88,7 @@ public struct TocFileName: Sendable, Hashable {
     /// All suffixes recognised across every flavor.
     public static let knownSuffixes: [String] = Flavor.allCases
         .flatMap { $0.rules.tocSuffixes + $0.rules.sharedTocSuffixes }
+        .reduce(into: []) { seen, suffix in if !seen.contains(suffix) { seen.append(suffix) } }
 
     public init(addonName: String, suffix: String?) {
         self.addonName = addonName
@@ -118,9 +119,14 @@ public struct TocFileName: Sendable, Hashable {
         return flavor.rules.tocSuffixes.contains { $0.caseInsensitiveCompare(suffix) == .orderedSame }
     }
 
-    /// True if this is a shared-family TOC for `flavor` (e.g. `_Mainline` for Forever).
+    /// True if this is a shared-family TOC for `flavor` (`_Mainline` for Forever, `_Classic` for the classics).
     public func isShared(for flavor: Flavor) -> Bool {
-        guard let suffix else { return false }
-        return flavor.rules.sharedTocSuffixes.contains { $0.caseInsensitiveCompare(suffix) == .orderedSame }
+        sharedRank(for: flavor) != nil
+    }
+
+    /// Position of this file's suffix in `flavor`'s `sharedTocSuffixes`; lower is tried first.
+    public func sharedRank(for flavor: Flavor) -> Int? {
+        guard let suffix else { return nil }
+        return flavor.rules.sharedTocSuffixes.firstIndex { $0.caseInsensitiveCompare(suffix) == .orderedSame }
     }
 }

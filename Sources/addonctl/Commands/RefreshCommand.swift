@@ -39,7 +39,7 @@ struct RefreshCommand: ContextCommand {
             ))
             return
         }
-        for text in Self.summaryLines(summary, lastRefresh: lastRefresh) { context.say(text) }
+        for text in Self.summaryLines(summary, flavor: installation.flavor, lastRefresh: lastRefresh) { context.say(text) }
         let available = updates.compactMap { ref, state -> [String]? in
             guard case .available(let release) = state else { return nil }
             let addon = installed.first { $0.id == ref }
@@ -69,7 +69,7 @@ struct RefreshCommand: ContextCommand {
         }
     }
 
-    static func summaryLines(_ summary: Summary, lastRefresh: Date?, now: Date = Date()) -> [String] {
+    static func summaryLines(_ summary: Summary, flavor: Flavor, lastRefresh: Date?, now: Date = Date()) -> [String] {
         if summary.skipped {
             let when = lastRefresh.map { " \(Format.relative($0, now: now))" } ?? " recently"
             return ["Already refreshed\(when); use --force to refresh now."]
@@ -85,7 +85,7 @@ struct RefreshCommand: ContextCommand {
             lines.append(text)
         }
         if let support = summary.phases[.support] {
-            lines.append("Forever support: checked \(support.completed) of \(support.total) add-on\(support.total == 1 ? "" : "s")")
+            lines.append("\(flavor.displayName) support: checked \(support.completed) of \(support.total) add-on\(support.total == 1 ? "" : "s")")
         }
         return lines
     }

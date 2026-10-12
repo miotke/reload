@@ -41,16 +41,16 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         let dir = try makeTempDirectory()
         let clock = SearchTestClock()
         let cache = SupportCache(directory: dir, now: { clock.now })
-        await cache.set(.supported(version: "v1.2"), for: bw, tag: "v1.2")
-        await cache.set(.unsupported, for: dbm)
-        #expect(await cache.status(for: bw) == .supported(version: "v1.2"))
+        await cache.set(.supported(version: "v1.2"), for: bw, flavor: .forever, tag: "v1.2")
+        await cache.set(.unsupported, for: dbm, flavor: .forever)
+        #expect(await cache.status(for: bw, flavor: .forever) == .supported(version: "v1.2"))
         #expect(await cache.status(for: bw, flavor: .mainline) == nil)
-        #expect(await cache.record(for: bw)?.tag == "v1.2")
+        #expect(await cache.record(for: bw, flavor: .forever)?.tag == "v1.2")
 
         let reopened = SupportCache(directory: dir, now: { clock.now })
-        #expect(await reopened.status(for: AddonRef(source: .github, identifier: "bigwigsmods/bigwigs")) == .supported(version: "v1.2"))
-        #expect(await reopened.status(for: dbm) == .unsupported)
-        #expect(await reopened.statuses().count == 2)
+        #expect(await reopened.status(for: AddonRef(source: .github, identifier: "bigwigsmods/bigwigs"), flavor: .forever) == .supported(version: "v1.2"))
+        #expect(await reopened.status(for: dbm, flavor: .forever) == .unsupported)
+        #expect(await reopened.statuses(flavor: .forever).count == 2)
         #expect(FileManager.default.fileExists(atPath: dir.appending(path: MetadataDatabase.fileName).path))
     }
 
@@ -62,8 +62,8 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
     @Test func lifetimesDependOnTheAnswerButVerdictsStayVisible() async throws {
         let clock = SearchTestClock()
         let cache = SupportCache(database: try .inMemory(), now: { clock.now })
-        await cache.set(.noReleases, for: bw)
-        await cache.set(.supported(version: "1"), for: dbm)
+        await cache.set(.noReleases, for: bw, flavor: .forever)
+        await cache.set(.supported(version: "1"), for: dbm, flavor: .forever)
         clock.advance(50 * 60)
         #expect(await isFresh(cache, dbm))
         clock.advance(20 * 60)
@@ -71,19 +71,19 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         #expect(await isFresh(cache, bw), "negative answers: 24 h")
         clock.advance(24 * 3600)
         #expect(!(await isFresh(cache, bw)))
-        #expect(await cache.status(for: bw) == .noReleases)
-        #expect(await cache.status(for: dbm) == .supported(version: "1"))
+        #expect(await cache.status(for: bw, flavor: .forever) == .noReleases)
+        #expect(await cache.status(for: dbm, flavor: .forever) == .supported(version: "1"))
     }
 
     @Test func failuresAreRememberedBrieflyAndNeverShown() async throws {
         let clock = SearchTestClock()
         let cache = SupportCache(database: try .inMemory(), now: { clock.now })
-        await cache.set(.needsDownload, for: bw)
-        await cache.set(.checking, for: bw)
-        await cache.set(.unknown, for: dbm)
-        #expect(await cache.status(for: bw) == .needsDownload)
-        #expect(await cache.status(for: dbm) == nil)
-        #expect(await cache.statuses().keys.map(\.identifier) == ["BigWigsMods/BigWigs"])
+        await cache.set(.needsDownload, for: bw, flavor: .forever)
+        await cache.set(.checking, for: bw, flavor: .forever)
+        await cache.set(.unknown, for: dbm, flavor: .forever)
+        #expect(await cache.status(for: bw, flavor: .forever) == .needsDownload)
+        #expect(await cache.status(for: dbm, flavor: .forever) == nil)
+        #expect(await cache.statuses(flavor: .forever).keys.map(\.identifier) == ["BigWigsMods/BigWigs"])
         #expect(await isFresh(cache, dbm))
         clock.advance(16 * 60)
         #expect(!(await isFresh(cache, dbm)))
@@ -107,7 +107,7 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         await cache.set([
             SupportRecord(ref: bw, status: .supported(version: "1"), checkedAt: Date()),
             SupportRecord(ref: dbm, status: .unsupported, checkedAt: Date()),
-        ])
+        ], flavor: .forever)
         var iterator = changes.makeAsyncIterator()
         let change = try #require(await iterator.next())
         #expect(change.tables == ["support", "repo_meta"])
@@ -129,7 +129,7 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
 
     @Test func matchesManagedByNameAndCamelCase() {
         let provider = InstalledSearchProvider(addons: statuses)
-        let results = provider.search(SearchQuery(text: "wigs"))
+        let results = provider.search(SearchQuery(text: "wigs", flavor: .forever))
         #expect(results.map(\.id.identifier) == ["BigWigsMods/BigWigs"])
         #expect(results[0].origin == [.installed])
         #expect(results[0].installed?.name == "BigWigs")
@@ -138,22 +138,22 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
 
     @Test func matchesFoldersAndOwner() {
         let provider = InstalledSearchProvider(addons: statuses)
-        #expect(provider.search(SearchQuery(text: "core")).map(\.name) == ["BigWigs"])
-        #expect(provider.search(SearchQuery(text: "funky")).map(\.name) == ["BugSack"])
+        #expect(provider.search(SearchQuery(text: "core", flavor: .forever)).map(\.name) == ["BigWigs"])
+        #expect(provider.search(SearchQuery(text: "funky", flavor: .forever)).map(\.name) == ["BugSack"])
     }
 
     @Test func matchesUnmanagedTocTitleAndNotes() {
         let provider = InstalledSearchProvider(addons: statuses)
-        let results = provider.search(SearchQuery(text: "bag"))
+        let results = provider.search(SearchQuery(text: "bag", flavor: .forever))
         #expect(results.map(\.name) == ["Baganator"])
         #expect(results[0].installed == nil)
         #expect(results[0].summary == "Bag replacement")
-        #expect(provider.search(SearchQuery(text: "replacement")).count == 1)
-        #expect(provider.search(SearchQuery(text: "mystery")).isEmpty)
+        #expect(provider.search(SearchQuery(text: "replacement", flavor: .forever)).count == 1)
+        #expect(provider.search(SearchQuery(text: "mystery", flavor: .forever)).isEmpty)
     }
 
     @Test func emptyQuery() {
-        #expect(InstalledSearchProvider(addons: statuses).search(SearchQuery(text: " ")).isEmpty)
+        #expect(InstalledSearchProvider(addons: statuses).search(SearchQuery(text: " ", flavor: .forever)).isEmpty)
     }
 }
 
@@ -173,7 +173,7 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
             ("a/Four", 1, false, false), ("a/Five", 0, false, false),
         ]))
         let provider = GitHubSearchProvider(http: http, token: "secret")
-        let results = try await provider.search(SearchQuery(text: "  bags "))
+        let results = try await provider.search(SearchQuery(text: "  bags ", flavor: .forever))
         #expect(results.map(\.id.identifier) == ["a/One", "a/Two", "a/Three", "a/Four", "a/Five"])
         let first = results[0]
         #expect(first.name == "One")
@@ -199,7 +199,7 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         http.stub(qs[1], body: githubSearchBody([("a/one", 1, false, false), ("a/Fork", 1, false, true), ("b/Two", 1, false, false)]))
         http.stub(qs[2], body: githubSearchBody(["c/Three", "c/Four", "c/Five"]))
         let provider = GitHubSearchProvider(http: http)
-        let results = try await provider.search(SearchQuery(text: "bags"))
+        let results = try await provider.search(SearchQuery(text: "bags", flavor: .forever))
         #expect(results.map(\.id.identifier) == ["a/One", "b/Two", "c/Three", "c/Four", "c/Five"])
         #expect(http.requests.map(\.url?.absoluteString) == qs)
         #expect(http.requests[0].value(forHTTPHeaderField: "Authorization") == nil)
@@ -213,11 +213,11 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         let qs = GitHubSearchProvider.queries(for: "dbm").map { GitHubSearchProvider.url(forQuery: $0).absoluteString }
         http.stub(qs[0], body: githubSearchBody(["a/1", "a/2", "a/3", "a/4", "a/5"]))
         let provider = GitHubSearchProvider(http: http, now: { clock.now })
-        _ = try await provider.search(SearchQuery(text: "dbm"))
-        _ = try await provider.search(SearchQuery(text: "dbm "))
+        _ = try await provider.search(SearchQuery(text: "dbm", flavor: .forever))
+        _ = try await provider.search(SearchQuery(text: "dbm ", flavor: .forever))
         #expect(http.requests.count == 1)
         clock.advance(11 * 60)
-        _ = try await provider.search(SearchQuery(text: "dbm"))
+        _ = try await provider.search(SearchQuery(text: "dbm", flavor: .forever))
         #expect(http.requests.count == 2)
     }
 
@@ -227,14 +227,14 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         http.stub(q, status: 403, headers: ["X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1800000600"], body: Data())
         let provider = GitHubSearchProvider(http: http)
         await #expect(throws: AddonError.rateLimited(resetAt: Date(timeIntervalSince1970: 1_800_000_600))) {
-            try await provider.search(SearchQuery(text: "bags"))
+            try await provider.search(SearchQuery(text: "bags", flavor: .forever))
         }
 
         let clock = SearchTestClock()
         http.stub(q, status: 429, headers: ["Retry-After": "30"], body: Data())
         let provider2 = GitHubSearchProvider(http: http, now: { clock.now })
         await #expect(throws: AddonError.rateLimited(resetAt: clock.now.addingTimeInterval(30))) {
-            try await provider2.search(SearchQuery(text: "bags"))
+            try await provider2.search(SearchQuery(text: "bags", flavor: .forever))
         }
     }
 
@@ -244,7 +244,7 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         http.stub(qs[0], body: githubSearchBody(["a/One"]))
         http.stub(qs[1], status: 429, body: Data())
         let provider = GitHubSearchProvider(http: http)
-        #expect(try await provider.search(SearchQuery(text: "bags")).map(\.id.identifier) == ["a/One"])
+        #expect(try await provider.search(SearchQuery(text: "bags", flavor: .forever)).map(\.id.identifier) == ["a/One"])
         #expect(http.requests.count == 2)
     }
 
@@ -253,7 +253,7 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         let q = GitHubSearchProvider.url(forQuery: GitHubSearchProvider.queries(for: "x")[0])
         http.stub(q.absoluteString, status: 422, body: Data())
         await #expect(throws: AddonError.http(status: 422, url: q)) {
-            try await GitHubSearchProvider(http: http).search(SearchQuery(text: "x"))
+            try await GitHubSearchProvider(http: http).search(SearchQuery(text: "x", flavor: .forever))
         }
     }
 }

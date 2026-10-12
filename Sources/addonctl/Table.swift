@@ -70,7 +70,7 @@ enum Format {
         ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
     }
 
-    static func searchTable(_ results: [SearchResult], style: Style, now: Date = Date()) -> String {
+    static func searchTable(_ results: [SearchResult], flavor: Flavor, style: Style, now: Date = Date()) -> String {
         let rows = results.map { result -> [String] in
             [
                 result.name,
@@ -80,7 +80,7 @@ enum Format {
                 result.installed != nil ? style.cyan("(installed)") : "",
             ]
         }
-        return Table(headers: ["NAME", "REPO", "FOREVER", "UPDATED", ""], rows: rows).render(style: style)
+        return Table(headers: ["NAME", "REPO", flavor.displayName.uppercased(), "UPDATED", ""], rows: rows).render(style: style)
     }
 
     static func listTable(_ statuses: [AddonStatus], style: Style) -> String {
@@ -106,7 +106,7 @@ enum Format {
             [
                 installation.id == defaultID ? style.green("*") : " ",
                 installation.id,
-                installation.flavor.rawValue,
+                installation.flavor.displayName,
                 installation.gameVersion ?? "—",
                 installation.root.path(percentEncoded: false),
             ]
@@ -123,12 +123,12 @@ enum Format {
         return Table(headers: ["NAME", "INSTALLED", "LATEST", "CHANNEL", "PUBLISHED"], rows: rows).render(style: style)
     }
 
-    static func updateState(_ state: UpdateState, style: Style) -> String {
+    static func updateState(_ state: UpdateState, flavor: Flavor, style: Style) -> String {
         switch state {
         case .upToDate: style.dim("up to date")
         case .available(let release): style.green("→ \(release.version)")
         case .pinned: style.yellow("pinned, skipped")
-        case .noCompatibleRelease: style.dim("no Forever build")
+        case .noCompatibleRelease: style.dim("no \(flavor.displayName) build")
         case .failed(let message): style.red("failed: \(message)")
         }
     }

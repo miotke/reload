@@ -8,7 +8,6 @@ enum CLIError: Error, Equatable, LocalizedError {
     case ambiguousReference(String, [AddonRef])
     case referenceNotFound(String)
     case noInstallations
-    case noForeverInstallation([Installation])
     case ambiguousInstallation([Installation])
     case installationNotFound(String)
     /// A destructive action ran without `--yes` and couldn't prompt.
@@ -30,11 +29,9 @@ enum CLIError: Error, Equatable, LocalizedError {
             "No add-on named \"\(input)\". Try `addonctl search \(input)` or use owner/repo."
         case .noInstallations:
             "No World of Warcraft installation found. Add one with `addonctl installs add <path>`."
-        case .noForeverInstallation(let installations):
-            "None of the known installations is WoW Forever (\(installations.map(\.flavor.rawValue).joined(separator: ", "))). Add one with `addonctl installs add <path>`."
         case .ambiguousInstallation(let installations):
-            "Several Forever installations found; pick one with --install <id> or `addonctl installs default <id>`:\n"
-                + installations.map { "  \($0.id)  \($0.root.path(percentEncoded: false))" }.joined(separator: "\n")
+            "Several installations found; pick one with --install <id> or `addonctl installs default <id>`:\n"
+                + installations.map { "  \($0.id)  \($0.flavor.displayName)  \($0.root.path(percentEncoded: false))" }.joined(separator: "\n")
         case .installationNotFound(let value):
             "No installation matches \"\(value)\". See `addonctl installs`."
         case .confirmationRequired(let action):
@@ -76,7 +73,7 @@ enum ExitStatus {
                 return usage
             case .partialFailure: return partialFailure
             case .allFailed(_, let code): return code
-            case .referenceNotFound, .noInstallations, .noForeverInstallation, .cancelled, .general:
+            case .referenceNotFound, .noInstallations, .cancelled, .general:
                 return general
             }
         case let error as ExitCode:
@@ -112,7 +109,6 @@ enum ExitStatus {
             case .ambiguousReference: "ambiguous_reference"
             case .referenceNotFound: "not_found"
             case .noInstallations: "no_installation"
-            case .noForeverInstallation: "no_forever_installation"
             case .ambiguousInstallation: "ambiguous_installation"
             case .installationNotFound: "installation_not_found"
             case .confirmationRequired: "confirmation_required"

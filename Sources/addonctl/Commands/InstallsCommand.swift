@@ -34,11 +34,10 @@ struct InstallsCommand: AsyncParsableCommand {
             context.print(Format.installsTable(installations, defaultID: defaultID, style: context.style))
         }
 
-        /// The configured default if it exists, else the only Forever install.
+        /// The configured default if it exists, else the only install.
         static func effectiveDefault(installations: [Installation], configured: String?) -> String? {
             if let configured, installations.contains(where: { $0.id == configured }) { return configured }
-            let forever = installations.filter { $0.flavor == .forever }
-            return forever.count == 1 ? forever[0].id : nil
+            return installations.count == 1 ? installations[0].id : nil
         }
     }
 
@@ -56,7 +55,7 @@ struct InstallsCommand: AsyncParsableCommand {
             if context.json {
                 try context.emit(Output(defaultInstall: context.config.load().defaultInstall, installations: [installation]))
             } else {
-                context.say("Added \(installation.flavor.rawValue) installation \(installation.id) at \(installation.root.path(percentEncoded: false))")
+                context.say("Added \(installation.flavor.displayName) installation \(installation.id) at \(installation.root.path(percentEncoded: false))")
             }
         }
     }

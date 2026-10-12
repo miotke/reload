@@ -23,7 +23,7 @@ struct BrowseView: View {
     var model: AppModel
     var state: InstallationModel
 
-    @AppStorage("browseForeverOnly") private var foreverOnly = true
+    @AppStorage("browseForeverOnly") private var compatibleOnly = true
     @AppStorage("browseHome") private var home: BrowseHome = .popular
     @AppStorage("browseSort") private var sortStorage = ""
     @SceneStorage("browseColumns") private var columns = TableColumnCustomization<BrowseRow>()
@@ -31,7 +31,7 @@ struct BrowseView: View {
 
     private struct QueryKey: Hashable {
         var text: String
-        var foreverOnly: Bool
+        var compatibleOnly: Bool
         var includeLiveGitHub: Bool
         var installationID: String
     }
@@ -48,7 +48,7 @@ struct BrowseView: View {
 
     /// Filtering and sorting happen in the model, once per change, not in `body`.
     private var options: BrowseOptions {
-        BrowseOptions(query: trimmedQuery, home: home, foreverOnly: foreverOnly, sort: sort)
+        BrowseOptions(query: trimmedQuery, home: home, compatibleOnly: compatibleOnly, sort: sort)
     }
 
     var body: some View {
@@ -63,7 +63,7 @@ struct BrowseView: View {
         }
         .onChange(of: options, initial: true) { state.browseOptions = options }
         // `.task(id:)` cancels the previous search whenever the query changes; the sleep is the debounce.
-        .task(id: QueryKey(text: trimmedQuery, foreverOnly: foreverOnly, includeLiveGitHub: includeLiveGitHub,
+        .task(id: QueryKey(text: trimmedQuery, compatibleOnly: compatibleOnly, includeLiveGitHub: includeLiveGitHub,
                            installationID: state.installation.id)) {
             let text = trimmedQuery
             guard !text.isEmpty else {
@@ -73,7 +73,7 @@ struct BrowseView: View {
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
             await state.search(SearchQuery(text: text, flavor: state.installation.flavor,
-                                           foreverOnly: foreverOnly, includeLiveGitHub: includeLiveGitHub))
+                                           compatibleOnly: compatibleOnly, includeLiveGitHub: includeLiveGitHub))
         }
         .task(id: state.installation.id) {
             await state.loadBrowse()
@@ -108,9 +108,9 @@ struct BrowseView: View {
                     }
                 }
             }
-            Toggle("Forever only", isOn: $foreverOnly)
+            Toggle("\(state.installation.flavor.displayName) only", isOn: $compatibleOnly)
                 .toggleStyle(.checkbox)
-                .help("Hide add-ons verified not to support Forever. Unchecked add-ons are shown dimmed.")
+                .help("Hide add-ons verified not to support \(state.installation.flavor.displayName). Unchecked add-ons are shown dimmed.")
                 .fixedSize()
         }
         .padding(.horizontal, 12)
@@ -186,8 +186,8 @@ private struct BrowseTable: View {
             .customizationID("name")
             .disabledCustomizationBehavior(.visibility)
 
-            TableColumn("Forever", sortUsing: ColumnSort(BrowseColumn.support)) { row in
-                SupportBadge(status: row.support)
+            TableColumn(state.installation.flavor.displayName, sortUsing: ColumnSort(BrowseColumn.support)) { row in
+                SupportBadge(status: row.support, flavor: state.installation.flavor)
             }
             .width(min: 84, ideal: 96, max: 130)
             .customizationID("forever")

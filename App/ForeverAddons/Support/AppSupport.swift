@@ -60,9 +60,7 @@ extension Installation {
     var displayName: String {
         switch (flavor, root.lastPathComponent) {
         case (.forever, "_classic_beta_"): "Forever Beta"
-        case (.forever, _): "Forever"
-        case (.mainline, _): "Retail"
-        case (.classic, _): "Classic"
+        default: flavor.displayName
         }
     }
 }

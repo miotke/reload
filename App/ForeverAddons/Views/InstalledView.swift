@@ -52,7 +52,7 @@ struct InstalledView: View {
             .customizationID("channel")
 
             TableColumn("Status", sortUsing: ColumnSort(InstalledColumn.status)) { row in
-                StatusCell(row: row)
+                StatusCell(row: row, flavor: state.installation.flavor)
             }
             .width(min: 90, ideal: 130, max: 180)
             .customizationID("status")
@@ -154,6 +154,7 @@ private struct VersionCell: View {
 
 private struct StatusCell: View {
     var row: InstalledRow
+    var flavor: Flavor
 
     var body: some View {
         Group {
@@ -169,7 +170,7 @@ private struct StatusCell: View {
                 Label("Check failed", systemImage: "exclamationmark.triangle").foregroundStyle(.red)
                     .help(row.failure ?? "The update check failed")
             case .noCompatibleRelease:
-                Label("No Forever build", systemImage: "nosign").foregroundStyle(.orange)
+                Label("No \(flavor.displayName) build", systemImage: "nosign").foregroundStyle(.orange)
             case .pinned:
                 Label("Pinned", systemImage: "pin.fill").foregroundStyle(.secondary)
                     .help("Pinned add-ons are never updated automatically")

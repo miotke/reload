@@ -64,23 +64,38 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         #expect(outcome == .selected(stored))
     }
 
-    @Test func configDefaultThenOnlyForeverInstall() throws {
+    @Test func configDefaultThenOnlyInstall() throws {
         #expect(try InstallationSelection.select(flag: nil, configDefault: "bbbb2222", installations: [a, b], pathLookup: noPaths) == .selected(b))
-        // A stale default falls through to the only Forever install.
-        #expect(try InstallationSelection.select(flag: nil, configDefault: "gone", installations: [a, retail], pathLookup: noPaths) == .selected(a))
+        // A stale default falls through to the only install, whatever its flavor.
+        #expect(try InstallationSelection.select(flag: nil, configDefault: "gone", installations: [a], pathLookup: noPaths) == .selected(a))
+        #expect(try InstallationSelection.select(flag: nil, configDefault: "gone", installations: [retail], pathLookup: noPaths) == .selected(retail))
+        let mists = makeInstallation("eeee5555", flavor: .mists)
+        #expect(try InstallationSelection.select(flag: nil, configDefault: nil, installations: [mists], pathLookup: noPaths) == .selected(mists))
     }
 
-    @Test func severalForeverInstallsAreAmbiguous() throws {
-        #expect(try InstallationSelection.select(flag: nil, configDefault: nil, installations: [a, b, retail], pathLookup: noPaths) == .ambiguous([a, b]))
+    @Test func severalInstallsAreAmbiguous() throws {
+        #expect(try InstallationSelection.select(flag: nil, configDefault: nil, installations: [a, b, retail], pathLookup: noPaths) == .ambiguous([a, b, retail]))
+        #expect(try InstallationSelection.select(flag: nil, configDefault: "gone", installations: [a, retail], pathLookup: noPaths) == .ambiguous([a, retail]))
     }
 
     @Test func noInstallations() {
         #expect(throws: CLIError.noInstallations) {
             try InstallationSelection.select(flag: nil, configDefault: nil, installations: [], pathLookup: noPaths)
         }
-        #expect(throws: CLIError.noForeverInstallation([retail])) {
-            try InstallationSelection.select(flag: nil, configDefault: nil, installations: [retail], pathLookup: noPaths)
-        }
+    }
+
+    @Test func effectiveDefaultIsTheOnlyInstallOfAnyFlavor() {
+        #expect(InstallsCommand.List.effectiveDefault(installations: [retail], configured: nil) == retail.id)
+        #expect(InstallsCommand.List.effectiveDefault(installations: [a, retail], configured: nil) == nil)
+        #expect(InstallsCommand.List.effectiveDefault(installations: [a, retail], configured: retail.id) == retail.id)
+    }
+
+    @Test func installsTableAndDoctorShowDisplayNames() {
+        let mists = makeInstallation("eeee5555", flavor: .mists)
+        let table = Format.installsTable([a, mists], defaultID: nil, style: .plain)
+        #expect(table.contains("Forever"))
+        #expect(table.contains("Mists Classic"))
+        #expect(DoctorCommand.flavorCounts([a, b, mists]) == "2 Forever, 1 Mists Classic")
     }
 }
 
@@ -138,7 +153,7 @@ func jsonObject(_ text: String) throws -> [String: Any] {
             SearchResult(id: ref("BigWigsMods/LittleWigs"), name: "LittleWigs", owner: "BigWigsMods", lastUpdated: now.addingTimeInterval(-8 * 86_400),
                          support: .unknown, origin: [.catalogue]),
         ]
-        #expect(Format.searchTable(results, style: .plain, now: now) == """
+        #expect(Format.searchTable(results, flavor: .forever, style: .plain, now: now) == """
               NAME        REPO                    FOREVER    UPDATED
               BigWigs     BigWigsMods/BigWigs     ✓ v426.4   2 days ago  (installed)
               LittleWigs  BigWigsMods/LittleWigs  ? unknown  1 week ago

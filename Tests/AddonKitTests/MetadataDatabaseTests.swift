@@ -17,6 +17,26 @@ import Testing
         #expect(try await reopened.query("PRAGMA journal_mode").first?.string(0) == "wal")
     }
 
+    @Test func migrationTwoDropsLumpedClassicRows() async throws {
+        let dir = try makeTempDirectory()
+        let url = dir.appending(path: "metadata.sqlite")
+        do {
+            // Rewind to schema 1 and store rows as that version wrote them.
+            let db = try MetadataDatabase(url: url)
+            try await db.executeScript("PRAGMA user_version = 1")
+            for flavor in ["forever", "mainline", "classic"] {
+                try await db.execute("INSERT INTO support(full_name, flavor, status, checked_at) VALUES (?, ?, 'supported', ?)", "o/r", flavor, Date())
+                try await db.execute("INSERT INTO details(full_name, flavor, fetched_at) VALUES (?, ?, ?)", "o/r", flavor, Date())
+            }
+            try await db.execute("INSERT INTO refresh_state(installation_id, last_refresh_at) VALUES (?, ?)", "abc", Date())
+        }
+        let migrated = try MetadataDatabase(url: url)
+        #expect(try await migrated.schemaVersion() == 2)
+        #expect(try await migrated.query("SELECT flavor FROM support ORDER BY flavor").map { $0.string(0) } == ["forever", "mainline"])
+        #expect(try await migrated.query("SELECT flavor FROM details ORDER BY flavor").map { $0.string(0) } == ["forever", "mainline"])
+        #expect(try await migrated.query("SELECT count(*) FROM refresh_state").first?.int(0) == 1)
+    }
+
     @Test func bindsAndReadsEveryType() async throws {
         let db = try MetadataDatabase.inMemory()
         try await db.executeScript("CREATE TABLE t (i INTEGER, r REAL, s TEXT, b BLOB, d REAL, n TEXT, f INTEGER)")
