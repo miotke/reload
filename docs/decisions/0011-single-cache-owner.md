@@ -56,3 +56,5 @@ That duplicated the "latest tag → `release.json`" logic and made it easy to fo
 - [features/release-selection.md](../features/release-selection.md#support-checks)
 - [features/refresh.md](../features/refresh.md)
 - [network/caching.md](../network/caching.md)
+
+> **Update 2026-10-12:** the owner moved from `GitHubSource` to `LatestReleaseStore` (`Sources/AddonKit/GitHub/LatestReleaseStore.swift`) in the core refactor. The decision is unchanged.

@@ -56,7 +56,7 @@ Read `docs/network/` before touching anything that makes requests.
   - when the user opens, installs or updates a specific add-on
 - **Quota.** Prefer the quota-free `github.com/{owner}/{repo}/releases/latest` redirects and `raw.githubusercontent.com`. The API allows 60 calls per hour without a token, shared per IP. Keep a reserve, stop calling once the limit is hit, and store the rate-limit state.
 - Cache everything, failures included (with a TTL). Use ETags. Never refetch what's stored and fresh.
-- **Each kind of remote data has one owner that decides freshness.** For example, `GitHubSource.check` owns Forever support and latest tags. Callers state intent with a `CachePolicy` (`.preferStored`, `.revalidateIfStale`, `.forceRevalidate`). They never bypass the owner, keep a second cache, or pass `maxAge: 0`-style flags.
+- **Each kind of remote data has one owner that decides freshness.** For example, `LatestReleaseStore` (`latestRelease`, `check`) owns support and latest tags. Callers state intent with a `CachePolicy` (`.preferStored`, `.revalidateIfStale`, `.forceRevalidate`). They never bypass the owner, keep a second cache, or pass `maxAge: 0`-style flags.
 - At most 4 concurrent requests to github.com, with jitter. Honour `retry-after` and back off on 429/403.
 
 ## Performance rules
