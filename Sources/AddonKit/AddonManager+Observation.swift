@@ -33,12 +33,11 @@ extension AddonManager {
     public nonisolated var storeDirectory: URL { store.storeDirectory }
 
     public func storedAvailability(for refs: [AddonRef], in installation: Installation) async -> [AddonRef: StoredAvailability] {
+        let stored = await supportCache.storedAvailability(for: refs, flavor: installation.flavor)
         var result: [AddonRef: StoredAvailability] = [:]
         for ref in refs {
-            result[ref] = StoredAvailability(
-                support: await supportCache.status(for: ref, flavor: installation.flavor),
-                availableFlavors: await supportCache.availableFlavors(for: ref)
-            )
+            let answer = stored[ref.identifier.lowercased()]
+            result[ref] = StoredAvailability(support: answer?.support, availableFlavors: answer?.flavors)
         }
         return result
     }

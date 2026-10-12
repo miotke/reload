@@ -243,6 +243,30 @@ public actor SupportCache {
         await storedFlavors(for: ref)?.flavors
     }
 
+    /// The stored verdict for `flavor` and the stored flavors of each repo in `refs`, in one
+    /// query: Browse patches up to 500 rows at a time, and two lookups per row cost ~6×
+    /// as much. Keyed by lower-cased `owner/repo`; repos with neither are left out.
+    func storedAvailability(for refs: [AddonRef], flavor: Flavor) async -> [String: (support: SupportStatus?, flavors: Set<Flavor>?)] {
+        let names = Array(Set(refs.map { $0.identifier.lowercased() }))
+        guard !names.isEmpty, let list = try? JSONEncoder().encode(names) else { return [:] }
+        let rows = (try? await database.query("""
+            SELECT r.value, s.status, s.version, s.checked_at, m.available_flavors, m.flavors_source
+            FROM json_each(?) r
+            LEFT JOIN support s ON s.full_name = r.value AND s.flavor = ? AND s.status IS NOT NULL
+            LEFT JOIN repo_meta m ON m.full_name = r.value
+            """, String(decoding: list, as: UTF8.self), flavor.rawValue)) ?? []
+        var out: [String: (support: SupportStatus?, flavors: Set<Flavor>?)] = [:]
+        for row in rows {
+            guard let name = row.string(0) else { continue }
+            // The same rules as `record(for:flavor:)` and `storedFlavors(for:)`.
+            let support = row.date(3) == nil ? nil : row.string(1).flatMap { Self.status(kind: $0, version: row.string(2)) }
+            let flavors = row.string(5).flatMap(StoredFlavors.Source.init(rawValue:)) == nil
+                ? nil : row.string(4).map { Set<Flavor>(storageValue: $0) }
+            if support != nil || flavors != nil { out[name] = (support, flavors) }
+        }
+        return out
+    }
+
     /// Every stored answer, keyed by lower-cased `owner/repo`: one query per search.
     public func allAvailableFlavors() async -> [String: Set<Flavor>] {
         let rows = (try? await database.query(
