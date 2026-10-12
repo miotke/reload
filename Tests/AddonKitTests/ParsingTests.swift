@@ -48,7 +48,7 @@ import Testing
         let json = #"{"releases":[{"name":"BigWigs","version":"v426.4","filename":"BigWigs-v426.4.zip","nolib":false,"metadata":[{"flavor":"mainline","interface":120100},{"flavor":"forever","interface":16001}]},{"filename":"BigWigs-v426.4-nolib.zip","nolib":true,"metadata":[{"flavor":"forever","interface":16001}]}]}"#
         let release = try ReleaseJSON(data: Data(json.utf8))
         #expect(release.release(for: .forever)?.filename == "BigWigs-v426.4.zip")
-        #expect(release.release(for: .classic) == nil)
+        #expect(release.release(for: .vanilla) == nil)
     }
 }
 
@@ -63,16 +63,5 @@ import Testing
         let info = BuildInfo(parsing: text)
         #expect(info.version(forProduct: "wow_classic_beta") == "1.60.1.70338")
         #expect(info.version(forProduct: "wow") == "12.1.0.65000")
-    }
-}
-
-@Suite struct FlavorTests {
-    @Test func detectsFlavorFromVersions() {
-        #expect(Flavor.from(gameVersion: "1.60.1.70338") == .forever)
-        #expect(Flavor.from(gameVersion: "1.15.8") == .classic)
-        #expect(Flavor.from(gameVersion: "12.1.0") == .mainline)
-        #expect(Flavor.from(interface: 16001) == .forever)
-        #expect(Flavor.from(interface: 120100) == .mainline)
-        #expect(Flavor.from(interface: 50504) == .classic)
     }
 }

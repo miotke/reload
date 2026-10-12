@@ -62,7 +62,39 @@ private struct FakeWoW {
         try fake.buildInfo([("wow_classic_beta", "5.5.1.60000")])
         let root = try fake.flavorFolder("_classic_beta_")
         let installation = try InstallationLocator(baseFolders: [], findApps: { [] }).installation(at: root)
-        #expect(installation.flavor == .classic)
+        #expect(installation.flavor == .mists)
+    }
+
+    @Test(arguments: [
+        ("_retail_", "wow", "12.1.0.65000", Flavor.mainline),
+        ("_ptr_", "wowt", "12.1.5.66000", .mainline),
+        ("_beta_", "wow_beta", "13.0.0.67000", .mainline),
+        ("_classic_", "wow_classic", "5.5.1.63000", .mists),
+        ("_classic_era_", "wow_classic_era", "1.15.8.63829", .vanilla),
+        ("_anniversary_", "wow_anniversary", "2.5.5.64001", .tbc),
+        ("_classic_beta_", "wow_classic_beta", "1.60.1.70338", .forever),
+        // `_classic_` moves on with each re-release; the version, not the folder, decides.
+        ("_classic_", "wow_classic", "4.4.2.60000", .cata),
+        ("_classic_", "wow_classic", "3.80.0.61000", .titan),
+        ("_classic_beta_", "wow_classic_beta", "3.4.5.62000", .wrath),
+    ])
+    func detectsEachKnownProductFromBuildInfo(folder: String, product: String, version: String, flavor: Flavor) throws {
+        let fake = try FakeWoW()
+        defer { fake.cleanUp() }
+        try fake.buildInfo([("wow", "12.1.0.65000"), (product, version)])
+        let installation = try InstallationLocator(baseFolders: [], findApps: { [] }).installation(at: fake.flavorFolder(folder))
+        #expect(installation.flavor == flavor)
+        #expect(installation.productCode == product)
+        #expect(installation.gameVersion == version)
+    }
+
+    @Test func subfolderFallbackForEachClassicFolder() throws {
+        let fake = try FakeWoW()
+        defer { fake.cleanUp() }
+        let locator = InstallationLocator(baseFolders: [], findApps: { [] })
+        #expect(try locator.installation(at: fake.flavorFolder("_classic_")).flavor == .mists)
+        #expect(try locator.installation(at: fake.flavorFolder("_classic_era_")).flavor == .vanilla)
+        #expect(try locator.installation(at: fake.flavorFolder("_anniversary_")).flavor == .tbc)
     }
 
     @Test func fallsBackToSubfolderNameWithoutBuildInfo() throws {
@@ -125,7 +157,7 @@ private struct FakeWoW {
         let locator = InstallationLocator(baseFolders: [base.wow, base.base.appending(path: "missing")], findApps: { [app, duplicateApp] })
         let found = await locator.locate()
         let summary = found.map { "\($0.root.lastPathComponent):\($0.flavor.rawValue)" }
-        #expect(Set(summary) == ["_classic_beta_:forever", "_classic_era_:classic", "_retail_:mainline"])
+        #expect(Set(summary) == ["_classic_beta_:forever", "_classic_era_:vanilla", "_retail_:mainline"])
         #expect(found.count == 3)
         #expect(Set(found.map(\.id)).count == 3)
         #expect(found.contains { $0.root == base.resolved(otherRoot) })

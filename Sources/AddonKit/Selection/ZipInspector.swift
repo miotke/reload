@@ -64,15 +64,17 @@ public enum ZipInspector {
             }
         }
 
-        // 2. Otherwise the TOC the client would load: shared family (`_Mainline`) or base.
+        // 2. Otherwise the TOC the client would load: the first shared family TOC in the
+        //    flavor's order (`_Mainline`, `_Classic`), else the base one.
         var rejected: [String] = []
         for name in names {
             let tocs = folders[name]!
-            guard let toc = tocs.first(where: { $0.file.isShared(for: flavor) })
-                ?? tocs.first(where: { $0.file.suffix == nil }) else { continue }
+            let shared = tocs.compactMap { toc in toc.file.sharedRank(for: flavor).map { (rank: $0, toc: toc) } }
+                .min { $0.rank < $1.rank }?.toc
+            guard let toc = shared ?? tocs.first(where: { $0.file.suffix == nil }) else { continue }
             let parsed = Toc(parsing: try listing.read(toc.path))
             if parsed.supports(flavor) {
-                let interface = parsed.interfaces.first { flavor.rules.interfaceRange.contains($0) }!
+                let interface = parsed.interfaces.first { flavor.rules.contains(interface: $0) }!
                 return result(true, toc.path, "\(toc.path) lists interface \(interface)")
             }
             let interfaces = parsed.interfaces.map(String.init).joined(separator: ", ")

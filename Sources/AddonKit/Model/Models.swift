@@ -20,6 +20,28 @@ public struct Installation: Codable, Sendable, Identifiable, Hashable {
     }
 
     public var addonsDirectory: URL { root.appending(path: "Interface/AddOns", directoryHint: .isDirectory) }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, root, flavor, productCode, gameVersion
+    }
+
+    /// Stores written before the classics were split say `"classic"`; those are re-derived
+    /// from the stored game version or product code instead of failing to load.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        root = try container.decode(URL.self, forKey: .root)
+        productCode = try container.decodeIfPresent(String.self, forKey: .productCode)
+        gameVersion = try container.decodeIfPresent(String.self, forKey: .gameVersion)
+        let raw = try container.decode(String.self, forKey: .flavor)
+        guard let flavor = Flavor(rawValue: raw)
+            ?? gameVersion.flatMap(Flavor.from(gameVersion:))
+            ?? productCode.flatMap(Flavor.from(productCode:))
+            ?? Flavor.from(subfolder: root.lastPathComponent) else {
+            throw DecodingError.dataCorruptedError(forKey: .flavor, in: container, debugDescription: "unknown flavor \(raw)")
+        }
+        self.flavor = flavor
+    }
 }
 
 public enum SourceID: String, Codable, Sendable, CaseIterable {
