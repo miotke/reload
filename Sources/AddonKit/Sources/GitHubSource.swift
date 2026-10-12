@@ -18,7 +18,7 @@ public actor GitHubSource: Source, SupportChecking {
     public static let comfortableQuota = 30
     /// How long a `latestTag(for:)` answer is reused, so a refresh's support and update
     /// phases share one request per repo.
-    static let latestTagTTL: TimeInterval = 10 * 60
+    public static let latestTagTTL: TimeInterval = 10 * 60
     /// Retries of a github.com request after a 429 or 5xx.
     static let maxWebRetries = 2
 
@@ -230,11 +230,12 @@ public actor GitHubSource: Source, SupportChecking {
 
     /// Tag of the latest stable release (drafts and prereleases excluded), from where
     /// `github.com/<repo>/releases/latest` redirects. Nil when the repo has no releases.
-    /// Throws `notFound` for a missing repo. Costs no API quota.
-    public func latestTag(for ref: AddonRef) async throws -> String? {
+    /// Throws `notFound` for a missing repo. Costs no API quota. An answer younger than
+    /// `maxAge` is reused; pass 0 to always ask.
+    public func latestTag(for ref: AddonRef, maxAge: TimeInterval = GitHubSource.latestTagTTL) async throws -> String? {
         let (owner, repo) = try Self.split(ref)
         let key = Self.cacheKey(ref)
-        if let hit = latestTags[key], now().timeIntervalSince(hit.checkedAt) < Self.latestTagTTL {
+        if let hit = latestTags[key], now().timeIntervalSince(hit.checkedAt) < maxAge {
             return hit.tag
         }
         let url = Self.webBase.appending(path: "\(owner)/\(repo)/releases/latest")

@@ -296,6 +296,12 @@ public actor AddonManager: AddonManaging {
         if addon.pinned { return (.pinned, nil) }
         do {
             guard addon.id.source == .github else { return (.failed("Unsupported source"), nil) }
+            // The free latest-tag check settles most add-ons. It only sees stable releases,
+            // and a differing tag may still not support the flavor, so anything else gets
+            // the full (API) resolve.
+            if addon.channel == .stable, let tag = try? await github.latestTag(for: addon.id, maxAge: 0), tag == addon.version {
+                return (.upToDate, addon.etag)
+            }
             switch try await github.resolve(addon.id, flavor: installation.flavor, channel: addon.channel, etag: addon.etag) {
             case .notModified:
                 return (.upToDate, addon.etag)
