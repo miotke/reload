@@ -2,7 +2,7 @@
 
 The Settings window's tabs, what each stores and where, and how the alternate app icon works (and why Finder never shows it).
 
-Code: `App/ForeverAddons/Views/SettingsView.swift` (scene root, General and Advanced), `Views/AppearanceSettings.swift`, `Views/GitHubSettings.swift`, `Views/CommandLineToolViews.swift`, `Support/SettingsSupport.swift`. Why: [decision 0022](../decisions/0022-mac-style-settings-and-alternate-icons.md).
+Code: `App/ForeverAddons/Views/SettingsView.swift` (scene root, General and Advanced), `Views/AppearanceSettings.swift`, `Views/GitHubSettings.swift`, `Models/GitHubStatusModel.swift`, `Views/CommandLineToolViews.swift`, `Support/SettingsSupport.swift`. Why: [decision 0022](../decisions/0022-mac-style-settings-and-alternate-icons.md).
 
 ## Layout
 
@@ -15,7 +15,7 @@ Code: `App/ForeverAddons/Views/SettingsView.swift` (scene root, General and Adva
 |---|---|---|
 | General | `gearshape` | default channel, check for updates automatically, default installation (only with more than one), update count in the menu bar |
 | Appearance | `paintpalette` | Light / Dark / System cards, app icon grid |
-| GitHub | `person.badge.key` | token field with Save and Remove, which token is in use, links about tokens |
+| GitHub | `person.badge.key` | token field with Save and Remove, which token is in use, rate limits, links about tokens |
 | Command Line | `terminal` | `addonctl` status with Install / Repair / Uninstall ([cli-install.md](cli-install.md)), example commands |
 | Advanced | `gearshape.2` | show the data and caches folders in Finder, reset first-launch steps |
 
@@ -38,7 +38,24 @@ All in the app's user defaults (`SettingsKey`), except the token.
 
 - "Token in use" follows the core's order: `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (`GitHubTokenSource`). When a variable is set, a footnote says the Keychain token is ignored.
 - Save and Remove write the Keychain, then call `tokenDidChange()` on the manager.
-- The stored rate-limit state isn't shown: `AddonManaging` doesn't expose it. Adding it is a core task.
+- Save and Remove also reload the rate limits, since the token changes them.
+
+### Rate limits
+
+From `AddonManaging.gitHubStatus()`, which reads stored state only (no requests). `GitHubStatusModel` decides when to ask; `GitHubStatusDisplay` formats.
+
+| Row | Shows |
+|---|---|
+| Warning (only while `webPausedUntil` is ahead) | "github.com asked us to slow down — resumes in 4 min." |
+| API requests | "42 of 60 left" (5,000 with a token, or the core's `apiLimit`), a capacity gauge, "Resets in 23 min" |
+| Searches | the same against 10 a minute (30 with a token) |
+
+- Unknown values read "Not used yet" with the hourly or per-minute limit, so the empty default (before the core reports anything) looks deliberate.
+- A reset time in the past shows a full window: GitHub has refilled it since it last reported.
+- Used up turns the row orange: "Used up, resets in …".
+- Times round up ("under a minute", "23 min", "1 hr 5 min") and are measured from when the status was read.
+- Loaded by the tab's `.task`: on appear, every 30 s while visible, and after the app's own metadata writes (at most every 2 s). Leaving the tab cancels it.
+- A footnote says browsing and update checks mostly use quota-free requests ([budget.md](../network/budget.md)).
 
 ## Advanced
 

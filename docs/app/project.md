@@ -82,7 +82,8 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | First-launch seeding sheet | `App/ForeverAddons/Views/SeedingSheet.swift` |
 | Settings scene: tabs, General and Advanced tabs, `settingsTab()` sizing | `App/ForeverAddons/Views/SettingsView.swift` |
 | Settings ▸ Appearance: appearance cards, app icon grid | `App/ForeverAddons/Views/AppearanceSettings.swift` |
-| Settings ▸ GitHub: token field and token source | `App/ForeverAddons/Views/GitHubSettings.swift` |
+| Settings ▸ GitHub: token field, token source, rate-limit rows | `App/ForeverAddons/Views/GitHubSettings.swift` |
+| GitHub rate-limit status: reload loop and display formatting | `App/ForeverAddons/Models/GitHubStatusModel.swift` |
 | CLI offer sheet, Settings ▸ Command Line tab and section | `App/ForeverAddons/Views/CommandLineToolViews.swift` |
 | Shared views: game bubbles and legend, activity, errors, refresh bar, banner | `App/ForeverAddons/Views/Components.swift` |
 | README rendering | `App/ForeverAddons/Views/MarkdownView.swift` |

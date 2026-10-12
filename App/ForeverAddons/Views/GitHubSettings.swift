@@ -1,10 +1,13 @@
 import SwiftUI
 
-/// Settings ▸ GitHub: the Keychain token, and which token is in use.
+/// Settings ▸ GitHub: the Keychain token, which token is in use, and the rate limits.
 struct GitHubSettingsTab: View {
     var token: GitHubTokenModel
-    /// Tells the manager to pick up a changed Keychain token.
+    var status: GitHubStatusModel
+    /// Tells the manager to pick up a changed Keychain token, then reloads `status`.
     var tokenDidChange: () -> Void
+    /// Keeps `status` current while the tab is visible; returns when cancelled.
+    var watchStatus: () async -> Void
 
     private static let tokensHelp = URL(string: "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens")!
     private static let newToken = URL(string: "https://github.com/settings/personal-access-tokens/new")!
@@ -43,11 +46,52 @@ struct GitHubSettingsTab: View {
             }
 
             Section {
+                let display = status.display
+                if let warning = display.pauseWarning {
+                    Label(warning, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+                GitHubQuotaRow(title: "API requests", quota: display.api)
+                GitHubQuotaRow(title: "Searches", quota: display.search)
+            } header: {
+                Text("Rate Limits")
+            } footer: {
+                SettingsFootnote("Browsing and update checks mostly use quota-free requests, so these limits rarely get in the way.")
+            }
+
+            Section {
                 Link("About personal access tokens", destination: Self.tokensHelp)
                 Link("Create a token on GitHub", destination: Self.newToken)
             }
         }
         .settingsTab()
         .onAppear(perform: token.load)
+        .task { await watchStatus() }
+    }
+}
+
+/// "API requests · Resets in 23 min" with "42 of 60 left" and a capacity bar.
+struct GitHubQuotaRow: View {
+    var title: String
+    var quota: GitHubQuotaDisplay
+
+    var body: some View {
+        LabeledContent {
+            HStack(spacing: 8) {
+                Text(quota.value)
+                    .monospacedDigit()
+                    .foregroundStyle(quota.isExhausted ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                if let fraction = quota.fraction {
+                    Gauge(value: fraction) { EmptyView() }
+                        .gaugeStyle(.linearCapacity)
+                        .tint(quota.isExhausted ? .orange : .accentColor)
+                        .frame(width: 80)
+                        .accessibilityLabel(title)
+                }
+            }
+        } label: {
+            Text(title)
+            Text(quota.detail)
+        }
     }
 }

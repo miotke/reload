@@ -121,6 +121,15 @@ nonisolated enum Fixtures {
     }
 
     static let lastRefresh = date(10, 11, 7, 18)
+
+    static let gitHubStatusNow = date(10, 12, 9, 7)
+    /// API calls partly spent, search used up, github.com paused after a 429.
+    static let gitHubStatus = GitHubStatus(
+        api: RateLimitState(remaining: 42, resetAt: date(10, 12, 9, 30)),
+        search: RateLimitState(remaining: 0, resetAt: gitHubStatusNow.addingTimeInterval(40)),
+        apiLimit: 60, hasToken: false,
+        webPausedUntil: date(10, 12, 9, 11)
+    )
 }
 
 /// A test-only `AddonManaging` that serves `Fixtures` and does nothing else: no disk, no
@@ -158,6 +167,7 @@ nonisolated struct FixtureManager: AddonManaging {
     }
     func removeUnmanaged(folders: [String], from installation: Installation) async throws -> [String] { [] }
     func tokenDidChange() async {}
+    func gitHubStatus() async -> GitHubStatus { Fixtures.gitHubStatus }
     func details(for ref: AddonRef, in installation: Installation) async throws -> AddonDetails { throw Unsupported() }
     func releaseNotes(for ref: AddonRef, in installation: Installation) async throws -> (version: String, publishedAt: Date?, markdown: String)? { nil }
     func refresh(in installation: Installation, force: Bool) -> AsyncStream<RefreshProgress> { Self.finished() }

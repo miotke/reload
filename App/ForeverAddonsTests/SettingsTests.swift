@@ -1,3 +1,4 @@
+import AddonKit
 import Foundation
 import Testing
 
@@ -77,5 +78,67 @@ import Testing
     @Test func blankVariablesAreIgnored() {
         #expect(GitHubTokenSource(environment: ["GITHUB_TOKEN": "  "], hasKeychainToken: true) == .keychain)
         #expect(GitHubTokenSource(environment: [:], hasKeychainToken: false) == .none)
+    }
+}
+
+@MainActor @Suite struct GitHubStatusDisplayTests {
+    let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+
+    @Test func unknownStatusSaysNotUsedYet() {
+        let display = GitHubStatusDisplay(status: GitHubStatus(), now: now)
+        #expect(display.api == GitHubQuotaDisplay(value: "Not used yet", fraction: nil, detail: "60 an hour"))
+        #expect(display.search == GitHubQuotaDisplay(value: "Not used yet", fraction: nil, detail: "10 a minute"))
+        #expect(display.pauseWarning == nil)
+    }
+
+    @Test func partlySpentQuotaShowsWhatsLeftAndTheReset() {
+        let status = GitHubStatus(api: RateLimitState(remaining: 42, resetAt: now.addingTimeInterval(23 * 60)), apiLimit: 60)
+        let api = GitHubStatusDisplay(status: status, now: now).api
+        #expect(api.value == "42 of 60 left")
+        #expect(api.fraction == 0.7)
+        #expect(api.detail == "Resets in 23 min")
+        #expect(!api.isExhausted)
+    }
+
+    @Test func tokenRaisesTheLimits() {
+        let status = GitHubStatus(api: RateLimitState(remaining: 4_990), search: RateLimitState(remaining: 29), hasToken: true)
+        let display = GitHubStatusDisplay(status: status, now: now)
+        #expect(display.api.value == "\(4_990.formatted()) of \(5_000.formatted()) left")
+        #expect(display.api.detail == "\(5_000.formatted()) an hour")
+        #expect(display.search.value == "29 of 30 left")
+    }
+
+    @Test func usedUpQuotaIsFlagged() {
+        let status = GitHubStatus(search: RateLimitState(remaining: 0, resetAt: now.addingTimeInterval(40)))
+        let search = GitHubStatusDisplay(status: status, now: now).search
+        #expect(search == GitHubQuotaDisplay(value: "0 of 10 left", fraction: 0, detail: "Used up, resets in under a minute", isExhausted: true))
+    }
+
+    @Test func pastResetShowsAFullWindow() {
+        let status = GitHubStatus(api: RateLimitState(remaining: 3, resetAt: now.addingTimeInterval(-5)), apiLimit: 60)
+        #expect(GitHubStatusDisplay(status: status, now: now).api == GitHubQuotaDisplay(value: "60 of 60 left", fraction: 1, detail: "60 an hour"))
+    }
+
+    @Test func pauseWarningOnlyWhileInTheFuture() {
+        let paused = GitHubStatus(webPausedUntil: now.addingTimeInterval(4 * 60 + 10))
+        #expect(GitHubStatusDisplay(status: paused, now: now).pauseWarning == "github.com asked us to slow down — resumes in 5 min.")
+        let over = GitHubStatus(webPausedUntil: now.addingTimeInterval(-1))
+        #expect(GitHubStatusDisplay(status: over, now: now).pauseWarning == nil)
+    }
+
+    @Test func durationsRoundUp() {
+        #expect(GitHubStatusDisplay.duration(from: now, to: now.addingTimeInterval(59)) == "under a minute")
+        #expect(GitHubStatusDisplay.duration(from: now, to: now.addingTimeInterval(61)) == "2 min")
+        #expect(GitHubStatusDisplay.duration(from: now, to: now.addingTimeInterval(3_600)) == "1 hr")
+        #expect(GitHubStatusDisplay.duration(from: now, to: now.addingTimeInterval(3_900)) == "1 hr 5 min")
+    }
+}
+
+@MainActor @Suite struct GitHubStatusModelTests {
+    @Test func refreshReadsTheManager() async {
+        let model = GitHubStatusModel()
+        #expect(model.status == nil)
+        await model.refresh(from: FixtureManager())
+        #expect(model.status == Fixtures.gitHubStatus)
     }
 }
