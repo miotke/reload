@@ -32,11 +32,10 @@ struct DoctorCommand: ContextCommand {
         if installations.isEmpty {
             checks.append(Check(name: "Installations", level: .error, message: "No WoW installation found. Add one with `addonctl installs add <path>`."))
         } else {
-            let forever = installations.filter { $0.flavor == .forever }
             checks.append(Check(
                 name: "Installations",
-                level: forever.isEmpty ? .error : .ok,
-                message: "\(installations.count) found, \(forever.count) Forever"
+                level: .ok,
+                message: "\(installations.count) found: " + Self.flavorCounts(installations)
             ))
         }
         let configured = context.config.load().defaultInstall
@@ -45,7 +44,7 @@ struct DoctorCommand: ContextCommand {
         }
 
         for installation in installations {
-            let label = "Install \(installation.id)"
+            let label = "Install \(installation.id) (\(installation.flavor.displayName))"
             let path = installation.addonsDirectory.path(percentEncoded: false)
             guard FileManager.default.isReadableFile(atPath: path) else {
                 checks.append(Check(name: label, level: .error, message: "\(path) isn't readable or doesn't exist"))
@@ -106,6 +105,14 @@ struct DoctorCommand: ContextCommand {
             context.print(Table(headers: [], rows: rows).render(style: style))
         }
         if !healthy { throw ExitCode(ExitStatus.general) }
+    }
+
+    /// `"2 Forever, 1 Retail"`, in `Flavor.allCases` order.
+    static func flavorCounts(_ installations: [Installation]) -> String {
+        Flavor.allCases.compactMap { flavor in
+            let count = installations.count { $0.flavor == flavor }
+            return count == 0 ? nil : "\(count) \(flavor.displayName)"
+        }.joined(separator: ", ")
     }
 
     /// Records with missing folders and folders claimed by more than one add-on.

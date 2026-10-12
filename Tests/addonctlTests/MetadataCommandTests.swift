@@ -213,7 +213,7 @@ struct CLIHarness {
         let database = h.context.manager.database
         let checks = await DoctorCommand.metadata(database, url: database.url)
         #expect(checks.first?.level == .ok)
-        #expect(checks.first?.message.contains("metadata.sqlite schema v1") == true)
+        #expect(checks.first?.message.contains("metadata.sqlite schema v2") == true)
         #expect(checks.first?.message.contains("0 catalogue rows, 0 support verdicts") == true)
         #expect(checks.contains { $0.name == "Catalogue" && $0.level == .warning })
     }
@@ -234,7 +234,7 @@ struct CLIHarness {
         summary.record(RefreshProgress(phase: .finished, completed: 1, total: 1, message: "Up to date", updates: [:]))
         #expect(summary.skipped)
         let now = Date(timeIntervalSince1970: 1_000_000)
-        #expect(RefreshCommand.summaryLines(summary, lastRefresh: now.addingTimeInterval(-600), now: now)
+        #expect(RefreshCommand.summaryLines(summary, flavor: .forever, lastRefresh: now.addingTimeInterval(-600), now: now)
             == ["Already refreshed 10 minutes ago; use --force to refresh now."])
 
         let release = ResolvedRelease(ref: ref("o/A"), name: "A", version: "v2", releaseID: -1, publishedAt: now,
@@ -245,7 +245,7 @@ struct CLIHarness {
         summary.record(RefreshProgress(phase: .support, completed: 40, total: 40))
         summary.record(RefreshProgress(phase: .finished, updates: [ref("o/A"): .available(release), ref("o/B"): .failed("x")]))
         #expect(!summary.skipped)
-        #expect(RefreshCommand.summaryLines(summary, lastRefresh: now) == [
+        #expect(RefreshCommand.summaryLines(summary, flavor: .forever, lastRefresh: now) == [
             "Catalogue: checked",
             "Updates: checked 2 installed add-ons, 1 available, 1 failed",
             "Forever support: checked 40 of 40 add-ons",

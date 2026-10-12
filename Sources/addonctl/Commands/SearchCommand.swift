@@ -37,7 +37,7 @@ struct SearchCommand: ContextCommand {
         let installation = try await context.installationOrPlaceholder()
         let installed = (try? await context.manager.addons(in: installation)) ?? []
         let text = query.joined(separator: " ")
-        let searchQuery = SearchQuery(text: text, flavor: installation.flavor, foreverOnly: !all, includeLiveGitHub: github)
+        let searchQuery = SearchQuery(text: text, flavor: installation.flavor, compatibleOnly: !all, includeLiveGitHub: github)
 
         let spinner = Spinner(enabled: context.showsProgress)
         let updates = context.manager.searchUpdates(searchQuery, in: installation, installed: installed)
@@ -56,7 +56,7 @@ struct SearchCommand: ContextCommand {
             context.print("No add-ons found for \"\(text)\".\(github ? "" : " Try --github to search GitHub more widely.")")
             return
         }
-        context.print(Format.searchTable(results, style: context.style))
+        context.print(Format.searchTable(results, flavor: installation.flavor, style: context.style))
         if latest.count > results.count, !all {
             context.detail("\(latest.count - results.count) more result(s) hidden; use --limit or --all.")
         }

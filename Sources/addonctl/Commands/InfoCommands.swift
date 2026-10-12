@@ -90,7 +90,7 @@ struct InfoCommand: ContextCommand {
         if let stars = details?.stars { rows.append(["Stars", "\(stars)"]) }
         if let updated = details?.lastUpdated ?? entry?.lastUpdated { rows.append(["Updated", Format.relative(updated)]) }
         if let details {
-            rows.append(["Forever", Format.support(details.support, style: style)])
+            rows.append([installation.flavor.displayName, Format.support(details.support, style: style)])
             if let version = details.latestVersion {
                 let published = details.latestPublishedAt.map { "  " + style.dim(Format.relative($0)) } ?? ""
                 rows.append(["Latest", style.green(version) + published])
@@ -111,7 +111,7 @@ struct InfoCommand: ContextCommand {
             var version = installed.version + "  " + style.dim("installed \(Format.relative(installed.installedAt))")
             if installed.pinned { version += style.yellow("  pinned") }
             rows.append(["Installed", version])
-            if let state { rows.append(["Status", Self.describe(state, style: style)]) }
+            if let state { rows.append(["Status", Self.describe(state, flavor: installation.flavor, style: style)]) }
             rows.append(["Folders", installed.folders.joined(separator: ", ")])
             if let previous = installed.previousRelease { rows.append(["Rollback to", previous.version]) }
         } else {
@@ -153,12 +153,12 @@ struct InfoCommand: ContextCommand {
         return .failed(error.map(ExitStatus.message(for:)) ?? "unknown")
     }
 
-    static func describe(_ state: UpdateStateJSON, style: Style) -> String {
+    static func describe(_ state: UpdateStateJSON, flavor: Flavor, style: Style) -> String {
         switch state.state {
         case "upToDate": style.dim("up to date")
         case "available": style.green("→ \(state.version ?? "?")") + style.dim("  run `addonctl update`")
         case "pinned": style.yellow("pinned, skipped")
-        case "noCompatibleRelease": style.dim("no Forever build")
+        case "noCompatibleRelease": style.dim("no \(flavor.displayName) build")
         case "failed": style.red("failed: \(state.message ?? "")")
         default: style.yellow("unknown")
         }
@@ -224,7 +224,7 @@ struct ResolveCommand: ContextCommand {
         let style = context.style
         context.print(style.bold(release.name) + "  " + style.dim(Format.ref(release.ref)))
         let rows = [
-            ["Flavor", installation.flavor.rawValue],
+            ["Flavor", installation.flavor.displayName],
             ["Channel", channel.rawValue],
             ["Version", style.green(release.version) + (release.isPrerelease ? style.yellow(" (prerelease)") : "")],
             ["Release ID", String(release.releaseID)],

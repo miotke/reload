@@ -2,7 +2,7 @@ import AddonKit
 import Foundation
 
 /// Picks the installation a command acts on (DESIGN.md §9.3):
-/// `--install` flag → config `default-install` → the only Forever install → ask.
+/// `--install` flag → config `default-install` → the only install, of any flavor → ask.
 enum InstallationSelection {
     enum Outcome: Equatable {
         case selected(Installation)
@@ -29,11 +29,10 @@ enum InstallationSelection {
         if let configDefault, let match = installations.first(where: { $0.id == configDefault }) {
             return .selected(match)
         }
-        let forever = installations.filter { $0.flavor == .forever }
-        switch forever.count {
-        case 1: return .selected(forever[0])
-        case 0: throw installations.isEmpty ? CLIError.noInstallations : CLIError.noForeverInstallation(installations)
-        default: return .ambiguous(forever)
+        switch installations.count {
+        case 1: return .selected(installations[0])
+        case 0: throw CLIError.noInstallations
+        default: return .ambiguous(installations)
         }
     }
 

@@ -123,7 +123,7 @@ struct CLIContext: Sendable {
         try await manager.installations()
     }
 
-    /// The installation this command acts on (flag → config → only Forever install → ask).
+    /// The installation this command acts on (flag → config → only install → ask).
     func installation() async throws -> Installation {
         let all = try await installations()
         let locator = CLIEnvironment.locator(environment)
