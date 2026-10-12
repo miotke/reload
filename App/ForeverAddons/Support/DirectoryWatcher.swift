@@ -75,3 +75,20 @@ nonisolated final class DirectoryWatcher: @unchecked Sendable {
         queue.asyncAfter(deadline: .now() + latency, execute: item)
     }
 }
+
+extension DirectoryWatcher {
+    /// Names, sizes and modification dates of every file under `url`. The watcher also fires
+    /// for the app's own store writes; comparing fingerprints lets those reloads be skipped.
+    static func fingerprint(of url: URL) -> Int {
+        var hasher = Hasher()
+        let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
+        let files = (FileManager.default.enumerator(at: url, includingPropertiesForKeys: keys)?.allObjects as? [URL]) ?? []
+        for file in files.sorted(by: { $0.path < $1.path }) {
+            guard let values = try? file.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { continue }
+            hasher.combine(file.path)
+            hasher.combine(values.fileSize)
+            hasher.combine(values.contentModificationDate)
+        }
+        return hasher.finalize()
+    }
+}

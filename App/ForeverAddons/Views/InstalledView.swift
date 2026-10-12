@@ -22,11 +22,13 @@ struct InstalledView: View {
             set: { if let first = $0.first { sortStorage = first.storageValue } })
     }
 
+    private var query: String { model.searchText.trimmingCharacters(in: .whitespaces) }
+
+    /// Filtering and sorting happen in the model, once per change, not in `body`.
+    private var options: InstalledOptions { InstalledOptions(query: query, sort: sort) }
+
     var body: some View {
         @Bindable var model = model
-        let rows = filteredRows.sorted(using: sort)
-        let managed = rows.filter { $0.addon != nil }
-        let unmanaged = rows.filter { $0.addon == nil }
         Table(of: InstalledRow.self, selection: $model.selectedAddonID, sortOrder: sortOrder,
               columnCustomization: $columns) {
             TableColumn("Name", sortUsing: ColumnSort(InstalledColumn.name)) { row in
@@ -55,34 +57,32 @@ struct InstalledView: View {
             .customizationID("status")
 
             TableColumn("Installed", sortUsing: ColumnSort(InstalledColumn.installed, order: .reverse)) { row in
-                Text(row.installedAt.map { DayLabel.string(for: $0) } ?? "—")
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Text(row.installedText).foregroundStyle(.secondary).lineLimit(1)
             }
             .width(min: 70, ideal: 96, max: 130)
             .customizationID("installed")
 
             TableColumn("") { row in
-                InstalledActionCell(state: state, row: row)
+                InstalledActionCell(state: state, row: row, rowState: state.row(row.id))
             }
             .width(min: 84, ideal: 100, max: 160)
             .customizationID("action")
             .disabledCustomizationBehavior(.visibility)
         } rows: {
-            if !managed.isEmpty {
+            if !state.managedRows.isEmpty {
                 Section("Managed") {
-                    ForEach(managed) { TableRow($0) }
+                    ForEach(state.managedRows) { TableRow($0) }
                 }
             }
-            if !unmanaged.isEmpty {
+            if !state.unmanagedRows.isEmpty {
                 Section("Unmanaged") {
-                    ForEach(unmanaged) { TableRow($0) }
+                    ForEach(state.unmanagedRows) { TableRow($0) }
                 }
             }
         }
         .contextMenu(forSelectionType: AddonStatus.ID.self) { ids in
-            if let id = ids.first, let row = filteredRows.first(where: { $0.id == id }) {
-                InstalledContextMenu(state: state, row: row)
+            if let id = ids.first, let status = state.status(id: id) {
+                InstalledContextMenu(state: state, status: status)
             }
         } primaryAction: { ids in
             if let id = ids.first {
@@ -90,35 +90,11 @@ struct InstalledView: View {
                 model.showInspector = true
             }
         }
-        .overlay { emptyState(isEmpty: rows.isEmpty) }
+        .overlay { emptyState }
+        .onChange(of: options, initial: true) { state.installedOptions = options }
     }
 
-    // MARK: Filtering
-
-    private var query: String { model.searchText.trimmingCharacters(in: .whitespaces) }
-
-    private var filteredRows: [InstalledRow] {
-        state.addons.compactMap { status in
-            guard matches(status) else { return nil }
-            let update: UpdateState? = if case .managed(let addon, _) = status { state.updateStates[addon.id] } else { nil }
-            return InstalledRow(status: status, update: update)
-        }
-    }
-
-    private func matches(_ status: AddonStatus) -> Bool {
-        guard !query.isEmpty else { return true }
-        switch status {
-        case .managed(let addon, _):
-            return addon.name.localizedCaseInsensitiveContains(query)
-                || addon.id.identifier.localizedCaseInsensitiveContains(query)
-                || addon.folders.contains(where: { $0.localizedCaseInsensitiveContains(query) })
-        case .unmanaged(let folder, let toc, _):
-            return folder.localizedCaseInsensitiveContains(query)
-                || (toc?.title?.localizedCaseInsensitiveContains(query) ?? false)
-        }
-    }
-
-    @ViewBuilder private func emptyState(isEmpty: Bool) -> some View {
+    @ViewBuilder private var emptyState: some View {
         if state.addons.isEmpty {
             if state.isLoading || !state.hasLoaded {
                 ProgressView()
@@ -131,7 +107,7 @@ struct InstalledView: View {
                     Button("Browse Add-ons") { model.tab = .browse }
                 }
             }
-        } else if isEmpty {
+        } else if state.managedRows.isEmpty && state.unmanagedRows.isEmpty {
             ContentUnavailableView.search(text: query)
         }
     }
@@ -209,23 +185,24 @@ private struct InstalledActionCell: View {
     @Environment(AppModel.self) private var model
     var state: InstallationModel
     var row: InstalledRow
+    var rowState: RowState
 
     var body: some View {
         HStack(spacing: 6) {
-            if let error = state.rowErrors[row.id] {
+            if let error = rowState.error {
                 RowErrorIcon(message: error)
             }
-            if let activity = state.activity[row.id] {
+            if let activity = rowState.activity {
                 ActivityIndicator(activity: activity, showsLabel: false)
-            } else if let addon = row.addon {
+            } else if let ref = row.ref {
                 if row.availableVersion != nil {
-                    Button(state.rowErrors[row.id] == nil ? "Update" : "Retry") {
-                        Task { await state.update([addon.id]) }
+                    Button(rowState.error == nil ? "Update" : "Retry") {
+                        Task { await state.update([ref]) }
                     }
                     .disabled(state.isUpdatingAll)
                 }
             } else {
-                Button("Adopt…") { model.adoptTarget = AdoptTarget(row.status) }
+                Button("Adopt…") { model.adoptTarget = state.status(id: row.id).flatMap(AdoptTarget.init) }
                     .help("Start managing this folder from its GitHub repository")
             }
         }
@@ -237,11 +214,11 @@ private struct InstalledActionCell: View {
 private struct InstalledContextMenu: View {
     @Environment(AppModel.self) private var model
     var state: InstallationModel
-    var row: InstalledRow
+    var status: AddonStatus
 
     var body: some View {
-        if let addon = row.addon {
-            if row.availableVersion != nil {
+        if case .managed(let addon, _) = status {
+            if state.availableRelease(for: addon.id) != nil, !addon.pinned {
                 Button("Update") { Task { await state.update([addon.id]) } }
             }
             Button(addon.pinned ? "Unpin" : "Pin") {
@@ -255,11 +232,11 @@ private struct InstalledContextMenu: View {
                 NSWorkspace.shared.activateFileViewerSelecting(urls)
             }
         } else {
-            Button("Adopt…") { model.adoptTarget = AdoptTarget(row.status) }
+            Button("Adopt…") { model.adoptTarget = AdoptTarget(status) }
         }
         Divider()
         Button("Show Details") {
-            model.selectedAddonID = row.id
+            model.selectedAddonID = status.id
             model.showInspector = true
         }
     }

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		05BC3CD89A3DCA6B11650C3D /* ConfigCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF793DAC5CC61706D452BB6 /* ConfigCommand.swift */; };
 		07082CEE5F9815BE1E687783 /* DoctorCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E1382CB0CA859B7FCB62FEA /* DoctorCommand.swift */; };
+		0C28BD083829591FD70F788F /* TableRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F212A399CCE2D99EF29211 /* TableRows.swift */; };
 		0D83595F4CDB9AB554C8C33F /* AddonKit in Frameworks */ = {isa = PBXBuildFile; productRef = 50C50B62C043E2B8012F27F2 /* AddonKit */; };
 		0F9AA56AD1132895B36E9E6E /* MarkdownBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AE6E6398446CB407F9BBEA1 /* MarkdownBlocks.swift */; };
 		0FEA61A6A4CEC1DE71FEC0FD /* CommandLineToolViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CF5E2EE6163862C645B6048 /* CommandLineToolViews.swift */; };
@@ -49,10 +50,12 @@
 		A1096B8C6728354815459EBF /* DirectoryWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98BB6B2BAF1866F610DA9B74 /* DirectoryWatcher.swift */; };
 		A2C47B7ED9B685CCD40D938B /* CLIInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5680F32D663CF27A82C78A75 /* CLIInstallerTests.swift */; };
 		B4578D9170736C998F0D4745 /* CommandLineToolModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20101C270379BAA42CAAEE14 /* CommandLineToolModel.swift */; };
+		B67059544C134BCD3F7907EC /* TableRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F212A399CCE2D99EF29211 /* TableRows.swift */; };
 		B8C24FF7036BA157B2ECB02D /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DD7FDB7A545154D3D58C296 /* BrowseView.swift */; };
 		BB6A6299494B191E100B78B3 /* AddonFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF81EACD77BDE4D0AF1F997 /* AddonFormatting.swift */; };
 		CBEB7771A14D907C49F2CD24 /* AddonCtl.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4F85974136650A4A74A3301 /* AddonCtl.swift */; };
 		D025C3598076124C58AB5A47 /* AdoptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F9DC6003D8E999933F5909 /* AdoptSheet.swift */; };
+		D1009E8E3845B910CB7B0670 /* AppHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E908C270934BC35839EB982D /* AppHelpersTests.swift */; };
 		D45EC0D7E705B4FCC826130C /* addonctl in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 1BB6A7D9EF3DE4767E81D539 /* addonctl */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D691BD548BF59798AC3EEB67 /* SearchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = F499390DDE5C018050460B36 /* SearchCommand.swift */; };
 		D6DA6CFDAC47C65BA2423589 /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842B565CC85DDFE014D991C4 /* AppSupport.swift */; };
@@ -131,7 +134,9 @@
 		C00C4B294A945D3FBD0C21E5 /* Terminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Terminal.swift; sourceTree = "<group>"; };
 		C428104BE6CB77EC3BA7B3DB /* ForeverAddonsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ForeverAddonsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DD14172E0844A93CB54C1953 /* Context.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Context.swift; sourceTree = "<group>"; };
+		E3F212A399CCE2D99EF29211 /* TableRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableRows.swift; sourceTree = "<group>"; };
 		E4F85974136650A4A74A3301 /* AddonCtl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddonCtl.swift; sourceTree = "<group>"; };
+		E908C270934BC35839EB982D /* AppHelpersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppHelpersTests.swift; sourceTree = "<group>"; };
 		EB87A3696BAA9690089F4C14 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		EF224F48F01C1B04794A335D /* CacheCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheCommand.swift; sourceTree = "<group>"; };
 		F1D32E3041085FB05B13335D /* Errors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Errors.swift; sourceTree = "<group>"; };
@@ -207,6 +212,7 @@
 				98BB6B2BAF1866F610DA9B74 /* DirectoryWatcher.swift */,
 				3AE6E6398446CB407F9BBEA1 /* MarkdownBlocks.swift */,
 				3B3B4AB67A957DAC73FEF361 /* ScreenshotLoader.swift */,
+				E3F212A399CCE2D99EF29211 /* TableRows.swift */,
 				44908C837144FE10921FE10F /* TableSorting.swift */,
 			);
 			path = Support;
@@ -254,6 +260,7 @@
 		AD51F6D3974D0533150828DC /* ForeverAddonsTests */ = {
 			isa = PBXGroup;
 			children = (
+				E908C270934BC35839EB982D /* AppHelpersTests.swift */,
 				5680F32D663CF27A82C78A75 /* CLIInstallerTests.swift */,
 				35B92908B9DA2EB7058AE083 /* DirectoryWatcherTests.swift */,
 			);
@@ -429,11 +436,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				BB6A6299494B191E100B78B3 /* AddonFormatting.swift in Sources */,
+				D1009E8E3845B910CB7B0670 /* AppHelpersTests.swift in Sources */,
 				407A1D54363D0D680B3AF076 /* CLIInstaller.swift in Sources */,
 				A2C47B7ED9B685CCD40D938B /* CLIInstallerTests.swift in Sources */,
 				5C6B30533BCAC91705E27CED /* DirectoryWatcher.swift in Sources */,
 				9220DACE2F3B7293B124B703 /* DirectoryWatcherTests.swift in Sources */,
 				0F9AA56AD1132895B36E9E6E /* MarkdownBlocks.swift in Sources */,
+				B67059544C134BCD3F7907EC /* TableRows.swift in Sources */,
 				99C8ADB4D3D44B5B559106ED /* TableSorting.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -490,6 +499,7 @@
 				F07F138F3DD1D943458EEB07 /* ScreenshotViews.swift in Sources */,
 				8A0E4C66DCF0BF50A25A9332 /* SeedingSheet.swift in Sources */,
 				1CB387FA5391F1C1A20E603A /* SettingsView.swift in Sources */,
+				0C28BD083829591FD70F788F /* TableRows.swift in Sources */,
 				8EBF3D8E9A8B3FD385C0BC7F /* TableSorting.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -24,38 +24,98 @@ enum RowActivity: Equatable {
     }
 }
 
+/// Per-row progress and errors. One object per row, so a download progress tick re-renders
+/// only the cells (and inspector controls) that read that row, not every row in the table.
+@Observable @MainActor
+final class RowState {
+    var activity: RowActivity?
+    var error: String?
+    /// An install failed because an unmanaged folder is in the way; retry needs `force`.
+    var needsOverwrite = false
+}
+
+/// Progress of the running refresh, kept apart from `InstallationModel` so only the sidebar
+/// bar and the first-launch sheet re-render on each progress event.
+@Observable @MainActor
+final class RefreshStatus {
+    /// Latest event; nil when no refresh is running or it hasn't reported yet.
+    fileprivate(set) var progress: RefreshProgress?
+
+    /// For the sidebar: throttled refreshes that finish at once never report a phase, so
+    /// they don't flash the bar.
+    var visibleProgress: RefreshProgress? {
+        guard let progress, progress.phase != .finished else { return nil }
+        return progress
+    }
+}
+
+/// What the Browse table shows. Set by the view; rows are rebuilt when it changes.
+struct BrowseOptions: Equatable {
+    var query = ""
+    var home: BrowseHome = .popular
+    var foreverOnly = true
+    var sort: ColumnSort<BrowseColumn>?
+}
+
+/// What the Installed table shows. Set by the view; rows are rebuilt when it changes.
+struct InstalledOptions: Equatable {
+    var query = ""
+    var sort = ColumnSort(InstalledColumn.name)
+}
+
 /// State and actions for one installation. Every action reports failures on the affected
-/// row (`rowErrors`) and never throws to the UI.
+/// row (`row(_:).error`) and never throws to the UI.
 @Observable @MainActor
 final class InstallationModel {
     let installation: Installation
     private let manager: any AddonManaging
     private let reportError: @MainActor (String) -> Void
+    /// Called after every add-on reload; the app uses it to ignore its own store writes.
+    @ObservationIgnored var didReload: (@MainActor () -> Void)?
 
     // Installed tab
-    private(set) var addons: [AddonStatus] = []
+    private(set) var addons: [AddonStatus] = [] {
+        didSet {
+            addonIndex = Dictionary(addons.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+            rebuildInstalledRows()
+        }
+    }
+    @ObservationIgnored private var addonIndex: [AddonStatus.ID: Int] = [:]
     private(set) var hasLoaded = false
     private(set) var isLoading = false
-    private(set) var updateStates: [AddonRef: UpdateState] = [:]
+    private(set) var updateStates: [AddonRef: UpdateState] = [:] {
+        didSet { rebuildInstalledRows() }
+    }
     private(set) var lastChecked: Date?
-    /// Latest event of the running refresh; nil when none is running or it hasn't reported yet.
-    private(set) var refreshProgress: RefreshProgress?
+    let refresh = RefreshStatus()
     private(set) var isRefreshing = false
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     private(set) var isUpdatingAll = false
-    /// Keyed by `AddonStatus.id` / `AddonRef.description`.
-    private(set) var activity: [String: RowActivity] = [:]
-    var rowErrors: [String: String] = [:]
+    @ObservationIgnored private var rowStates: [String: RowState] = [:]
+
+    var installedOptions = InstalledOptions() {
+        didSet { if installedOptions != oldValue { rebuildInstalledRows() } }
+    }
+    /// Filtered and sorted; managed and unmanaged rows are separate table sections.
+    private(set) var managedRows: [InstalledRow] = []
+    private(set) var unmanagedRows: [InstalledRow] = []
 
     // Browse tab
-    private(set) var searchResults: [SearchResult] = []
+    private(set) var searchResults: [SearchResult] = [] {
+        didSet { rebuildBrowseRows() }
+    }
     private(set) var isSearching = false
     /// The search stream has emitted its first (local) results.
     private(set) var hasLocalResults = false
     /// Popular / recently updated / categories for an empty query; nil until loaded.
-    private(set) var browse: BrowseContent?
-    /// Results that need `force` to overwrite an unmanaged folder.
-    private(set) var needsOverwrite: Set<AddonRef> = []
+    private(set) var browse: BrowseContent? {
+        didSet { rebuildBrowseRows() }
+    }
+    var browseOptions = BrowseOptions() {
+        didSet { if browseOptions != oldValue { rebuildBrowseRows() } }
+    }
+    private(set) var browseRows: [BrowseRow] = []
+    @ObservationIgnored private var browseRowIndex: [BrowseRow.ID: Int] = [:]
 
     // Inspector
     /// Fetched once per add-on per session; the core also caches them on disk.
@@ -70,6 +130,14 @@ final class InstallationModel {
 
     // MARK: Derived
 
+    /// The state object for a row, created on first use. Keyed by `AddonStatus.id` / `AddonRef.description`.
+    func row(_ id: String) -> RowState {
+        if let existing = rowStates[id] { return existing }
+        let state = RowState()
+        rowStates[id] = state
+        return state
+    }
+
     var managed: [InstalledAddon] {
         addons.compactMap { if case .managed(let addon, _) = $0 { addon } else { nil } }
     }
@@ -79,12 +147,17 @@ final class InstallationModel {
     }
 
     func addon(for ref: AddonRef) -> InstalledAddon? {
-        managed.first { $0.id == ref }
+        if case .managed(let addon, _)? = status(id: ref.description) { addon } else { nil }
     }
 
     func status(id: AddonStatus.ID?) -> AddonStatus? {
-        guard let id else { return nil }
-        return addons.first { $0.id == id }
+        guard let id, let index = addonIndex[id], addons.indices.contains(index) else { return nil }
+        return addons[index]
+    }
+
+    func browseRow(id: BrowseRow.ID) -> BrowseRow? {
+        guard let index = browseRowIndex[id], browseRows.indices.contains(index) else { return nil }
+        return browseRows[index]
     }
 
     var refsWithUpdates: [AddonRef] {
@@ -100,13 +173,70 @@ final class InstallationModel {
         if case .available(let release) = updateStates[ref] { release } else { nil }
     }
 
+    // MARK: Table rows
+
+    private func rebuildInstalledRows() {
+        let now = Date.now
+        let query = installedOptions.query
+        var rows = addons.compactMap { status -> InstalledRow? in
+            guard Self.matches(status, query: query) else { return nil }
+            let update: UpdateState? = if case .managed(let addon, _) = status { updateStates[addon.id] } else { nil }
+            return InstalledRow(status: status, update: update, now: now)
+        }
+        rows.sort(using: installedOptions.sort)
+        let managed = rows.filter(\.isManaged)
+        let unmanaged = rows.filter { !$0.isManaged }
+        if managed != managedRows { managedRows = managed }
+        if unmanaged != unmanagedRows { unmanagedRows = unmanaged }
+    }
+
+    private static func matches(_ status: AddonStatus, query: String) -> Bool {
+        guard !query.isEmpty else { return true }
+        switch status {
+        case .managed(let addon, _):
+            return addon.name.localizedCaseInsensitiveContains(query)
+                || addon.id.identifier.localizedCaseInsensitiveContains(query)
+                || addon.folders.contains(where: { $0.localizedCaseInsensitiveContains(query) })
+        case .unmanaged(let folder, let toc, _):
+            return folder.localizedCaseInsensitiveContains(query)
+                || (toc?.title?.localizedCaseInsensitiveContains(query) ?? false)
+        }
+    }
+
+    private func rebuildBrowseRows() {
+        let now = Date.now
+        let results: [SearchResult]
+        if browseOptions.query.isEmpty {
+            let list = browseOptions.home == .popular ? browse?.popular : browse?.recent
+            // Search applies Forever only in the core; the home lists come back unfiltered.
+            results = (list ?? []).filter { !browseOptions.foreverOnly || !Self.hiddenByForeverOnly($0.support) }
+        } else {
+            results = searchResults
+        }
+        var rows = results.map { BrowseRow($0, now: now) }
+        if let sort = browseOptions.sort { rows.sort(using: sort) }
+        guard rows != browseRows else { return }
+        browseRows = rows
+        browseRowIndex = Dictionary(rows.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    static func hiddenByForeverOnly(_ status: SupportStatus) -> Bool {
+        switch status {
+        case .unsupported, .noReleases: true
+        default: false
+        }
+    }
+
     // MARK: Installed
 
     func reload() async {
         isLoading = true
         defer { isLoading = false; hasLoaded = true }
         do {
-            addons = try await manager.addons(in: installation)
+            let loaded = try await manager.addons(in: installation)
+            // Unchanged reloads (e.g. after our own writes) don't touch the tables.
+            if loaded != addons { addons = loaded }
+            didReload?()
         } catch {
             reportError(error.localizedDescription)
         }
@@ -128,27 +258,32 @@ final class InstallationModel {
         defer {
             refreshTask = nil
             isRefreshing = false
-            refreshProgress = nil
+            refresh.progress = nil
         }
         var didWork = false
+        var lastBrowseReload = ContinuousClock.now
         for await progress in manager.refresh(in: installation, force: force) {
-            refreshProgress = progress
+            refresh.progress = progress
             guard progress.phase == .finished else {
                 didWork = true
+                // Support checks change Browse badges as they go; pick them up now and then.
+                if progress.phase == .support, browse != nil, ContinuousClock.now - lastBrowseReload > .seconds(2) {
+                    lastBrowseReload = .now
+                    await loadBrowse()
+                }
                 continue
             }
             if let updates = progress.updates { apply(updates) }
             lastChecked = await manager.lastRefresh(in: installation) ?? .now
         }
-        // Support checks may have changed the Browse badges.
         if didWork, browse != nil { await loadBrowse() }
     }
 
     private func apply(_ updates: [AddonRef: UpdateState]) {
-        updateStates = updates
+        if updates != updateStates { updateStates = updates }
         for (ref, state) in updates {
-            if case .failed(let message) = state { rowErrors[ref.description] = message }
-            else { rowErrors[ref.description] = nil }
+            let error: String? = if case .failed(let message) = state { message } else { nil }
+            if row(ref.description).error != error { row(ref.description).error = error }
         }
     }
 
@@ -161,28 +296,28 @@ final class InstallationModel {
         guard !refs.isEmpty else { return }
         isUpdatingAll = true
         defer { isUpdatingAll = false }
-        for ref in refs { rowErrors[ref.description] = nil }
+        for ref in refs { row(ref.description).error = nil }
         for await event in manager.update(refs, in: installation) {
             switch event {
             case .queued(let ref):
-                activity[ref.description] = .queued
+                row(ref.description).activity = .queued
             case .downloading(let ref, let progress):
-                activity[ref.description] = .downloading(progress)
+                row(ref.description).activity = .downloading(progress)
             case .installing(let ref):
-                activity[ref.description] = .installing
+                row(ref.description).activity = .installing
             case .done(let addon):
-                activity[addon.id.description] = nil
+                row(addon.id.description).activity = nil
                 updateStates[addon.id] = .upToDate
                 replace(addon)
             case .skipped(let ref, _):
-                activity[ref.description] = nil
+                row(ref.description).activity = nil
             case .failed(let ref, let message):
-                activity[ref.description] = nil
-                rowErrors[ref.description] = message
+                row(ref.description).activity = nil
+                row(ref.description).error = message
             }
         }
         // Clear any rows the stream never finished (e.g. cancelled).
-        for ref in refs where activity[ref.description] != nil { activity[ref.description] = nil }
+        for ref in refs where row(ref.description).activity != nil { row(ref.description).activity = nil }
         await reload()
     }
 
@@ -228,19 +363,20 @@ final class InstallationModel {
 
     /// Runs `body`, shows `label` on the row meanwhile, records failures on the row, then reloads.
     private func perform(_ id: String, label: String?, _ body: @MainActor () async throws -> Void) async {
-        rowErrors[id] = nil
-        if let label { activity[id] = .working(label) }
+        let row = row(id)
+        row.error = nil
+        if let label { row.activity = .working(label) }
         do {
             try await body()
         } catch {
-            rowErrors[id] = error.localizedDescription
+            row.error = error.localizedDescription
         }
-        activity[id] = nil
+        row.activity = nil
         await reload()
     }
 
     private func replace(_ addon: InstalledAddon) {
-        guard let index = addons.firstIndex(where: { $0.id == addon.id.description }) else { return }
+        guard let index = addonIndex[addon.id.description], addons.indices.contains(index) else { return }
         if case .managed(_, let missing) = addons[index] {
             addons[index] = .managed(addon, missingFolders: missing)
         }
@@ -261,7 +397,7 @@ final class InstallationModel {
     }
 
     func clearSearch() {
-        searchResults = []
+        if !searchResults.isEmpty { searchResults = [] }
         isSearching = false
         hasLocalResults = false
     }
@@ -284,16 +420,16 @@ final class InstallationModel {
 
     /// Installs `ref`, showing download progress on its row, then the installing phase.
     func install(_ ref: AddonRef, channel: Channel, force: Bool = false) async {
-        let id = ref.description
-        rowErrors[id] = nil
-        needsOverwrite.remove(ref)
-        activity[id] = .downloading(0)
+        let row = row(ref.description)
+        row.error = nil
+        row.needsOverwrite = false
+        row.activity = .downloading(0)
         // Progress arrives on arbitrary threads; funnel it through a stream (newest value
         // wins) so the row is updated on the main actor and nothing lands after we finish.
         let (progress, continuation) = AsyncStream.makeStream(of: Double.self, bufferingPolicy: .bufferingNewest(1))
         let progressTask = Task { @MainActor in
             for await fraction in progress {
-                activity[id] = fraction < 1 ? .downloading(fraction) : .installing
+                row.activity = fraction < 1 ? .downloading(fraction) : .installing
             }
         }
         let result: Result<InstalledAddon, any Error>
@@ -306,30 +442,25 @@ final class InstallationModel {
         }
         continuation.finish()
         await progressTask.value
-        activity[id] = nil
+        row.activity = nil
 
         switch result {
         case .success(let addon):
             markInstalled(addon)
             await reload()
         case .failure(let error):
-            if case .unmanagedFolderExists = error as? AddonError { needsOverwrite.insert(ref) }
-            rowErrors[id] = error.localizedDescription
+            if case .unmanagedFolderExists = error as? AddonError { row.needsOverwrite = true }
+            row.error = error.localizedDescription
         }
-    }
-
-    /// A result shown in Browse (search, popular or recent), for the inspector's header.
-    func result(for ref: AddonRef) -> SearchResult? {
-        searchResults.first { $0.id == ref }
-            ?? browse?.popular.first { $0.id == ref }
-            ?? browse?.recent.first { $0.id == ref }
     }
 
     private func markInstalled(_ addon: InstalledAddon) {
-        for index in searchResults.indices where searchResults[index].id == addon.id {
-            searchResults[index].installed = addon
-            searchResults[index].origin.insert(.installed)
+        var results = searchResults
+        for index in results.indices where results[index].id == addon.id {
+            results[index].installed = addon
+            results[index].origin.insert(.installed)
         }
+        if results != searchResults { searchResults = results }
         guard var content = browse else { return }
         for index in content.popular.indices where content.popular[index].id == addon.id {
             content.popular[index].installed = addon
@@ -367,9 +498,9 @@ final class InstallationModel {
     }
 
     private func applySupport(_ support: SupportStatus, to ref: AddonRef) {
-        for index in searchResults.indices where searchResults[index].id == ref {
-            searchResults[index].support = support
-        }
+        var results = searchResults
+        for index in results.indices where results[index].id == ref { results[index].support = support }
+        if results != searchResults { searchResults = results }
         guard var content = browse else { return }
         for index in content.popular.indices where content.popular[index].id == ref { content.popular[index].support = support }
         for index in content.recent.indices where content.recent[index].id == ref { content.recent[index].support = support }

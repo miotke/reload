@@ -43,7 +43,7 @@ final class AppModel {
     var selectedInstallationID: Installation.ID? {
         didSet {
             selectedAddonID = nil
-            selectedBrowseRef = nil
+            selectedBrowseID = nil
             if oldValue != selectedInstallationID { scheduleAutoRefresh() }
         }
     }
@@ -60,8 +60,8 @@ final class AppModel {
         didSet { if selectedAddonID != nil { showInspector = true } }
     }
     /// Selection in the Browse tab.
-    var selectedBrowseRef: AddonRef? {
-        didSet { if selectedBrowseRef != nil { showInspector = true } }
+    var selectedBrowseID: BrowseRow.ID? {
+        didSet { if selectedBrowseID != nil { showInspector = true } }
     }
     var showInspector = true
     var banner: Banner?
@@ -102,6 +102,7 @@ final class AppModel {
         let model = InstallationModel(installation: installation, manager: manager) { [weak self] message in
             self?.showError(message)
         }
+        model.didReload = { [weak self] in self?.recordStoreFingerprint() }
         models[installation.id] = model
         return model
     }
@@ -202,10 +203,25 @@ final class AppModel {
     func watchStore() {
         guard storeWatcher == nil, let directory = addonManager?.store.storeDirectory else { return }
         let watcher = DirectoryWatcher(url: directory) { [weak self] in
-            Task { @MainActor in await self?.reload() }
+            Task { @MainActor in await self?.storeDidChange() }
         }
         watcher.start()
         storeWatcher = watcher
+    }
+
+    @ObservationIgnored private var storeFingerprint: Int?
+
+    /// Remembers the store as of the latest reload, so the watcher event caused by the app's
+    /// own write (which that reload already reflects) can be ignored.
+    private func recordStoreFingerprint() {
+        guard let directory = addonManager?.store.storeDirectory else { return }
+        storeFingerprint = DirectoryWatcher.fingerprint(of: directory)
+    }
+
+    private func storeDidChange() async {
+        if let directory = addonManager?.store.storeDirectory,
+           DirectoryWatcher.fingerprint(of: directory) == storeFingerprint { return }
+        await reload()
     }
 
     /// Refetches installations and the selected installation's add-ons, so changes made
@@ -224,7 +240,8 @@ final class AppModel {
         isLoadingInstallations = true
         defer { isLoadingInstallations = false }
         do {
-            installations = try await manager.installations()
+            let loaded = try await manager.installations()
+            if loaded != installations { installations = loaded }
             if selectedInstallationID == nil || selectedInstallation == nil {
                 selectedInstallationID = installations.first?.id
             }
@@ -294,7 +311,7 @@ final class AppModel {
     var visibleRefresh: (installation: Installation, progress: RefreshProgress)? {
         for installation in installations {
             let state = model(for: installation)
-            if let progress = state.refreshProgress, progress.phase != .finished {
+            if let progress = state.refresh.visibleProgress {
                 return (installation, progress)
             }
         }

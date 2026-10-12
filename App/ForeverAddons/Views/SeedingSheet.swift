@@ -29,14 +29,14 @@ struct SeedingSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                ProgressView(value: state.refreshProgress?.fraction ?? 0)
+                ProgressView(value: state.refresh.progress?.fraction ?? 0)
                     .progressViewStyle(.linear)
                 HStack {
-                    Text(state.refreshProgress?.displayMessage ?? "Starting…")
+                    Text(state.refresh.progress?.displayMessage ?? "Starting…")
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Spacer()
-                    if let progress = state.refreshProgress, progress.total > 0 {
+                    if let progress = state.refresh.progress, progress.total > 0 {
                         Text("\(progress.completed) of \(progress.total)")
                             .monospacedDigit()
                     }

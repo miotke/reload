@@ -20,7 +20,7 @@ struct ScreenshotGallery: View {
                     Button {
                         viewing = Viewing(index: index)
                     } label: {
-                        ScreenshotImage(url: url, maxPixelSize: 480)
+                        ScreenshotImage(url: url, maxPixelSize: 320)
                             .frame(width: 150, height: 96)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                             .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
@@ -89,7 +89,7 @@ struct ScreenshotViewer: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScreenshotImage(url: urls[index], maxPixelSize: 2400, contentMode: .fit)
+            ScreenshotImage(url: urls[index], maxPixelSize: 2000, contentMode: .fit)
                 .frame(minWidth: 640, idealWidth: 960, minHeight: 400, idealHeight: 600)
                 .background(.black.opacity(0.85))
             Divider()

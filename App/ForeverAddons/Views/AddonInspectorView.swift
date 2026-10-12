@@ -22,7 +22,7 @@ struct InspectorPane: View {
                     noSelection("Select an add-on to see its details.")
                 }
             case .browse:
-                if let ref = model.selectedBrowseRef {
+                if let id = model.selectedBrowseID, let ref = AddonRef(rowID: id) {
                     AddonInspector(state: state, ref: ref, missingFolders: [])
                         .id(ref)
                 } else {
@@ -41,26 +41,22 @@ struct InspectorPane: View {
 /// Details for one add-on, installed or not: what Browse showed, the core's `AddonDetails`
 /// (stats, links, screenshots, read-me) and, when installed, the install's own state and actions.
 private struct AddonInspector: View {
-    @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
     var state: InstallationModel
     var ref: AddonRef
     var missingFolders: [String]
 
-    @State private var confirmUninstall = false
-    @State private var confirmRollback = false
-
     private var id: String { ref.description }
     private var installed: InstalledAddon? { state.addon(for: ref) }
-    private var result: SearchResult? { state.result(for: ref) }
+    private var result: BrowseRow? { state.browseRow(id: id) }
     private var loaded: AddonDetails? { state.details[ref]?.details }
 
     var body: some View {
+        let rowState = state.row(id)
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                if let error = state.rowErrors[id] { RowErrorText(message: error) }
-                if let activity = state.activity[id] { ActivityIndicator(activity: activity) }
-                actions
+                RowProgress(rowState: rowState)
+                InspectorActions(state: state, ref: ref, installed: installed, rowState: rowState)
                 about
                 detailsStatus
                 if let loaded {
@@ -110,46 +106,6 @@ private struct AddonInspector: View {
             .font(.callout)
             if let summary {
                 Text(summary).font(.callout).fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    @ViewBuilder private var actions: some View {
-        let busy = state.activity[id] != nil
-        HStack {
-            if let installed {
-                if let release = state.availableRelease(for: ref), !installed.pinned {
-                    Button("Update to \(release.version)") { Task { await state.update([ref]) } }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(busy)
-                }
-                if let previous = installed.previousRelease {
-                    Button("Roll Back…") { confirmRollback = true }
-                        .disabled(busy)
-                        .help("Reinstall \(previous.version)")
-                        .confirmationDialog("Roll back \(installed.name) to \(previous.version)?", isPresented: $confirmRollback) {
-                            Button("Roll Back") { Task { await state.rollback(ref) } }
-                        } message: {
-                            Text("Reinstalls \(previous.version) from the local download cache and pins \(installed.name) so it isn't updated again automatically.")
-                        }
-                }
-                Spacer()
-                Button("Uninstall…", role: .destructive) { confirmUninstall = true }
-                    .disabled(busy)
-                    .confirmationDialog("Uninstall \(installed.name)?", isPresented: $confirmUninstall) {
-                        Button("Uninstall", role: .destructive) { Task { await state.uninstall(ref) } }
-                    } message: {
-                        Text("Removes \(installed.folders.joined(separator: ", ")) from Interface/AddOns. Saved settings are kept.")
-                    }
-            } else if state.needsOverwrite.contains(ref) {
-                Button("Overwrite Existing Folder", role: .destructive) {
-                    Task { await state.install(ref, channel: defaultChannel, force: true) }
-                }
-                .disabled(busy)
-            } else {
-                Button("Install") { Task { await state.install(ref, channel: defaultChannel) } }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(busy)
             }
         }
     }
@@ -311,6 +267,68 @@ private struct AddonInspector: View {
     }
 }
 
+/// The row's error and progress. Separate so download ticks re-render only this.
+private struct RowProgress: View {
+    var rowState: RowState
+
+    var body: some View {
+        if let error = rowState.error { RowErrorText(message: error) }
+        if let activity = rowState.activity { ActivityIndicator(activity: activity) }
+    }
+}
+
+/// Install / Update / Roll Back / Uninstall. Separate so download ticks re-render only this.
+private struct InspectorActions: View {
+    @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
+    var state: InstallationModel
+    var ref: AddonRef
+    var installed: InstalledAddon?
+    var rowState: RowState
+
+    @State private var confirmUninstall = false
+    @State private var confirmRollback = false
+
+    var body: some View {
+        let busy = rowState.activity != nil
+        HStack {
+            if let installed {
+                if let release = state.availableRelease(for: ref), !installed.pinned {
+                    Button("Update to \(release.version)") { Task { await state.update([ref]) } }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(busy)
+                }
+                if let previous = installed.previousRelease {
+                    Button("Roll Back…") { confirmRollback = true }
+                        .disabled(busy)
+                        .help("Reinstall \(previous.version)")
+                        .confirmationDialog("Roll back \(installed.name) to \(previous.version)?", isPresented: $confirmRollback) {
+                            Button("Roll Back") { Task { await state.rollback(ref) } }
+                        } message: {
+                            Text("Reinstalls \(previous.version) from the local download cache and pins \(installed.name) so it isn't updated again automatically.")
+                        }
+                }
+                Spacer()
+                Button("Uninstall…", role: .destructive) { confirmUninstall = true }
+                    .disabled(busy)
+                    .confirmationDialog("Uninstall \(installed.name)?", isPresented: $confirmUninstall) {
+                        Button("Uninstall", role: .destructive) { Task { await state.uninstall(ref) } }
+                    } message: {
+                        Text("Removes \(installed.folders.joined(separator: ", ")) from Interface/AddOns. Saved settings are kept.")
+                    }
+            } else if rowState.needsOverwrite {
+                Button("Overwrite Existing Folder", role: .destructive) {
+                    Task { await state.install(ref, channel: defaultChannel, force: true) }
+                }
+                .disabled(busy)
+            } else {
+                Button("Install") { Task { await state.install(ref, channel: defaultChannel) } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(busy)
+            }
+        }
+    }
+}
+
 private struct UnmanagedInspector: View {
     @Environment(AppModel.self) private var model
     var state: InstallationModel
@@ -325,7 +343,7 @@ private struct UnmanagedInspector: View {
                     Text(toc?.title ?? folder).font(.title2.weight(.semibold))
                     Text("Unmanaged folder").font(.callout).foregroundStyle(.secondary)
                 }
-                if let error = state.rowErrors["unmanaged:\(folder)"] { RowErrorText(message: error) }
+                RowProgress(rowState: state.row("unmanaged:\(folder)"))
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
                     row("Folder", folder)
                     if let version = toc?.version { row("Version", version) }

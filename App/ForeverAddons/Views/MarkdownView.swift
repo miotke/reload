@@ -8,7 +8,8 @@ struct MarkdownView: View, Equatable {
     var baseURL: URL?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // Lazy: a long README builds only the blocks scrolled into view.
+        LazyVStack(alignment: .leading, spacing: 8) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 view(for: block)
             }
@@ -70,11 +71,37 @@ struct MarkdownView: View, Equatable {
     }
 }
 
-/// Release notes from a Markdown string.
+/// Release notes from a Markdown string, parsed off the main actor once per text.
 struct MarkdownText: View {
     var markdown: String
+    @State private var blocks: [MarkdownBlock]?
+
+    init(markdown: String) {
+        self.markdown = markdown
+        _blocks = State(initialValue: MarkdownCache.cached(markdown))
+    }
 
     var body: some View {
-        MarkdownView(blocks: MarkdownParser.blocks(from: markdown))
+        Group {
+            if let blocks { MarkdownView(blocks: blocks) } else { Color.clear.frame(height: 1) }
+        }
+        .task(id: markdown) { blocks = await MarkdownCache.blocks(for: markdown) }
+    }
+}
+
+/// Parsed release notes, keyed by their text (the same notes show for every visit to a release).
+@MainActor
+enum MarkdownCache {
+    private static var entries: [String: [MarkdownBlock]] = [:]
+
+    static func cached(_ markdown: String) -> [MarkdownBlock]? { entries[markdown] }
+
+    static func blocks(for markdown: String) async -> [MarkdownBlock] {
+        if let cached = entries[markdown] { return cached }
+        let blocks = await Task.detached(priority: .userInitiated) { MarkdownParser.blocks(from: markdown) }.value
+        // Release notes are small; a crude cap keeps a long session from growing without bound.
+        if entries.count > 200 { entries.removeAll() }
+        entries[markdown] = blocks
+        return blocks
     }
 }
