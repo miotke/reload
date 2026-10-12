@@ -103,11 +103,11 @@ Browse rows, the inspector and the add-on window all take an add-on's installed 
 Which games an add-on's latest release ships builds for, replacing the old single "Forever" verdict ([decision 0019](../decisions/0019-available-games-and-visible-row-checks.md)). One view, `GameBubbles`, in the Browse column, the inspector, the add-on window, the unmanaged inspector and the adopt sheet's search results.
 
 ```
- R  F  C     filled = this installation's family   tinted = present   outline = no build   —  not checked
+ R  F  C     solid = has a build   ring = this installation's game   outline = no build   —  not checked
 ```
 
-- Three fixed-position capsules: **R** blue, **F** teal, **C** orange (system colours, so light and dark mode work). Present ones are tinted; the installation's own family is filled, with a bold letter; absent ones are a faint outline in the same slot, so columns line up.
-- **Not checked** (no `release.json`, never checked): a dim "—", whose tooltip says why.
+- Three fixed-position capsules: **R** blue, **F** teal, **C** orange (system colours, so light and dark mode work). Every present family is the same solid fill with a white letter, so R, F and C read alike; the installation's own game gets a thin outer ring instead of a different fill (a lighter fill read as "not supported"); absent ones are a faint outline in the same slot, so columns line up.
+- **Not checked** (no `release.json`, never checked): a dim "—", whose tooltip says why. Verdicts stored before the game list existed get it on their next check (opening the add-on, a visible-row check or a refresh), from the tag's `release.json`, quota-free.
 - Tooltips per bubble: "Classic: Era, TBC Anniversary, Wrath, Cata, Mists"; on Forever, R says "Retail build: may work on Forever, which lists it as out of date until you tick Load out of date AddOns"; "No Forever build".
 - **Cheap cells.** `GameBubblesModel` is built with the row (`BrowseRow.games`), so the cell reads stored values and no environment.
 - **Sorting:** own family present first, then the number of families; unchecked rows last. The column keeps the `support` sort key.

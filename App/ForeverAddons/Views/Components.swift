@@ -26,8 +26,9 @@ struct GameBubbles: View {
     }
 }
 
-/// One capsule. Present: tinted, or filled for the installation's own family; absent: a faint
-/// outline in the same slot.
+/// One capsule. Every present family is the same solid fill, so "available" reads the same for
+/// R, F and C; absent is a faint outline in the same slot. The installation's own family gets a
+/// thin outer ring rather than a different fill, which read as "not supported".
 struct GameBubble: View {
     var family: GameFamily
     var isPresent: Bool
@@ -44,16 +45,18 @@ struct GameBubble: View {
     var body: some View {
         let color = Self.color(family)
         Text(family.letter)
-            .font(.caption2.weight(isOwn && isPresent ? .bold : .semibold))
-            .foregroundStyle(isPresent ? (isOwn ? AnyShapeStyle(.white) : AnyShapeStyle(color)) : AnyShapeStyle(.quaternary))
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(isPresent ? AnyShapeStyle(.white) : AnyShapeStyle(.quaternary))
             .frame(width: 18, height: 15)
             .background {
-                if isPresent {
-                    Capsule().fill(color.opacity(isOwn ? 0.9 : 0.18))
-                }
+                if isPresent { Capsule().fill(color) }
             }
             .overlay {
                 if !isPresent { Capsule().strokeBorder(.quaternary, lineWidth: 1) }
+            }
+            .padding(1.5)
+            .overlay {
+                if isOwn && isPresent { Capsule().strokeBorder(color.opacity(0.55), lineWidth: 1) }
             }
     }
 }

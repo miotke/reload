@@ -69,6 +69,31 @@ import Testing
         #expect(await source.latest.check(autoPotion, flavor: .forever, policy: .preferStored).availableFlavors == autoPotionFlavors)
     }
 
+    /// A verdict stored before flavor lists existed (tag known, no flavors) gets its list from
+    /// the tag's release.json on the next non-stored check, and isn't "fresh" for visible rows.
+    @Test func verdictWithoutFlavorsFetchesThemOnce() async throws {
+        let http = RedirectingHTTPClient()
+        let repo = autoPotion.identifier
+        http.stub("https://github.com/\(repo)/releases/download/3.17.1/release.json", body: try fixtureData("github/autopotion-release-3.17.1.json"))
+        let source = GitHub(http: http)
+        await source.latest.store.set([SupportRecord(ref: autoPotion, status: .supported(version: "3.17.1"), tag: "3.17.1", checkedAt: .now)], flavor: .forever)
+        #expect(await source.latest.hasFreshAnswer(for: autoPotion, flavor: .forever) == false)
+
+        // Stored-only reads never fetch.
+        #expect(await source.latest.check(autoPotion, flavor: .forever, policy: .preferStored).availableFlavors == nil)
+        #expect(http.requests.isEmpty)
+
+        let check = await source.latest.check(autoPotion, flavor: .forever, policy: .revalidateIfStale)
+        #expect(check.availableFlavors == autoPotionFlavors)
+        #expect(http.apiRequests.isEmpty)
+        #expect(http.requests.count == 1)
+        #expect(await source.latest.hasFreshAnswer(for: autoPotion, flavor: .forever))
+
+        http.reset()
+        _ = await source.latest.check(autoPotion, flavor: .forever, policy: .revalidateIfStale)
+        #expect(http.requests.isEmpty)
+    }
+
     @Test func noReleaseJSONLeavesFlavorsUnknown() async {
         let http = RedirectingHTTPClient()
         http.publishLatest("o/r", tag: "v1", flavors: nil)

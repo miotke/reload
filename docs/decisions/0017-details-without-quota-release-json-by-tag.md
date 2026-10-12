@@ -18,7 +18,7 @@ The network audit at `05ba0ff` ([budget.md](../network/budget.md)) found:
 
 ## Decision
 
-1. **Details are quota-free.** `details` reads support and the latest tag from `GitHubReleaseResolver.latestRelease` (`.revalidateIfStale` when the details are stale, the stored answer otherwise) and never resolves. `AddonDetails.latestChangelog` is filled only from stored notes for the current tag.
+1. **Details are quota-free.** `details` reads support and the latest tag from `LatestReleaseStore.latestRelease` (`.revalidateIfStale` when the details are stale, the stored answer otherwise) and never resolves. `AddonDetails.latestChangelog` is filled only from stored notes for the current tag.
 2. **Release notes on demand.** `AddonManager.releaseNotes(for:in:)` → `(version, publishedAt, markdown)?`: stored notes for the tag, else one call to `releases/latest` (none if this process holds the release list), never a zip. Stored in `details` by tag. The inspector shows **Show Release Notes**; with a token and comfortable quota, `details` loads them itself.
 3. **`release.json` by tag in SQLite** (`release_json`, ~600 B each, no expiry). Update checks compare tags first and fetch the build only for a new tag.
 4. **Shared tags.** With `.revalidateIfStale`, `latestRelease` reuses a `repo_meta.latest_tag` under 1 h old, whatever flavor stored it; the verdict then comes from the stored `release.json`. A later installation's first seed checks 100 repos instead of 200.

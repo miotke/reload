@@ -99,7 +99,7 @@ public actor LatestReleaseStore: SupportChecking {
         for ref: AddonRef, flavor: Flavor, policy: CachePolicy, needBuild: Bool = false, background: Bool = false
     ) async -> LatestRelease {
         let answer = await latestVerdict(for: ref, flavor: flavor, policy: policy, needBuild: needBuild, background: background)
-        return await withFlavors(answer, ref: ref)
+        return await withFlavors(answer, ref: ref, mayFetch: policy != .preferStored, background: background)
     }
 
     private func latestVerdict(
@@ -205,8 +205,9 @@ public actor LatestReleaseStore: SupportChecking {
     /// - just read from its release.json, or stored for its tag: that;
     /// - its release.json is stored but the flavors aren't (rows from before migration 5): derived and stored;
     /// - the release has no release.json: an inspected zip's flavors, if any, else nil;
-    /// - nothing known for this tag yet: whatever is stored.
-    private func withFlavors(_ answer: LatestRelease, ref: AddonRef) async -> LatestRelease {
+    /// - nothing known for this tag yet: with `mayFetch`, the tag's release.json (quota-free),
+    ///   so verdicts reused from before the flavor list existed still get one; else whatever is stored.
+    private func withFlavors(_ answer: LatestRelease, ref: AddonRef, mayFetch: Bool, background: Bool) async -> LatestRelease {
         guard answer.availableFlavors == nil, ref.source == .github else { return answer }
         if case .noReleases = answer.status { return answer }
         var answer = answer
@@ -225,6 +226,10 @@ public actor LatestReleaseStore: SupportChecking {
                 if stored?.source == .releaseJSON { await store.setAvailableFlavors(nil, tag: tag, source: .releaseJSON, for: ref) }
                 answer.availableFlavors = stored?.source == .inspection ? stored?.flavors : nil
             }
+        } else if mayFetch, answer.status != .needsDownload, let (owner, repo) = try? GitHubReleaseResolver.split(ref),
+                  let json = try? await webReleaseJSON(owner: owner, repo: repo, ref: ref, tag: tag, background: background) {
+            answer.availableFlavors = json.availableFlavors
+            await store.setAvailableFlavors(json.availableFlavors, tag: tag, source: .releaseJSON, for: ref)
         } else {
             answer.availableFlavors = stored?.flavors
         }
@@ -283,8 +288,13 @@ public actor LatestReleaseStore: SupportChecking {
     /// True when a stored answer for `ref` and `flavor` is within its lifetime, so
     /// `.revalidateIfStale` wouldn't make a request.
     func hasFreshAnswer(for ref: AddonRef, flavor: Flavor) async -> Bool {
-        guard let stored = await store.storedSupport(for: ref, flavor: flavor) else { return false }
-        return await store.isFresh(stored)
+        guard let stored = await store.storedSupport(for: ref, flavor: flavor), await store.isFresh(stored) else { return false }
+        // A verdict without its flavor list (stored before the list existed) still needs one
+        // check, unless the release has no release.json to read it from.
+        switch stored.status {
+        case .needsDownload?, .noReleases?: return true
+        default: return await store.storedFlavors(for: ref) != nil
+        }
     }
 
     // MARK: - Quota-free resolve

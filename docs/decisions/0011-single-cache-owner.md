@@ -13,7 +13,7 @@ That duplicated the "latest tag → `release.json`" logic and made it easy to fo
 
 ## Decision
 
-1. **Single owner.** `GitHubReleaseResolver.latestRelease(for:flavor:policy:)` is the only code that decides support. It reads and writes the stored verdicts and latest tags itself (`SupportCache` over the `support` and `repo_meta` tables). There is no other support cache. The raw lookups (`fetchLatestTag`, `webReleaseJSON`) are private to `GitHubReleaseResolver`; callers never judge freshness. A test checks that no other file reaches them.
+1. **Single owner.** `LatestReleaseStore.latestRelease(for:flavor:policy:)` is the only code that decides support. It reads and writes the stored verdicts and latest tags itself (`SupportCache` over the `support` and `repo_meta` tables). There is no other support cache. The raw lookups (`fetchLatestTag`, `webReleaseJSON`) are private to `GitHubReleaseResolver`; callers never judge freshness. A test checks that no other file reaches them.
 2. **Cache policy instead of flags:**
 
    | `CachePolicy` | Network | Store |
