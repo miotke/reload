@@ -75,7 +75,7 @@ public actor SearchCoordinator {
             continuation.yield(SearchUpdate(results: [], isComplete: true))
             return
         }
-        var session = Session(foreverOnly: query.foreverOnly)
+        var session = Session(compatibleOnly: query.compatibleOnly)
         let statuses = await keyed(supportCache.statuses(flavor: query.flavor))
         let stars = await supportCache.stars()
 
@@ -202,7 +202,7 @@ public actor SearchCoordinator {
     // MARK: Browse
 
     /// The Browse tab's content for an empty search box (docs/design.md §7.5). Local only.
-    public func browse(flavor: Flavor = .forever) async -> (popular: [SearchResult], recent: [SearchResult], categories: [SearchCategory]) {
+    public func browse(flavor: Flavor) async -> (popular: [SearchResult], recent: [SearchResult], categories: [SearchCategory]) {
         let statuses = await supportCache.statuses(flavor: flavor)
         let keyedStatuses = keyed(statuses)
         let stars = await supportCache.stars()
@@ -286,12 +286,12 @@ public actor SearchCoordinator {
 // MARK: - Per-search state
 
 private struct Session {
-    var foreverOnly: Bool
+    var compatibleOnly: Bool
     private(set) var results: [SearchResult] = []
     private var positions: [String: Int] = [:]
 
-    init(foreverOnly: Bool) {
-        self.foreverOnly = foreverOnly
+    init(compatibleOnly: Bool) {
+        self.compatibleOnly = compatibleOnly
     }
 
     var count: Int { results.count }
@@ -337,7 +337,7 @@ private struct Session {
     }
 
     private func isVisible(_ result: SearchResult) -> Bool {
-        guard foreverOnly, result.support.isVerifiedUnsupported else { return true }
+        guard compatibleOnly, result.support.isVerifiedUnsupported else { return true }
         // Installed add-ons and explicit references are always shown.
         return result.installed != nil || result.origin.contains(.installed) || result.origin.contains(.direct)
     }

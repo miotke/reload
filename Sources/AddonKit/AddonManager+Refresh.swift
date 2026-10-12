@@ -66,7 +66,7 @@ extension AddonManager {
 
         // 3. Support verdicts.
         let targets = await supportTargets(installation: installation, installed: installed.map(\.id), diff: diff, seed: firstRefresh)
-        reporter.send(RefreshProgress(phase: .support, completed: 0, total: targets.count, message: "Checking Forever support…"), force: true)
+        reporter.send(RefreshProgress(phase: .support, completed: 0, total: targets.count, message: "Checking \(installation.flavor.displayName) support…"), force: true)
         await checkSupport(targets, flavor: installation.flavor, reporter: reporter)
         guard !Task.isCancelled else { return }
 

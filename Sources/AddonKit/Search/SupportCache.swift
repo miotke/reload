@@ -61,12 +61,12 @@ public actor SupportCache {
     // MARK: - Verdicts
 
     /// The stored verdict, however old. Nil when never checked or the last check failed.
-    public func status(for ref: AddonRef, flavor: Flavor = .forever) async -> SupportStatus? {
+    public func status(for ref: AddonRef, flavor: Flavor) async -> SupportStatus? {
         await record(for: ref, flavor: flavor)?.status
     }
 
     /// The stored verdict, including when it was checked and against which tag.
-    public func record(for ref: AddonRef, flavor: Flavor = .forever) async -> SupportRecord? {
+    public func record(for ref: AddonRef, flavor: Flavor) async -> SupportRecord? {
         let rows = (try? await database.query(
             "SELECT full_name, status, version, tag, checked_at FROM support WHERE full_name = ? AND flavor = ? AND status != 'error'",
             ref.identifier, flavor.rawValue)) ?? []
@@ -97,7 +97,7 @@ public actor SupportCache {
     }
 
     /// Every stored verdict for `flavor`.
-    public func statuses(flavor: Flavor = .forever) async -> [AddonRef: SupportStatus] {
+    public func statuses(flavor: Flavor) async -> [AddonRef: SupportStatus] {
         let rows = (try? await database.query(
             "SELECT full_name, status, version, tag, checked_at FROM support WHERE flavor = ? AND status != 'error'", flavor.rawValue)) ?? []
         var out: [AddonRef: SupportStatus] = [:]
@@ -106,12 +106,12 @@ public actor SupportCache {
     }
 
     /// Stores one verdict. `.unknown` records a failed check; `.checking` is ignored.
-    public func set(_ status: SupportStatus, for ref: AddonRef, flavor: Flavor = .forever, tag: String? = nil) async {
+    public func set(_ status: SupportStatus, for ref: AddonRef, flavor: Flavor, tag: String? = nil) async {
         await set([SupportRecord(ref: ref, status: status, tag: tag, checkedAt: now())], flavor: flavor)
     }
 
     /// Stores several verdicts in one transaction.
-    public func set(_ records: [SupportRecord], flavor: Flavor = .forever) async {
+    public func set(_ records: [SupportRecord], flavor: Flavor) async {
         let rows = records.compactMap { record -> (String, String, String?, String?, Date)? in
             guard let kind = Self.kind(record.status) else { return nil }
             return (record.ref.identifier, kind, Self.version(record.status), record.tag, record.checkedAt)

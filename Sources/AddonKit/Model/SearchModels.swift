@@ -42,13 +42,13 @@ public struct CatalogueEntry: Codable, Sendable, Hashable, Identifiable {
 public struct SearchQuery: Sendable, Hashable {
     public var text: String
     public var flavor: Flavor
-    public var foreverOnly: Bool
+    public var compatibleOnly: Bool
     public var includeLiveGitHub: Bool
 
-    public init(text: String, flavor: Flavor = .forever, foreverOnly: Bool = true, includeLiveGitHub: Bool = false) {
+    public init(text: String, flavor: Flavor, compatibleOnly: Bool = true, includeLiveGitHub: Bool = false) {
         self.text = text
         self.flavor = flavor
-        self.foreverOnly = foreverOnly
+        self.compatibleOnly = compatibleOnly
         self.includeLiveGitHub = includeLiveGitHub
     }
 }
