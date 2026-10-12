@@ -71,7 +71,7 @@ public struct ReadmeFetcher: Sendable {
     /// first (with its ETag, so an unchanged README is a 304). Only with a token, and only
     /// when every candidate 404s, is the API's `/readme` asked (1 call).
     public func fetch(for ref: AddonRef, knownPath: String? = nil, etag: String? = nil) async throws -> Result {
-        let (owner, repo) = try GitHubSource.split(ref)
+        let (owner, repo) = try GitHubReleaseResolver.split(ref)
         var candidates = Self.candidates
         if let knownPath, !knownPath.isEmpty {
             candidates.removeAll { $0 == knownPath }

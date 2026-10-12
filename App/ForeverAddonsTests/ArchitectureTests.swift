@@ -12,7 +12,7 @@ import Testing
         ("MetadataDatabase", "`metadataChanges()` and `metadataVersion()` on AddonManaging"),
         ("SupportCache", "`storedAvailability(for:in:)` on AddonManaging"),
         ("InstallStore", "`storeDirectory` and `addons(in:)` on AddonManaging"),
-        ("GitHubSource", "AddonManaging (`details`, `releaseNotes`, `checkVisible`, `refresh`)"),
+        ("GitHubReleaseResolver", "AddonManaging (`details`, `releaseNotes`, `checkVisible`, `refresh`)"),
         ("SearchCoordinator", "`searchUpdates(_:in:installed:)` on AddonManaging"),
         ("CatalogueSource", "`browse(in:)` and `searchUpdates(_:in:installed:)` on AddonManaging"),
         ("LatestReleaseStore", "`checkForUpdates(in:)` or `refresh(in:force:)` on AddonManaging"),

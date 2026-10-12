@@ -48,7 +48,7 @@ public actor LatestReleaseStore: SupportChecking {
     private let web: GitHubWebClient
     private let api: GitHubAPIClient
     /// The releases-API check, for the foreground fallback when github.com fails.
-    private let source: GitHubSource
+    private let source: GitHubReleaseResolver
     var now: @Sendable () -> Date = { Date() }
 
     /// release.json by lowercased `owner/repo@tag` (nil: that release has none), in front of
@@ -57,7 +57,7 @@ public actor LatestReleaseStore: SupportChecking {
     /// Latest-release lookups in flight, so two callers asking at once share one request.
     private var inFlightLatest: [String: Task<LatestRelease, Never>] = [:]
 
-    public init(store: SupportCache, web: GitHubWebClient, api: GitHubAPIClient, source: GitHubSource) {
+    public init(store: SupportCache, web: GitHubWebClient, api: GitHubAPIClient, source: GitHubReleaseResolver) {
         self.store = store
         self.web = web
         self.api = api
@@ -105,7 +105,7 @@ public actor LatestReleaseStore: SupportChecking {
     private func latestVerdict(
         for ref: AddonRef, flavor: Flavor, policy: CachePolicy, needBuild: Bool, background: Bool
     ) async -> LatestRelease {
-        guard ref.source == .github, let (owner, repo) = try? GitHubSource.split(ref) else {
+        guard ref.source == .github, let (owner, repo) = try? GitHubReleaseResolver.split(ref) else {
             return LatestRelease(tag: nil, status: .unknown)
         }
         let stored = await store.storedSupport(for: ref, flavor: flavor)
@@ -126,7 +126,7 @@ public actor LatestReleaseStore: SupportChecking {
         }
 
         let shareTags = policy == .revalidateIfStale
-        let key = GitHubSource.cacheKey(ref) + "#" + flavor.rawValue + (shareTags ? "" : "!")
+        let key = GitHubReleaseResolver.cacheKey(ref) + "#" + flavor.rawValue + (shareTags ? "" : "!")
         let task: Task<LatestRelease, Never>
         if let running = inFlightLatest[key] {
             task = running
@@ -259,7 +259,7 @@ public actor LatestReleaseStore: SupportChecking {
     /// with `fetch`, downloads it once for that tag.
     func withBuild(_ answer: LatestRelease, ref: AddonRef, flavor: Flavor, fetch: Bool, background: Bool = false) async -> LatestRelease {
         guard answer.build == nil, case .supported = answer.status, let tag = answer.tag,
-              let (owner, repo) = try? GitHubSource.split(ref) else { return answer }
+              let (owner, repo) = try? GitHubReleaseResolver.split(ref) else { return answer }
         var answer = answer
         if let known = await knownReleaseJSON(ref, tag: tag) {
             answer.build = known?.release(for: flavor)
@@ -294,7 +294,7 @@ public actor LatestReleaseStore: SupportChecking {
     /// is a negative hash of the tag and `publishedAt` is now. `InstalledAddon.isUpdate`
     /// compares tags for such releases.
     func resolvedRelease(_ ref: AddonRef, from latest: LatestRelease, flavor: Flavor) -> ResolvedRelease? {
-        guard let tag = latest.tag, let build = latest.build, let (owner, repo) = try? GitHubSource.split(ref) else { return nil }
+        guard let tag = latest.tag, let build = latest.build, let (owner, repo) = try? GitHubReleaseResolver.split(ref) else { return nil }
         let interface = build.metadata.first { flavor.rules.releaseJSONFlavors.contains($0.flavor.lowercased()) }?.interface
         return ResolvedRelease(
             ref: ref,
@@ -333,7 +333,7 @@ public actor LatestReleaseStore: SupportChecking {
     /// release.json of `ref`'s release `tag` from memory or the database, without a request:
     /// nil when it was never fetched, `.some(nil)` when that release has none.
     private func knownReleaseJSON(_ ref: AddonRef, tag: String) async -> ReleaseJSON?? {
-        let key = "\(GitHubSource.cacheKey(ref))@\(tag)"
+        let key = "\(GitHubReleaseResolver.cacheKey(ref))@\(tag)"
         if let hit = tagReleaseJSON[key] { return .some(hit) }
         guard let stored = await store.releaseJSON(for: ref, tag: tag) else { return nil }
         tagReleaseJSON[key] = .some(stored)
@@ -345,7 +345,7 @@ public actor LatestReleaseStore: SupportChecking {
     private func webReleaseJSON(owner: String, repo: String, ref: AddonRef, tag: String, background: Bool) async throws -> ReleaseJSON? {
         if let known = await knownReleaseJSON(ref, tag: tag) { return known }
         let json = try await web.fetchReleaseJSON(owner: owner, repo: repo, tag: tag, background: background)
-        tagReleaseJSON["\(GitHubSource.cacheKey(ref))@\(tag)"] = .some(json)
+        tagReleaseJSON["\(GitHubReleaseResolver.cacheKey(ref))@\(tag)"] = .some(json)
         await store.setReleaseJSON(json, for: ref, tag: tag)
         return json
     }

@@ -9,7 +9,7 @@ extension AddonManager {
     public static let detailsTTL: TimeInterval = 24 * 60 * 60
 
     public func details(for ref: AddonRef, in installation: Installation) async throws -> AddonDetails {
-        let (owner, repo) = try GitHubSource.split(ref)
+        let (owner, repo) = try GitHubReleaseResolver.split(ref)
         let flavor = installation.flavor
         let entry = await catalogue.entry(for: ref)
         let installed = try? await store.addons(in: installation).first { $0.id == ref }

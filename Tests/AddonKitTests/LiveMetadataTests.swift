@@ -58,7 +58,7 @@ struct LiveMetadataTests {
             #expect(etag != nil)
             // A conditional request with the remembered path is a 304.
             #expect(try await source.fetch(for: ref, knownPath: path, etag: etag) == .notModified)
-            let (owner, repo) = try GitHubSource.split(ref)
+            let (owner, repo) = try GitHubReleaseResolver.split(ref)
             let images = ReadmeImages.extract(from: markdown, owner: owner, repo: repo, readmePath: path)
             #expect(images.allSatisfy { !ReadmeImages.isBadgeOrIcon($0) })
         }

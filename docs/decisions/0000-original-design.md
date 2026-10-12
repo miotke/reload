@@ -59,7 +59,7 @@ Decision: [0002](0002-github-releases-no-keyed-apis.md).
 ## Original milestones
 
 1. **M0 – Core parsing:** package scaffold; `Toc`, `ReleaseJSON`, `BuildInfo`, `FlavorRules`, with tests.
-2. **M1 – Resolve:** `GitHubSource` and `ReleaseSelector`; `addonctl resolve` works for BigWigs and DBM.
+2. **M1 – Resolve:** `GitHubReleaseResolver` and `ReleaseSelector`; `addonctl resolve` works for BigWigs and DBM.
 3. **M2 – Install + CLI:** `Downloader`, `Installer`, `InstallStore` (with locking), `InstallationLocator`, `AddonManager`; core `addonctl` commands with `--json` and exit codes.
 4. **M3 – App shell:** installations sidebar, Installed list, Update All.
 5. **M4 – Search & adopt:** catalogue and installed search, Forever verification, live GitHub search, Browse, adopting, settings and Keychain token.

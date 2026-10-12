@@ -1,19 +1,19 @@
 # 0011: One owner for support state, chosen by cache policy
 
-`GitHubSource` is the only code that decides Forever support and latest tags; callers state intent with a `CachePolicy` (`.preferStored`, `.revalidateIfStale`, `.forceRevalidate`) and never bypass it.
+`GitHubReleaseResolver` is the only code that decides Forever support and latest tags; callers state intent with a `CachePolicy` (`.preferStored`, `.revalidateIfStale`, `.forceRevalidate`) and never bypass it.
 
 - **Status:** Accepted
 - **Date:** 2026-10-11
 
 ## Context
 
-Support verdicts and latest tags were cached in two places: an in-memory cache in `GitHubSource` and the SQLite `support` table. Callers decided freshness between them, by checking `isFresh`, passing flags, or calling the tag and `release.json` lookups directly. In the user's review of in-progress code, calls like `check(reuse: false)` and `latestTag(maxAge: 0)` showed up.
+Support verdicts and latest tags were cached in two places: an in-memory cache in `GitHubReleaseResolver` and the SQLite `support` table. Callers decided freshness between them, by checking `isFresh`, passing flags, or calling the tag and `release.json` lookups directly. In the user's review of in-progress code, calls like `check(reuse: false)` and `latestTag(maxAge: 0)` showed up.
 
 That duplicated the "latest tag → `release.json`" logic and made it easy to force a request every time, or to trust an answer that was too old. The baseline had the same smell elsewhere: Update All on 5 add-ons re-resolved each one after the check ([budget.md](../network/budget.md)).
 
 ## Decision
 
-1. **Single owner.** `GitHubSource.latestRelease(for:flavor:policy:)` is the only code that decides support. It reads and writes the stored verdicts and latest tags itself (`SupportCache` over the `support` and `repo_meta` tables). There is no other support cache. The raw lookups (`fetchLatestTag`, `webReleaseJSON`) are private to `GitHubSource`; callers never judge freshness. A test checks that no other file reaches them.
+1. **Single owner.** `GitHubReleaseResolver.latestRelease(for:flavor:policy:)` is the only code that decides support. It reads and writes the stored verdicts and latest tags itself (`SupportCache` over the `support` and `repo_meta` tables). There is no other support cache. The raw lookups (`fetchLatestTag`, `webReleaseJSON`) are private to `GitHubReleaseResolver`; callers never judge freshness. A test checks that no other file reaches them.
 2. **Cache policy instead of flags:**
 
    | `CachePolicy` | Network | Store |
@@ -57,4 +57,4 @@ That duplicated the "latest tag → `release.json`" logic and made it easy to fo
 - [features/refresh.md](../features/refresh.md)
 - [network/caching.md](../network/caching.md)
 
-> **Update 2026-10-12:** the owner moved from `GitHubSource` to `LatestReleaseStore` (`Sources/AddonKit/GitHub/LatestReleaseStore.swift`) in the core refactor. The decision is unchanged.
+> **Update 2026-10-12:** the owner moved from `GitHubReleaseResolver` to `LatestReleaseStore` (`Sources/AddonKit/GitHub/LatestReleaseStore.swift`) in the core refactor. The decision is unchanged.

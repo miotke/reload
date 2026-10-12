@@ -1,8 +1,8 @@
 # Release selection
 
-How `GitHubSource` and `LatestReleaseStore` find the newest GitHub release of an add-on that supports the installation's flavor (Forever, Retail or a classic game), and the right zip within it. Examples use Forever.
+How `GitHubReleaseResolver` and `LatestReleaseStore` find the newest GitHub release of an add-on that supports the installation's flavor (Forever, Retail or a classic game), and the right zip within it. Examples use Forever.
 
-Code: `Sources/AddonKit/GitHub/GitHubSource.swift` (the API flow below), `LatestReleaseStore.swift` (support checks, quota-free resolve), `GitHubModels.swift`, `Selection/ReleaseSelector.swift`, `Selection/ZipInspector.swift`. Why `release.json` first: [decision 0003](../decisions/0003-forever-detection.md); per-flavor rules: [decision 0016](../decisions/0016-one-flavor-per-game.md). The requests it makes: [github-endpoints.md](../network/github-endpoints.md).
+Code: `Sources/AddonKit/GitHub/GitHubReleaseResolver.swift` (the API flow below), `LatestReleaseStore.swift` (support checks, quota-free resolve), `GitHubModels.swift`, `Selection/ReleaseSelector.swift`, `Selection/ZipInspector.swift`. Why `release.json` first: [decision 0003](../decisions/0003-forever-detection.md); per-flavor rules: [decision 0016](../decisions/0016-one-flavor-per-game.md). The requests it makes: [github-endpoints.md](../network/github-endpoints.md).
 
 ## How a release is chosen
 
@@ -23,7 +23,7 @@ flowchart TD
 ```
 
 - Walking back to older releases handles authors who dropped support for a game: users stay on the last build that works.
-- `ReleaseSelector` is pure and synchronous. When it needs data it doesn't have yet, it returns `.needsReleaseJSON` or `.needsInspection`. `GitHubSource` fetches that data and asks again, adding releases whose zips didn't match to an exclusion list.
+- `ReleaseSelector` is pure and synchronous. When it needs data it doesn't have yet, it returns `.needsReleaseJSON` or `.needsInspection`. `GitHubReleaseResolver` fetches that data and asks again, adding releases whose zips didn't match to an exclusion list.
 - **`release.json` names per flavor:** a build counts when its metadata lists one of the flavor's names, e.g. `forever` or `camelot` for Forever, `classic` or `vanilla` for Classic Era, `bcc` or `tbc` for TBC ([flavors.md](../architecture/flavors.md#flavors)).
 - `noCompatibleRelease` shows as "No <flavor> build yet" in the app, using the flavor's display name.
 
@@ -89,7 +89,7 @@ flowchart LR
 
 - `LatestReleaseStore` is the **only owner** of verdicts and latest tags; callers pass a `CachePolicy` and never judge freshness themselves ([decision 0011](../decisions/0011-single-cache-owner.md)). How long each outcome is reused: [caching.md](../network/caching.md#lifetimes).
 - Concurrent lookups for the same repo and flavor share one request.
-- If github.com fails for a reason other than pushing back (429/403), `GitHubSource.apiSupport(for:flavor:)`, the API path, answers while quota is comfortable. It also looks past the latest release, and keeps a 10-call reserve.
+- If github.com fails for a reason other than pushing back (429/403), `GitHubReleaseResolver.apiSupport(for:flavor:)`, the API path, answers while quota is comfortable. It also looks past the latest release, and keeps a 10-call reserve.
 - `background: true` requests stay off constrained (Low Data Mode) networks.
 
 ## Retail build on Forever

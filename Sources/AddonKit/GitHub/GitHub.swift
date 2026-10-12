@@ -8,7 +8,7 @@ public struct GitHub: Sendable {
     /// github.com and raw.githubusercontent.com: pause and backoff.
     public let web: GitHubWebClient
     /// Resolves over the releases API, with zip inspection.
-    public let source: GitHubSource
+    public let source: GitHubReleaseResolver
     /// The single owner of verdicts, latest tags and available flavors.
     public let latest: LatestReleaseStore
     public let readmes: ReadmeFetcher
@@ -28,7 +28,7 @@ public struct GitHub: Sendable {
         let store = store ?? SupportCache(database: metadata)
         api = GitHubAPIClient(http: http, token: token, database: database, store: store, tokenProvider: tokenProvider)
         web = GitHubWebClient(http: http)
-        source = GitHubSource(api: api, web: web, cacheDirectory: cacheDirectory, archiveURL: archiveURL)
+        source = GitHubReleaseResolver(api: api, web: web, cacheDirectory: cacheDirectory, archiveURL: archiveURL)
         latest = LatestReleaseStore(store: store, web: web, api: api, source: source)
         readmes = ReadmeFetcher(web: web, api: api, database: metadata)
     }

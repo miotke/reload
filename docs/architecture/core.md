@@ -9,7 +9,7 @@ flowchart TB
     App[ForeverAddons.app] --> AM
     CLI[addonctl] --> AM
     AM[AddonManager<br/>actor]
-    AM --> Loc[InstallationLocator] & LR[LatestReleaseStore] & GH[GitHubSource] & RF[ReadmeFetcher]
+    AM --> Loc[InstallationLocator] & LR[LatestReleaseStore] & GH[GitHubReleaseResolver] & RF[ReadmeFetcher]
     AM --> DL[Downloader] & Inst[Installer] & Store[InstallStore] & Search[SearchCoordinator]
     LR --> GH & Web[GitHubWebClient] & SC
     GH --> Sel[ReleaseSelector] & Zip[ZipInspector] & API[GitHubAPIClient]
@@ -23,7 +23,7 @@ Search never goes through `LatestReleaseStore`: it reads stored verdicts only ([
 
 | Component | Doc |
 |---|---|
-| `LatestReleaseStore`, `GitHubSource`, `ReleaseSelector`, `ZipInspector` | [release-selection.md](../features/release-selection.md) |
+| `LatestReleaseStore`, `GitHubReleaseResolver`, `ReleaseSelector`, `ZipInspector` | [release-selection.md](../features/release-selection.md) |
 | `GitHubAPIClient`, `GitHubWebClient`, `ReadmeFetcher` | [github-endpoints.md](../network/github-endpoints.md), [caching.md](../network/caching.md) |
 | `Downloader`, `Installer`, `ZipExtractor` | [installing.md](../features/installing.md) |
 | `InstallStore`, `AppDirectories`, `MetadataDatabase` | [data-storage.md](data-storage.md) |
@@ -49,7 +49,7 @@ Sources/AddonKit/
 ├── Model/                   flavors, game families, refs, installs, releases, search models, errors
 ├── Parsing/                 TOC, release.json, .build.info (pure, no I/O)
 ├── Sources/                 Source/HTTPClient protocols
-├── GitHub/                  LatestReleaseStore, GitHubSource, API and web clients, ReadmeFetcher
+├── GitHub/                  LatestReleaseStore, GitHubReleaseResolver, API and web clients, ReadmeFetcher
 ├── Selection/               ReleaseSelector, ZipInspector, AdoptionIndex
 ├── Install/                 Downloader, ZipExtractor, Installer, InstallationLocator
 ├── Store/                   InstallStore, AppDirectories, MetadataDatabase
@@ -75,7 +75,7 @@ Sources/addonctl/            the CLI (docs/cli/)
 | Visible-row checks | `Sources/AddonKit/AddonManager+Visible.swift` |
 | Observation API: metadata changes, store folder, stored availability | `Sources/AddonKit/AddonManager+Observation.swift` |
 | Latest release, verdicts, available flavors, `CachePolicy`, quota-free resolve (the single cache owner) | `Sources/AddonKit/GitHub/LatestReleaseStore.swift` |
-| Refs parsed, resolve over the releases API, the selection loop, zip inspection | `Sources/AddonKit/GitHub/GitHubSource.swift` |
+| Refs parsed, resolve over the releases API, the selection loop, zip inspection | `Sources/AddonKit/GitHub/GitHubReleaseResolver.swift` |
 | REST API: token, ETags, persisted rate limit, quota reserve, release notes | `Sources/AddonKit/GitHub/GitHubAPIClient.swift` |
 | github.com and raw requests: no-follow `HEAD`, global pause, jittered backoff, Low Data Mode | `Sources/AddonKit/GitHub/GitHubWebClient.swift` |
 | README paths, ETag, "no README" cache, size cap | `Sources/AddonKit/GitHub/ReadmeFetcher.swift` |

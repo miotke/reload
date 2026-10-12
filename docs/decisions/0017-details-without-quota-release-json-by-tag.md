@@ -18,7 +18,7 @@ The network audit at `05ba0ff` ([budget.md](../network/budget.md)) found:
 
 ## Decision
 
-1. **Details are quota-free.** `details` reads support and the latest tag from `GitHubSource.latestRelease` (`.revalidateIfStale` when the details are stale, the stored answer otherwise) and never resolves. `AddonDetails.latestChangelog` is filled only from stored notes for the current tag.
+1. **Details are quota-free.** `details` reads support and the latest tag from `GitHubReleaseResolver.latestRelease` (`.revalidateIfStale` when the details are stale, the stored answer otherwise) and never resolves. `AddonDetails.latestChangelog` is filled only from stored notes for the current tag.
 2. **Release notes on demand.** `AddonManager.releaseNotes(for:in:)` → `(version, publishedAt, markdown)?`: stored notes for the tag, else one call to `releases/latest` (none if this process holds the release list), never a zip. Stored in `details` by tag. The inspector shows **Show Release Notes**; with a token and comfortable quota, `details` loads them itself.
 3. **`release.json` by tag in SQLite** (`release_json`, ~600 B each, no expiry). Update checks compare tags first and fetch the build only for a new tag.
 4. **Shared tags.** With `.revalidateIfStale`, `latestRelease` reuses a `repo_meta.latest_tag` under 1 h old, whatever flavor stored it; the verdict then comes from the stored `release.json`. A later installation's first seed checks 100 repos instead of 200.
@@ -26,7 +26,7 @@ The network audit at `05ba0ff` ([budget.md](../network/budget.md)) found:
 6. **API throttle.** `repo_meta.api_checked_at` / `api_checked_tag` record each API call. Bulk and background checks (⌘R, the 2-hour refresh, `outdated`, Update All) ask again only after 6 h, or when the free latest tag changed, reusing the last stored update state meanwhile. An explicit single-add-on action always asks.
 7. The README's stored "none" is trusted for 7 days; live search reads `search_cache` before the settle delay.
 
-Schema: migration 3 ([data-storage.md](../architecture/data-storage.md#migrations)). The single-owner rule of [decision 0011](0011-single-cache-owner.md) holds: `GitHubSource` owns tags, verdicts, `release.json` and API timing.
+Schema: migration 3 ([data-storage.md](../architecture/data-storage.md#migrations)). The single-owner rule of [decision 0011](0011-single-cache-owner.md) holds: `GitHubReleaseResolver` owns tags, verdicts, `release.json` and API timing.
 
 ## Alternatives considered
 
@@ -49,4 +49,4 @@ Schema: migration 3 ([data-storage.md](../architecture/data-storage.md#migration
 
 - [network/caching.md](../network/caching.md), [features/details-and-screenshots.md](../features/details-and-screenshots.md#release-notes), [features/refresh.md](../features/refresh.md)
 
-> **Update 2026-10-12:** the owner moved from `GitHubSource` to `LatestReleaseStore` (`Sources/AddonKit/GitHub/LatestReleaseStore.swift`) in the core refactor. The decision is unchanged.
+> **Update 2026-10-12:** the owner moved from `GitHubReleaseResolver` to `LatestReleaseStore` (`Sources/AddonKit/GitHub/LatestReleaseStore.swift`) in the core refactor. The decision is unchanged.

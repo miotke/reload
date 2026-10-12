@@ -10,7 +10,7 @@ Everything in AddonKit throws `AddonError`. Each case has a user-facing `errorDe
 
 | Case | Message (shortened) | Raised by | CLI exit code |
 |---|---|---|---|
-| `invalidReference(String)` | Not a valid add-on reference | `GitHubSource` ref handling, `import` | 2 |
+| `invalidReference(String)` | Not a valid add-on reference | `GitHubReleaseResolver` ref handling, `import` | 2 |
 | `notFound(AddonRef)` | … was not found | GitHub 404 on the release list | 1 |
 | `noCompatibleRelease(AddonRef, Flavor)` | … has no *<flavor>* build yet (e.g. Forever) | [release selection](../features/release-selection.md) | 1 |
 | `rateLimited(resetAt:)` | GitHub rate limit reached. Try again … | 403/429 with no quota left, `retry-after`, or a secondary rate limit | 4 |

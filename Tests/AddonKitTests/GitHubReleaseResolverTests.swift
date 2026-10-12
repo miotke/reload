@@ -26,7 +26,7 @@ private final class TestClock: Sendable {
     }
 }
 
-@Suite struct GitHubSourceParseTests {
+@Suite struct GitHubReleaseResolverParseTests {
     @Test(arguments: [
         ("BigWigsMods/BigWigs", "BigWigsMods/BigWigs"),
         ("  BigWigsMods/BigWigs/ ", "BigWigsMods/BigWigs"),
@@ -44,7 +44,7 @@ private final class TestClock: Sendable {
         ("o/r.lua_x", "o/r.lua_x"),
     ])
     func accepts(input: String, identifier: String) {
-        let ref = GitHubSource().parse(input)
+        let ref = GitHubReleaseResolver().parse(input)
         #expect(ref == AddonRef(source: .github, identifier: identifier))
     }
 
@@ -54,15 +54,15 @@ private final class TestClock: Sendable {
         "ftp://github.com/o/r", "https://github.com.evil.com/o/r", "owner/re po", "owner/repo?x",
     ])
     func rejects(input: String) {
-        #expect(GitHubSource().parse(input) == nil)
+        #expect(GitHubReleaseResolver().parse(input) == nil)
     }
 }
 
-@Suite struct GitHubSourceResolveTests {
+@Suite struct GitHubReleaseResolverResolveTests {
     @Test func sendsHeadersWithoutTokenOrETag() async throws {
         let stub = StubHTTPClient()
         stub.stub(api, body: try encode([]))
-        let source = GitHubSource(http: stub)
+        let source = GitHubReleaseResolver(http: stub)
         await #expect(throws: AddonError.noCompatibleRelease(ref, .forever)) {
             _ = try await source.resolve(ref, flavor: .forever, channel: .stable, etag: nil)
         }
@@ -78,7 +78,7 @@ private final class TestClock: Sendable {
     @Test func sendsTokenAndETagAnd304IsNotModified() async throws {
         let stub = StubHTTPClient()
         stub.stub(api, status: 304, headers: ["x-ratelimit-remaining": "4999", "x-ratelimit-reset": "1800000000"], body: Data())
-        let source = GitHubSource(http: stub, token: "ghp_secret")
+        let source = GitHubReleaseResolver(http: stub, token: "ghp_secret")
         let result = try await source.resolve(ref, flavor: .forever, channel: .stable, etag: #"W/"abc""#)
         guard case .notModified = result else {
             Issue.record("expected notModified, got \(result)")
@@ -96,14 +96,14 @@ private final class TestClock: Sendable {
         let stub = StubHTTPClient()
         stub.stub(api, status: 404, body: Data(#"{"message":"Not Found"}"#.utf8))
         await #expect(throws: AddonError.notFound(ref)) {
-            _ = try await GitHubSource(http: stub).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
+            _ = try await GitHubReleaseResolver(http: stub).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
         }
     }
 
     @Test func rateLimited403() async {
         let stub = StubHTTPClient()
         stub.stub(api, status: 403, headers: ["X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1791763105"], body: Data())
-        let source = GitHubSource(http: stub)
+        let source = GitHubReleaseResolver(http: stub)
         await #expect(throws: AddonError.rateLimited(resetAt: Date(timeIntervalSince1970: 1_791_763_105))) {
             _ = try await source.resolve(ref, flavor: .forever, channel: .stable, etag: nil)
         }
@@ -114,7 +114,7 @@ private final class TestClock: Sendable {
     @Test func rateLimited429RetryAfter() async {
         let stub = StubHTTPClient()
         stub.stub(api, status: 429, headers: ["Retry-After": "60"], body: Data())
-        let source = GitHubSource(http: stub)
+        let source = GitHubReleaseResolver(http: stub)
         let clock = TestClock()
         await source.api.setClock { clock.date }
         await #expect(throws: AddonError.rateLimited(resetAt: clock.date.addingTimeInterval(60))) {
@@ -126,7 +126,7 @@ private final class TestClock: Sendable {
         let stub = StubHTTPClient()
         stub.stub(api, status: 403, headers: ["x-ratelimit-remaining": "40"], body: Data())
         await #expect(throws: AddonError.http(status: 403, url: URL(string: api)!)) {
-            _ = try await GitHubSource(http: stub).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
+            _ = try await GitHubReleaseResolver(http: stub).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
         }
     }
 
@@ -138,7 +138,7 @@ private final class TestClock: Sendable {
                   body: try fixtureData("github/bigwigs-releases.json"))
         stub.stub("https://github.com/BigWigsMods/BigWigs/releases/download/v426.4/release.json",
                   body: try fixtureData("github/bigwigs-release-v426.4.json"))
-        let source = GitHubSource(http: stub)
+        let source = GitHubReleaseResolver(http: stub)
 
         let result = try await source.resolve(bigwigs, flavor: .forever, channel: .stable, etag: nil)
         guard case .release(let release, let etag) = result else {
@@ -183,7 +183,7 @@ private final class TestClock: Sendable {
                   body: try encode(ghReleaseJSON([("A-v2.zip", false, [("mainline", 120100)])])))
         stub.stub("https://github.com/o/r/releases/download/v1/release.json",
                   body: try encode(ghReleaseJSON([("A-v1-nolib.zip", true, [("forever", 16001)]), ("A-v1.zip", false, [("forever", 16001)])])))
-        let result = try await GitHubSource(http: stub).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
+        let result = try await GitHubReleaseResolver(http: stub).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
         guard case .release(let release, _) = result else {
             Issue.record("expected release")
             return
@@ -207,7 +207,7 @@ private final class TestClock: Sendable {
         stub.stub("https://github.com/o/r/releases/download/v2/A-v2.zip", body: try zipData(["A/A.toc": "## Interface: 120100"]))
         stub.stub("https://github.com/o/r/releases/download/v1/A-v1.zip", body: try zipData(["A/A.toc": "## Interface: 120100", "A/A_Camelot.toc": "## Interface: 16001"]))
         let cache = try makeTempDirectory()
-        let result = try await GitHubSource(http: stub, cacheDirectory: cache).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
+        let result = try await GitHubReleaseResolver(http: stub, cacheDirectory: cache).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
         guard case .release(let release, _) = result else {
             Issue.record("expected release")
             return
@@ -241,7 +241,7 @@ private final class TestClock: Sendable {
                       body: i == 1 ? try zipData(["A/A_Camelot.toc": "## Interface: 16001"]) : retail)
         }
         await #expect(throws: AddonError.noCompatibleRelease(ref, .forever)) {
-            _ = try await GitHubSource(http: stub).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
+            _ = try await GitHubReleaseResolver(http: stub).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
         }
         #expect(stub.requests.filter { $0.url?.lastPathComponent == "A.zip" }.count == 3)
     }
@@ -253,10 +253,10 @@ private final class TestClock: Sendable {
         stub.stub("https://github.com/o/r/releases/download/v1/release.json",
                   body: try encode(ghReleaseJSON([("A.zip", false, [("forever", 16001)])])))
         let cache = try makeTempDirectory()
-        _ = try await GitHubSource(http: stub, cacheDirectory: cache).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
+        _ = try await GitHubReleaseResolver(http: stub, cacheDirectory: cache).resolve(ref, flavor: .forever, channel: .stable, etag: nil)
         #expect(stub.requests.count == 2)
 
-        let fresh = GitHubSource(http: stub, cacheDirectory: cache)
+        let fresh = GitHubReleaseResolver(http: stub, cacheDirectory: cache)
         let result = try await fresh.resolve(ref, flavor: .forever, channel: .stable, etag: nil)
         guard case .release(let release, _) = result else {
             Issue.record("expected release")
@@ -268,46 +268,46 @@ private final class TestClock: Sendable {
     }
 }
 
-@Suite struct GitHubSourceAPISupportTests {
+@Suite struct GitHubReleaseResolverAPISupportTests {
     @Test func supported() async throws {
         let stub = StubHTTPClient()
         let releases = [ghRelease(1, tag: "v1.2", assets: [ghAsset(10, "A.zip", tag: "v1.2"), ghAsset(11, "release.json", tag: "v1.2")])]
         stub.stub(api, body: try encode(releases))
         stub.stub("https://github.com/o/r/releases/download/v1.2/release.json",
                   body: try encode(ghReleaseJSON([("A.zip", false, [("forever", 16001)])])))
-        #expect(await GitHubSource(http: stub).apiSupport(for: ref, flavor: .forever) == .supported(version: "v1.2"))
+        #expect(await GitHubReleaseResolver(http: stub).apiSupport(for: ref, flavor: .forever) == .supported(version: "v1.2"))
     }
 
     @Test func needsDownloadWithoutDownloadingZips() async throws {
         let stub = StubHTTPClient()
         stub.stub(api, body: try encode([ghRelease(1, tag: "v1", assets: [ghAsset(10, "A.zip")])]))
-        #expect(await GitHubSource(http: stub).apiSupport(for: ref, flavor: .forever) == .needsDownload)
+        #expect(await GitHubReleaseResolver(http: stub).apiSupport(for: ref, flavor: .forever) == .needsDownload)
         #expect(stub.requests.count == 1)
     }
 
     @Test func noReleasesAndUnsupported() async throws {
         let stub = StubHTTPClient()
         stub.stub(api, body: try encode([ghRelease(1, tag: "v1", draft: true, assets: [])]))
-        #expect(await GitHubSource(http: stub).apiSupport(for: ref, flavor: .forever) == .noReleases)
+        #expect(await GitHubReleaseResolver(http: stub).apiSupport(for: ref, flavor: .forever) == .noReleases)
 
         stub.stub(api, body: try encode([ghRelease(1, tag: "v1", assets: [ghAsset(10, "A.zip"), ghAsset(11, "release.json")])]))
         stub.stub("https://github.com/o/r/releases/download/v1/release.json",
                   body: try encode(ghReleaseJSON([("A.zip", false, [("mainline", 120100)])])))
-        #expect(await GitHubSource(http: stub).apiSupport(for: ref, flavor: .forever) == .unsupported)
+        #expect(await GitHubReleaseResolver(http: stub).apiSupport(for: ref, flavor: .forever) == .unsupported)
     }
 
     @Test func errorsAreUnknown() async {
         let stub = StubHTTPClient()
         stub.stub(api, status: 500, body: Data())
-        #expect(await GitHubSource(http: stub).apiSupport(for: ref, flavor: .forever) == .unknown)
-        #expect(await GitHubSource(http: stub).apiSupport(for: AddonRef(source: .tukui, identifier: "elvui"), flavor: .forever) == .unknown)
+        #expect(await GitHubReleaseResolver(http: stub).apiSupport(for: ref, flavor: .forever) == .unknown)
+        #expect(await GitHubReleaseResolver(http: stub).apiSupport(for: AddonRef(source: .tukui, identifier: "elvui"), flavor: .forever) == .unknown)
     }
 
     @Test func keepsQuotaReserve() async throws {
         let stub = StubHTTPClient()
         stub.stub(api, headers: ["x-ratelimit-remaining": "10", "x-ratelimit-reset": "1800003600"],
                   body: try encode([ghRelease(1, tag: "v1", assets: [ghAsset(10, "A.zip")])]))
-        let source = GitHubSource(http: stub)
+        let source = GitHubReleaseResolver(http: stub)
         let clock = TestClock()
         await source.api.setClock { clock.date }
         #expect(await source.apiSupport(for: ref, flavor: .forever) == .needsDownload)
@@ -328,7 +328,7 @@ private final class TestClock: Sendable {
         let stub = StubHTTPClient()
         stub.stub(api, headers: ["ETag": #""v1""#, "x-ratelimit-remaining": "50"],
                   body: try encode([ghRelease(1, tag: "v1", assets: [ghAsset(10, "A.zip")])]))
-        let source = GitHubSource(http: stub)
+        let source = GitHubReleaseResolver(http: stub)
         #expect(await source.apiSupport(for: ref, flavor: .forever) == .needsDownload)
         #expect(stub.requests.count == 1)
 
@@ -339,7 +339,7 @@ private final class TestClock: Sendable {
     }
 }
 
-@Suite struct GitHubSourceLiveTests {
+@Suite struct GitHubReleaseResolverLiveTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["ADDONS_LIVE_TESTS"] == "1"))
     func resolvesBigWigsForForever() async throws {
         let github = GitHub(token: ProcessInfo.processInfo.environment["GITHUB_TOKEN"])

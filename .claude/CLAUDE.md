@@ -90,7 +90,7 @@ Read `docs/performance/` before changing hot paths or UI lists.
 
   Define the contract (protocol methods and model types) on `main` first, then run both in parallel.
 - **UI must not break business logic, and vice versa:**
-  - The app talks to the core only through `AddonManaging` and the public model types: no casts to `AddonManager`, no direct database or `GitHubSource` access.
+  - The app talks to the core only through `AddonManaging` and the public model types: no casts to `AddonManager`, no direct database or `GitHubReleaseResolver` access.
   - Decisions (what's compatible, what to install, what to check, when to hit the network) live in the core. View models only map core results to display state.
   - The core has no UI concepts: no strings meant only for one screen, no SwiftUI or AppKit.
   - Each side's tests must pass without the other side changing.

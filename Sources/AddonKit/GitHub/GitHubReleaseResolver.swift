@@ -7,7 +7,7 @@ import Foundation
 /// Every request here goes to `api.github.com` (through `api`) and counts against the rate
 /// limit, apart from release.json and zip downloads. Support verdicts and latest tags aren't
 /// decided here: that's `LatestReleaseStore`, which falls back to `apiSupport`.
-public actor GitHubSource: Source {
+public actor GitHubReleaseResolver: Source {
     public nonisolated let id: SourceID = .github
 
     /// Releases without release.json whose zips are downloaded before giving up.

@@ -8,7 +8,7 @@ import Foundation
 ///   and no request is made while it says the quota is used up.
 /// - Keeps the last releases list per repo in memory, revalidated with its ETag.
 public actor GitHubAPIClient {
-    /// `GitHubSource.apiSupport` returns `.unknown` instead of calling the API when this few calls remain.
+    /// `GitHubReleaseResolver.apiSupport` returns `.unknown` instead of calling the API when this few calls remain.
     public static let supportReserve = 10
     /// Optional API calls (README fallback, release details) are only made above this many.
     public static let comfortableQuota = 30
@@ -155,7 +155,7 @@ public actor GitHubAPIClient {
 
     /// The releases list this process last received for `ref`, with its ETag.
     func cachedReleases(for ref: AddonRef) -> (etag: String, releases: [GitHubRelease])? {
-        releasesCache[GitHubSource.cacheKey(ref)]
+        releasesCache[GitHubReleaseResolver.cacheKey(ref)]
     }
 
     /// The last 10 releases of `ref`. A 200 with an ETag is kept in memory.
@@ -187,7 +187,7 @@ public actor GitHubAPIClient {
                 throw AddonError.http(status: response.statusCode, url: url)
             }
             let newETag = response.value(forHTTPHeaderField: "ETag")
-            if let newETag { remember(releases, etag: newETag, key: GitHubSource.cacheKey(ref)) }
+            if let newETag { remember(releases, etag: newETag, key: GitHubReleaseResolver.cacheKey(ref)) }
             return .releases(releases, etag: newETag)
         case 404:
             throw AddonError.notFound(ref)
@@ -212,7 +212,7 @@ public actor GitHubAPIClient {
     /// if the releases list this process already holds has that tag. Never downloads zips.
     /// Nil when the repo has no releases.
     public func releaseNotes(for ref: AddonRef, tag: String?) async throws -> (version: String, publishedAt: Date?, markdown: String)? {
-        let (owner, repo) = try GitHubSource.split(ref)
+        let (owner, repo) = try GitHubReleaseResolver.split(ref)
         if let tag, let cached = cachedReleases(for: ref)?.releases.first(where: { $0.tagName == tag }) {
             return (cached.tagName, cached.publishedAt ?? cached.createdAt, cached.body ?? "")
         }

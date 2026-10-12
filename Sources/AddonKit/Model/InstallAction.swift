@@ -95,9 +95,9 @@ extension AdoptionPreview {
 
 extension AddonRef {
     /// A GitHub ref from user input: `owner/repo`, `github:owner/repo` or a `github.com` URL,
-    /// the same rules as `lookup` (`GitHubSource.parse`).
+    /// the same rules as `lookup` (`GitHubReleaseResolver.parse`).
     public init?(parsing input: String) {
-        guard let ref = GitHubSource.parseRef(input) else { return nil }
+        guard let ref = GitHubReleaseResolver.parseRef(input) else { return nil }
         self = ref
     }
 
