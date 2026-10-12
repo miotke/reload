@@ -130,43 +130,43 @@ private final class TestClock: Sendable {
         }
     }
 
-    @Test func recordedBigWigsResolvesForever() async throws {
-        let bigwigs = AddonRef(source: .github, identifier: "BigWigsMods/BigWigs")
+    @Test func recordedBossWarningsResolvesForever() async throws {
+        let bossWarnings = AddonRef(source: .github, identifier: "example-boss/BossWarnings")
         let stub = StubHTTPClient()
-        stub.stub("https://api.github.com/repos/BigWigsMods/BigWigs/releases?per_page=10",
+        stub.stub("https://api.github.com/repos/example-boss/BossWarnings/releases?per_page=10",
                   headers: ["ETag": #"W/"c095ce""#, "x-ratelimit-remaining": "59", "x-ratelimit-reset": "1791763105"],
-                  body: try fixtureData("github/bigwigs-releases.json"))
-        stub.stub("https://github.com/BigWigsMods/BigWigs/releases/download/v426.4/release.json",
-                  body: try fixtureData("github/bigwigs-release-v426.4.json"))
+                  body: try fixtureData("github/bosswarnings-releases.json"))
+        stub.stub("https://github.com/example-boss/BossWarnings/releases/download/v426.4/release.json",
+                  body: try fixtureData("github/bosswarnings-release-v426.4.json"))
         let source = GitHubReleaseResolver(http: stub)
 
-        let result = try await source.resolve(bigwigs, flavor: .forever, channel: .stable, etag: nil)
+        let result = try await source.resolve(bossWarnings, flavor: .forever, channel: .stable, etag: nil)
         guard case .release(let release, let etag) = result else {
             Issue.record("expected release, got \(result)")
             return
         }
         #expect(etag == #"W/"c095ce""#)
-        #expect(release.ref == bigwigs)
-        #expect(release.name == "BigWigs")
+        #expect(release.ref == bossWarnings)
+        #expect(release.name == "BossWarnings")
         #expect(release.version == "v426.4")
-        #expect(release.releaseID == 409811185)
-        #expect(release.assetName == "BigWigs-v426.4.zip")
-        #expect(release.downloadURL.absoluteString == "https://github.com/BigWigsMods/BigWigs/releases/download/v426.4/BigWigs-v426.4.zip")
+        #expect(release.releaseID == 500000003)
+        #expect(release.assetName == "BossWarnings-v426.4.zip")
+        #expect(release.downloadURL.absoluteString == "https://github.com/example-boss/BossWarnings/releases/download/v426.4/BossWarnings-v426.4.zip")
         #expect(release.publishedAt == ISO8601DateFormatter().date(from: "2026-10-11T17:21:55Z"))
-        #expect(release.changelog?.contains("Bump version") == true)
+        #expect(release.changelog?.contains("Timers now pause during cutscenes") == true)
         #expect(!release.isPrerelease)
-        #expect(release.reasoning == ["release v426.4 (id 409811185)", "release.json → BigWigs-v426.4.zip (forever 16001)"])
+        #expect(release.reasoning == ["release v426.4 (id 500000003)", "release.json → BossWarnings-v426.4.zip (forever 16001)"])
         let downloadRequest = try #require(stub.requests.last)
         #expect(downloadRequest.value(forHTTPHeaderField: "Authorization") == nil)
 
         // Second resolve: the ETag is revalidated internally and release.json comes from memory.
-        stub.stub("https://api.github.com/repos/BigWigsMods/BigWigs/releases?per_page=10", status: 304, body: Data())
-        let again = try await source.resolve(bigwigs, flavor: .forever, channel: .stable, etag: nil)
+        stub.stub("https://api.github.com/repos/example-boss/BossWarnings/releases?per_page=10", status: 304, body: Data())
+        let again = try await source.resolve(bossWarnings, flavor: .forever, channel: .stable, etag: nil)
         guard case .release(let r2, let etag2) = again else {
             Issue.record("expected release, got \(again)")
             return
         }
-        #expect(r2.releaseID == 409811185)
+        #expect(r2.releaseID == 500000003)
         #expect(etag2 == #"W/"c095ce""#)
         #expect(stub.requests.count == 3)
         #expect(stub.requests.last?.value(forHTTPHeaderField: "If-None-Match") == #"W/"c095ce""#)

@@ -47,25 +47,25 @@ import Testing
 
     @Test func mapsAllColumns() throws {
         let csv = Self.header + #"""
-        64665886,BigWigs,BigWigsMods/BigWigs,https://github.com/BigWigsMods/BigWigs,"Boss mods, ""lightweight""",2026-09-12T17:28:34+00:00,"bcc,classic,mainline",2382,qv63LLKb,5199,True,2026-09-18T09:20:16.326671+00:00
+        900000011,BossWarnings,example-boss/BossWarnings,https://github.com/example-boss/BossWarnings,"Boss mods, ""lightweight""",2026-09-12T17:28:34+00:00,"bcc,classic,mainline",410001,bW3xQa7k,7001,True,2026-09-18T09:20:16.326671+00:00
         1,Empty,someone/Empty,https://github.com/someone/Empty,,,,,,,False,
 
         """#
         let entries = CatalogueCSV.entries(from: Data(csv.utf8))
         #expect(entries.count == 2)
         let bw = try #require(entries.first)
-        #expect(bw.id == "64665886")
-        #expect(bw.name == "BigWigs")
-        #expect(bw.fullName == "BigWigsMods/BigWigs")
-        #expect(bw.url == URL(string: "https://github.com/BigWigsMods/BigWigs"))
+        #expect(bw.id == "900000011")
+        #expect(bw.name == "BossWarnings")
+        #expect(bw.fullName == "example-boss/BossWarnings")
+        #expect(bw.url == URL(string: "https://github.com/example-boss/BossWarnings"))
         #expect(bw.description == "Boss mods, \"lightweight\"")
         #expect(bw.lastUpdated == Date(timeIntervalSince1970: 1_789_234_114))
         #expect(bw.flavors == ["bcc", "classic", "mainline"])
-        #expect(bw.curseID == 2382)
-        #expect(bw.wagoID == "qv63LLKb")
-        #expect(bw.wowiID == 5199)
+        #expect(bw.curseID == 410001)
+        #expect(bw.wagoID == "bW3xQa7k")
+        #expect(bw.wowiID == 7001)
         #expect(bw.hasReleaseJSON)
-        #expect(bw.ref == AddonRef(source: .github, identifier: "BigWigsMods/BigWigs"))
+        #expect(bw.ref == AddonRef(source: .github, identifier: "example-boss/BossWarnings"))
 
         let empty = entries[1]
         #expect(empty.description == nil)
@@ -108,12 +108,13 @@ import Testing
         #expect(CatalogueCSV.entries(from: Data("foo,bar\n1,2\n".utf8)).isEmpty)
     }
 
-    @Test func parsesRealFixture() throws {
+    @Test func parsesCatalogueFixture() throws {
         let entries = CatalogueCSV.entries(from: try fixtureData("search/addons.csv"))
-        #expect(entries.count == 200)
-        let bigwigs = try #require(entries.first { $0.fullName == "BigWigsMods/BigWigs" })
-        #expect(bigwigs.hasReleaseJSON)
-        #expect(bigwigs.lastUpdated != nil)
-        #expect(entries.contains { $0.description?.contains("\"WTS Boost\"") == true })
+        #expect(entries.count == 61)
+        let bossWarnings = try #require(entries.first { $0.fullName == "example-boss/BossWarnings" })
+        #expect(bossWarnings.hasReleaseJSON)
+        #expect(bossWarnings.lastUpdated != nil)
+        #expect(entries.contains { $0.description?.contains("\"Quick Sell\"") == true })
+        #expect(entries.contains { $0.description?.contains("für Ätherwind") == true })
     }
 }

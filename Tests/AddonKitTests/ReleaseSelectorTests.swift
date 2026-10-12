@@ -25,8 +25,8 @@ func ghReleaseJSON(_ entries: [(file: String, nolib: Bool, flavors: [(String, In
 }
 
 @Suite struct ReleaseSelectorTests {
-    @Test func recordedBigWigsPicksForeverZip() throws {
-        let releases = try GitHubRelease.decodeList(from: fixtureData("github/bigwigs-releases.json"))
+    @Test func recordedBossWarningsPicksForeverZip() throws {
+        let releases = try GitHubRelease.decodeList(from: fixtureData("github/bosswarnings-releases.json"))
         #expect(releases.count == 3)
         let first = try #require(releases.first)
         let jsonAsset = try #require(first.releaseJSONAsset)
@@ -39,15 +39,15 @@ func ghReleaseJSON(_ entries: [(file: String, nolib: Bool, flavors: [(String, In
         #expect(release.id == first.id)
         #expect(asset.id == jsonAsset.id)
 
-        let json = try ReleaseJSON(data: fixtureData("github/bigwigs-release-v426.4.json"))
+        let json = try ReleaseJSON(data: fixtureData("github/bosswarnings-release-v426.4.json"))
         let result = ReleaseSelector.select(releases, channel: .stable, flavor: .forever, releaseJSONs: [jsonAsset.id: json])
         guard case .selected(let r, let zip, let reasoning) = result else {
             Issue.record("expected selected, got \(result)")
             return
         }
         #expect(r.tagName == "v426.4")
-        #expect(zip.name == "BigWigs-v426.4.zip")
-        #expect(reasoning == ["release v426.4 (id 409811185)", "release.json → BigWigs-v426.4.zip (forever 16001)"])
+        #expect(zip.name == "BossWarnings-v426.4.zip")
+        #expect(reasoning == ["release v426.4 (id 500000003)", "release.json → BossWarnings-v426.4.zip (forever 16001)"])
     }
 
     @Test func dropsDraftsAndPrereleasesOnStable() {

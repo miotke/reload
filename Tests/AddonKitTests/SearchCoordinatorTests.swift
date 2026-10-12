@@ -48,30 +48,30 @@ private struct Harness {
 
 private func ids(_ results: [SearchResult]) -> [String] { results.map(\.id.identifier) }
 
-private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: Bool)] = [
-    ("funkydude/BugSack", 120, false, false),
-    ("x/BugSackSkin", 3, false, false),
+private let errorSackLive: [(fullName: String, stars: Int, archived: Bool, fork: Bool)] = [
+    ("example-dev/ErrorSack", 120, false, false),
+    ("x/ErrorSackSkin", 3, false, false),
     ("x/Old", 3, true, false),
-    ("y/BugSackFork", 1, false, true),
-    ("z/BugSackExtras", 2, false, false),
-    ("w/BugSackLDB", 1, false, false),
-    ("v/BugSackTheme", 1, false, false),
+    ("y/ErrorSackFork", 1, false, true),
+    ("z/ErrorSackExtras", 2, false, false),
+    ("w/ErrorSackLDB", 1, false, false),
+    ("v/ErrorSackTheme", 1, false, false),
 ]
 
 @Suite struct SearchCoordinatorTests {
-    let bigWigsRef = AddonRef(source: .github, identifier: "BigWigsMods/BigWigs")
+    let bossWarningsRef = AddonRef(source: .github, identifier: "example-boss/BossWarnings")
 
     @Test func installedFirstThenCatalogueMergedByRef() async throws {
         let h = try await Harness(withGitHub: false)
         let installed: [AddonStatus] = [
-            .managed(sampleInstalledAddon("BigWigsMods/BigWigs", name: "BigWigs", folders: ["BigWigs"]), missingFolders: []),
-            .managed(sampleInstalledAddon("someone/WigsHelper", name: "WigsHelper", folders: ["WigsHelper"]), missingFolders: []),
+            .managed(sampleInstalledAddon("example-boss/BossWarnings", name: "BossWarnings", folders: ["BossWarnings"]), missingFolders: []),
+            .managed(sampleInstalledAddon("someone/AlertHelper", name: "AlertHelper", folders: ["AlertHelper"]), missingFolders: []),
         ]
-        let emissions = await h.collect(SearchQuery(text: "bigwigs", flavor: .forever), installed: installed)
+        let emissions = await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever), installed: installed)
         let first = try #require(emissions.first)
-        #expect(first.first?.id == bigWigsRef)
+        #expect(first.first?.id == bossWarningsRef)
         #expect(first.first?.origin == [.installed, .catalogue])
-        #expect(first.first?.installed?.name == "BigWigs")
+        #expect(first.first?.installed?.name == "BossWarnings")
         #expect(first.first?.summary != nil)
         #expect(Set(ids(first)).count == first.count, "results are deduped")
     }
@@ -79,36 +79,36 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
     /// "Last updated" is the latest release, never when the add-on was installed.
     @Test func lastUpdatedIsTheLatestReleaseNotTheInstall() async throws {
         let h = try await Harness(withGitHub: false)
-        var addon = sampleInstalledAddon("BigWigsMods/BigWigs", name: "BigWigs", folders: ["BigWigs"])
+        var addon = sampleInstalledAddon("example-boss/BossWarnings", name: "BossWarnings", folders: ["BossWarnings"])
         addon.releaseID = -42 // installed without the API: publishedAt is the install time
         addon.publishedAt = .now
         let catalogueDate = try Date("2026-09-12T17:28:34Z", strategy: .iso8601)
-        var first = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever), installed: [.managed(addon, missingFolders: [])]).first)
-        #expect(first.first { $0.id == bigWigsRef }?.lastUpdated == catalogueDate)
+        var first = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever), installed: [.managed(addon, missingFolders: [])]).first)
+        #expect(first.first { $0.id == bossWarningsRef }?.lastUpdated == catalogueDate)
 
         let released = Date(timeIntervalSince1970: 1_790_000_000)
-        await h.cache.setLatestTag("v400", publishedAt: released, for: bigWigsRef)
-        first = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever), installed: [.managed(addon, missingFolders: [])]).first)
-        #expect(first.first { $0.id == bigWigsRef }?.lastUpdated == released)
+        await h.cache.setLatestTag("v400", publishedAt: released, for: bossWarningsRef)
+        first = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever), installed: [.managed(addon, missingFolders: [])]).first)
+        #expect(first.first { $0.id == bossWarningsRef }?.lastUpdated == released)
     }
 
     @Test func catalogueResultsForInstalledAddonsAreMarked() async throws {
         let h = try await Harness(withGitHub: false)
         let installed: [AddonStatus] = [
-            .managed(sampleInstalledAddon("funkydude/BugSack", name: "Bug Sack Renamed", folders: ["BugSack"]), missingFolders: []),
+            .managed(sampleInstalledAddon("example-dev/ErrorSack", name: "Error Sack Renamed", folders: ["ErrorSack"]), missingFolders: []),
         ]
         // The query doesn't match the installed record, but the catalogue hit must still carry `installed`.
         let emissions = await h.collect(SearchQuery(text: "collected errors", flavor: .forever), installed: installed)
-        let bugsack = try #require(emissions.first?.first { $0.id.identifier == "funkydude/BugSack" })
-        #expect(bugsack.installed != nil)
-        #expect(bugsack.origin.contains(.installed))
+        let errorSack = try #require(emissions.first?.first { $0.id.identifier == "example-dev/ErrorSack" })
+        #expect(errorSack.installed != nil)
+        #expect(errorSack.origin.contains(.installed))
     }
 
     @Test func searchIsLocalOnceTheCatalogueIsStored() async throws {
         let h = try await Harness()
-        _ = await h.collect(SearchQuery(text: "bigwigs", flavor: .forever))
+        _ = await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever))
         #expect(h.http.requests.count == 1, "only the first-ever catalogue download")
-        let emissions = await h.collect(SearchQuery(text: "bigwigs", flavor: .forever))
+        let emissions = await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever))
         #expect(emissions.count == 1)
         #expect(h.http.requests.count == 1)
         #expect(emissions[0].allSatisfy { $0.support != .checking })
@@ -116,9 +116,9 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
 
     @Test func storedVerdictsAreApplied() async throws {
         let h = try await Harness(withGitHub: false)
-        await h.cache.set(.supported(version: "v1"), for: bigWigsRef, flavor: .forever)
-        let first = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever)).first)
-        #expect(first.first { $0.id == bigWigsRef }?.support == .supported(version: "v1"))
+        await h.cache.set(.supported(version: "v1"), for: bossWarningsRef, flavor: .forever)
+        let first = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever)).first)
+        #expect(first.first { $0.id == bossWarningsRef }?.support == .supported(version: "v1"))
     }
 
     @Test func catalogueRowsWithoutReleaseJSONNeedADownload() async throws {
@@ -134,69 +134,69 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
 
     @Test func storedSupportBreaksTiesInRanking() async throws {
         let h = try await Harness(withGitHub: false)
-        let classic = AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Classic")
+        let classic = AddonRef(source: .github, identifier: "example-boss/BossWarnings_Classic")
         await h.cache.set(.supported(version: "v1"), for: classic, flavor: .forever)
-        let first = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever)).first)
-        // BigWigs is the exact-name tier; among prefix matches the supported one leads.
-        #expect(Array(ids(first).prefix(2)) == ["BigWigsMods/BigWigs", "BigWigsMods/BigWigs_Classic"])
+        let first = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever)).first)
+        // BossWarnings is the exact-name tier; among prefix matches the supported one leads.
+        #expect(Array(ids(first).prefix(2)) == ["example-boss/BossWarnings", "example-boss/BossWarnings_Classic"])
     }
 
-    /// BigWigs_Classic ships classic builds only, BigWigs a Retail build only.
+    /// BossWarnings_Classic ships classic builds only, BossWarnings a Retail build only.
     private func storeFamilies(_ h: Harness) async {
         let now = Date()
-        await h.cache.set([SupportRecord(ref: AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Classic"), status: .unsupported,
+        await h.cache.set([SupportRecord(ref: AddonRef(source: .github, identifier: "example-boss/BossWarnings_Classic"), status: .unsupported,
                                          tag: "v1", checkedAt: now, availableFlavors: [.vanilla, .mists])], flavor: .forever)
-        await h.cache.set([SupportRecord(ref: bigWigsRef, status: .unsupported, tag: "v1", checkedAt: now, availableFlavors: [.mainline])], flavor: .forever)
-        await h.cache.set(.noReleases, for: AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Legion"), flavor: .forever)
-        await h.cache.set(.needsDownload, for: AddonRef(source: .github, identifier: "BigWigsMods/BigWigs_Voice"), flavor: .forever)
+        await h.cache.set([SupportRecord(ref: bossWarningsRef, status: .unsupported, tag: "v1", checkedAt: now, availableFlavors: [.mainline])], flavor: .forever)
+        await h.cache.set(.noReleases, for: AddonRef(source: .github, identifier: "example-boss/BossWarnings_Legion"), flavor: .forever)
+        await h.cache.set(.needsDownload, for: AddonRef(source: .github, identifier: "example-boss/BossWarnings_Voice"), flavor: .forever)
     }
 
     @Test func hideIncompatibleOnForeverHidesClassicOnly() async throws {
         let h = try await Harness(withGitHub: false)
         await storeFamilies(h)
-        let shown = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever, hideIncompatible: true)).last)
-        #expect(!ids(shown).contains("BigWigsMods/BigWigs_Classic"))
-        #expect(!ids(shown).contains("BigWigsMods/BigWigs_Legion"))
-        #expect(ids(shown).contains("BigWigsMods/BigWigs_Voice"), "unknown families stay")
-        #expect(ids(shown).contains("BigWigsMods/BigWigs"), "a Retail-only build may work on Forever")
-        #expect(shown.first { $0.id == bigWigsRef }?.families == [.retail])
+        let shown = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever, hideIncompatible: true)).last)
+        #expect(!ids(shown).contains("example-boss/BossWarnings_Classic"))
+        #expect(!ids(shown).contains("example-boss/BossWarnings_Legion"))
+        #expect(ids(shown).contains("example-boss/BossWarnings_Voice"), "unknown families stay")
+        #expect(ids(shown).contains("example-boss/BossWarnings"), "a Retail-only build may work on Forever")
+        #expect(shown.first { $0.id == bossWarningsRef }?.families == [.retail])
 
-        let all = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever, hideIncompatible: false)).last)
-        #expect(all.first { $0.id.identifier == "BigWigsMods/BigWigs_Classic" }?.families == [.classic])
-        #expect(all.first { $0.id.identifier == "BigWigsMods/BigWigs_Legion" }?.support == .noReleases)
-        #expect(all.first { $0.id.identifier == "BigWigsMods/BigWigs_Voice" }?.availableFlavors == nil)
+        let all = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever, hideIncompatible: false)).last)
+        #expect(all.first { $0.id.identifier == "example-boss/BossWarnings_Classic" }?.families == [.classic])
+        #expect(all.first { $0.id.identifier == "example-boss/BossWarnings_Legion" }?.support == .noReleases)
+        #expect(all.first { $0.id.identifier == "example-boss/BossWarnings_Voice" }?.availableFlavors == nil)
     }
 
     @Test func hideIncompatibleFollowsTheInstallationsFamily() async throws {
         let h = try await Harness(withGitHub: false)
         await storeFamilies(h)
-        let retail = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .mainline)).last)
-        #expect(!ids(retail).contains("BigWigsMods/BigWigs_Classic"))
-        #expect(ids(retail).contains("BigWigsMods/BigWigs"))
-        let mists = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .mists)).last)
-        #expect(ids(mists).contains("BigWigsMods/BigWigs_Classic"))
-        #expect(!ids(mists).contains("BigWigsMods/BigWigs"))
-        #expect(ids(mists).contains("BigWigsMods/BigWigs_Voice"))
+        let retail = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .mainline)).last)
+        #expect(!ids(retail).contains("example-boss/BossWarnings_Classic"))
+        #expect(ids(retail).contains("example-boss/BossWarnings"))
+        let mists = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .mists)).last)
+        #expect(ids(mists).contains("example-boss/BossWarnings_Classic"))
+        #expect(!ids(mists).contains("example-boss/BossWarnings"))
+        #expect(ids(mists).contains("example-boss/BossWarnings_Voice"))
     }
 
     @Test func hideIncompatibleKeepsInstalledEvenIfUnsupported() async throws {
         let h = try await Harness(withGitHub: false)
-        await h.cache.set(.unsupported, for: bigWigsRef, flavor: .forever)
+        await h.cache.set(.unsupported, for: bossWarningsRef, flavor: .forever)
         let installed: [AddonStatus] = [
-            .managed(sampleInstalledAddon("BigWigsMods/BigWigs", name: "BigWigs", folders: ["BigWigs"]), missingFolders: []),
+            .managed(sampleInstalledAddon("example-boss/BossWarnings", name: "BossWarnings", folders: ["BossWarnings"]), missingFolders: []),
         ]
-        await h.cache.setAvailableFlavors([.vanilla], tag: "v1", source: .releaseJSON, for: bigWigsRef)
-        let first = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever), installed: installed).first)
-        #expect(first.first?.id == bigWigsRef)
+        await h.cache.setAvailableFlavors([.vanilla], tag: "v1", source: .releaseJSON, for: bossWarningsRef)
+        let first = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever), installed: installed).first)
+        #expect(first.first?.id == bossWarningsRef)
     }
 
     @Test func directReferenceComesFirstAndMergesWithCatalogue() async throws {
         let h = try await Harness()
-        let first = try #require(await h.collect(SearchQuery(text: "https://github.com/BigWigsMods/BigWigs", flavor: .forever)).first)
+        let first = try #require(await h.collect(SearchQuery(text: "https://github.com/example-boss/BossWarnings", flavor: .forever)).first)
         let top = try #require(first.first)
-        #expect(top.id == bigWigsRef)
+        #expect(top.id == bossWarningsRef)
         #expect(top.origin.isSuperset(of: [.direct, .catalogue]))
-        #expect(top.name == "BigWigs")
+        #expect(top.name == "BossWarnings")
         #expect(top.summary != nil)
         #expect(h.githubRequests.isEmpty, "direct references don't trigger live search")
     }
@@ -213,12 +213,12 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
 
     @Test func fewLocalMatchesAskGitHubOnceAndRemember() async throws {
         let h = try await Harness()
-        h.stubGitHub("bugsack", body: githubSearchBody(bugsackLive))
-        let emissions = await h.collect(SearchQuery(text: "bugsack", flavor: .forever))
-        #expect(ids(try #require(emissions.first)) == ["funkydude/BugSack"])
+        h.stubGitHub("errorsack", body: githubSearchBody(errorSackLive))
+        let emissions = await h.collect(SearchQuery(text: "errorsack", flavor: .forever))
+        #expect(ids(try #require(emissions.first)) == ["example-dev/ErrorSack"])
 
         let last = try #require(emissions.last)
-        #expect(ids(last) == ["funkydude/BugSack", "x/BugSackSkin", "z/BugSackExtras", "w/BugSackLDB", "v/BugSackTheme"])
+        #expect(ids(last) == ["example-dev/ErrorSack", "x/ErrorSackSkin", "z/ErrorSackExtras", "w/ErrorSackLDB", "v/ErrorSackTheme"])
         #expect(last[0].origin == [.catalogue, .github])
         #expect(last[0].stars == 120)
         #expect(last.dropFirst().allSatisfy { $0.support == .unknown })
@@ -226,8 +226,8 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
         #expect(h.githubRequests.count == 1)
 
         // The live repos are now in the local catalogue: no request the second time.
-        let again = try #require(await h.collect(SearchQuery(text: "BugSack ", flavor: .forever)).last)
-        #expect(Set(ids(again)).isSuperset(of: ["x/BugSackSkin", "v/BugSackTheme"]))
+        let again = try #require(await h.collect(SearchQuery(text: "ErrorSack ", flavor: .forever)).last)
+        #expect(Set(ids(again)).isSuperset(of: ["x/ErrorSackSkin", "v/ErrorSackTheme"]))
         #expect(h.githubRequests.count == 1)
     }
 
@@ -247,13 +247,13 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
 
     @Test func updatesReportTheGitHubFallback() async throws {
         let h = try await Harness()
-        h.stubGitHub("bugsack", body: githubSearchBody(bugsackLive))
-        let updates = await h.updates(SearchQuery(text: "bugsack", flavor: .forever))
+        h.stubGitHub("errorsack", body: githubSearchBody(errorSackLive))
+        let updates = await h.updates(SearchQuery(text: "errorsack", flavor: .forever))
         #expect(updates.map(\.isSearchingGitHub) == [false, true, false])
         #expect(updates.map(\.isComplete) == [false, false, true])
         #expect(updates.last?.results.count == 5)
 
-        let local = await h.updates(SearchQuery(text: "bigwigs", flavor: .forever))
+        let local = await h.updates(SearchQuery(text: "bosswarnings", flavor: .forever))
         #expect(local.count == 1)
         #expect(local[0].isComplete && !local[0].isSearchingGitHub)
     }
@@ -262,12 +262,12 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
     /// GitHub search.
     @Test func aStoredLiveAnswerSkipsTheDelay() async throws {
         let h = try await Harness()
-        h.stubGitHub("bugsack", body: githubSearchBody(bugsackLive))
-        _ = await h.updates(SearchQuery(text: "bugsack", flavor: .forever))
+        h.stubGitHub("errorsack", body: githubSearchBody(errorSackLive))
+        _ = await h.updates(SearchQuery(text: "errorsack", flavor: .forever))
         await h.coordinator.setLiveSearchDelay(.seconds(30))
         let clock = ContinuousClock()
         let start = clock.now
-        let updates = await h.updates(SearchQuery(text: "bugsack", flavor: .forever))
+        let updates = await h.updates(SearchQuery(text: "errorsack", flavor: .forever))
         #expect(clock.now - start < .seconds(5), "no 30 s delay")
         #expect(updates.allSatisfy { !$0.isSearchingGitHub })
         #expect(updates.last?.isComplete == true)
@@ -277,10 +277,10 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
 
     @Test func cancellingDuringTheDelaySkipsGitHub() async throws {
         let h = try await Harness(liveDelay: .seconds(30))
-        h.stubGitHub("bugsack", body: githubSearchBody(bugsackLive))
+        h.stubGitHub("errorsack", body: githubSearchBody(errorSackLive))
         let coordinator = h.coordinator
         let consumer = Task {
-            for await _ in coordinator.search(SearchQuery(text: "bugsack", flavor: .forever), installed: []) { break }
+            for await _ in coordinator.search(SearchQuery(text: "errorsack", flavor: .forever), installed: []) { break }
         }
         _ = await consumer.value
         try await Task.sleep(for: .milliseconds(50))
@@ -289,21 +289,21 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
 
     @Test func manyLocalMatchesSkipGitHubUnlessAsked() async throws {
         let h = try await Harness()
-        _ = await h.collect(SearchQuery(text: "bigwigs", flavor: .forever))
+        _ = await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever))
         #expect(h.githubRequests.isEmpty)
 
-        h.stubGitHub("bigwigs", body: githubSearchBody(["BigWigsMods/BigWigs", "a/1", "a/2", "a/3", "a/4"]))
-        let last = try #require(await h.collect(SearchQuery(text: "bigwigs", flavor: .forever, includeLiveGitHub: true)).last)
+        h.stubGitHub("bosswarnings", body: githubSearchBody(["example-boss/BossWarnings", "a/1", "a/2", "a/3", "a/4"]))
+        let last = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever, includeLiveGitHub: true)).last)
         #expect(h.githubRequests.count == 1)
-        #expect(last.filter { $0.id == bigWigsRef }.count == 1)
+        #expect(last.filter { $0.id == bossWarningsRef }.count == 1)
         #expect(ids(last).contains("a/4"))
     }
 
     @Test func rateLimitIsQuietSharedAndRespected() async throws {
         let h = try await Harness()
-        h.stubGitHub("bugsack", status: 403, headers: ["X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "\(Int(Date().timeIntervalSince1970) + 600)"], body: Data())
-        let emissions = await h.collect(SearchQuery(text: "bugsack", flavor: .forever))
-        #expect(ids(try #require(emissions.last)) == ["funkydude/BugSack"])
+        h.stubGitHub("errorsack", status: 403, headers: ["X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "\(Int(Date().timeIntervalSince1970) + 600)"], body: Data())
+        let emissions = await h.collect(SearchQuery(text: "errorsack", flavor: .forever))
+        #expect(ids(try #require(emissions.last)) == ["example-dev/ErrorSack"])
         #expect(h.githubRequests.count == 1)
         #expect(await h.database.rateLimit("search")?.remaining == 0)
 
@@ -326,32 +326,32 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
             supportCache: SupportCache(database: database)
         )
         let installed: [AddonStatus] = [
-            .managed(sampleInstalledAddon("BigWigsMods/BigWigs", name: "BigWigs", folders: ["BigWigs"]), missingFolders: []),
+            .managed(sampleInstalledAddon("example-boss/BossWarnings", name: "BossWarnings", folders: ["BossWarnings"]), missingFolders: []),
         ]
         var last: [SearchResult] = []
-        for await results in coordinator.search(SearchQuery(text: "wigs", flavor: .forever), installed: installed) { last = results }
-        #expect(ids(last) == ["BigWigsMods/BigWigs"])
+        for await results in coordinator.search(SearchQuery(text: "warnings", flavor: .forever), installed: installed) { last = results }
+        #expect(ids(last) == ["example-boss/BossWarnings"])
     }
 
     @Test func browse() async throws {
         let h = try await Harness()
         _ = try await h.catalogue.entries()
-        await h.cache.set(.supported(version: "1"), for: bigWigsRef, flavor: .forever)
-        await h.cache.set(.supported(version: "2"), for: AddonRef(source: .github, identifier: "funkydude/BugSack"), flavor: .forever)
+        await h.cache.set(.supported(version: "1"), for: bossWarningsRef, flavor: .forever)
+        await h.cache.set(.supported(version: "2"), for: AddonRef(source: .github, identifier: "example-dev/ErrorSack"), flavor: .forever)
         // Classic-only, so hidden on Forever; an unsupported verdict alone no longer hides a row.
-        await h.cache.set([SupportRecord(ref: AddonRef(source: .github, identifier: "Cidan/BetterBags"), status: .unsupported,
+        await h.cache.set([SupportRecord(ref: AddonRef(source: .github, identifier: "example-bags/TidyBags"), status: .unsupported,
                                          tag: "v1", checkedAt: Date(), availableFlavors: [.vanilla])], flavor: .forever)
         let browse = await h.coordinator.browse(flavor: .forever)
 
-        #expect(Set(ids(browse.popular)) == ["BigWigsMods/BigWigs", "funkydude/BugSack"])
+        #expect(Set(ids(browse.popular)) == ["example-boss/BossWarnings", "example-dev/ErrorSack"])
         #expect(browse.popular.allSatisfy { if case .supported = $0.support { true } else { false } })
-        // No star data yet: newest first. BugSack (2026-09-18) is newer than BigWigs (2026-09-12).
-        #expect(ids(browse.popular) == ["funkydude/BugSack", "BigWigsMods/BigWigs"])
+        // No star data yet: newest first. ErrorSack (2026-09-18) is newer than BossWarnings (2026-09-12).
+        #expect(ids(browse.popular) == ["example-dev/ErrorSack", "example-boss/BossWarnings"])
 
         #expect(browse.recent.count > 20 && browse.recent.count <= SearchCoordinator.browseLimit)
         let dates = browse.recent.compactMap(\.lastUpdated)
         #expect(dates == dates.sorted(by: >))
-        #expect(!ids(browse.recent).contains("Cidan/BetterBags"))
+        #expect(!ids(browse.recent).contains("example-bags/TidyBags"))
         #expect(h.githubRequests.isEmpty)
 
         #expect(browse.categories.map(\.title) == ["Boss mods", "Bags", "UI", "Quests", "Maps", "Auction", "Combat"])
@@ -359,23 +359,23 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
 
     @Test func browseSortsPopularByStarsOnceKnown() async throws {
         let h = try await Harness()
-        h.stubGitHub("zzqx", body: githubSearchBody([("BigWigsMods/BigWigs", 900, false, false), ("funkydude/BugSack", 50, false, false)]))
+        h.stubGitHub("zzqx", body: githubSearchBody([("example-boss/BossWarnings", 900, false, false), ("example-dev/ErrorSack", 50, false, false)]))
         _ = await h.collect(SearchQuery(text: "zzqx", flavor: .forever))
-        await h.cache.set(.supported(version: "1"), for: bigWigsRef, flavor: .forever)
-        await h.cache.set(.supported(version: "2"), for: AddonRef(source: .github, identifier: "funkydude/BugSack"), flavor: .forever)
+        await h.cache.set(.supported(version: "1"), for: bossWarningsRef, flavor: .forever)
+        await h.cache.set(.supported(version: "2"), for: AddonRef(source: .github, identifier: "example-dev/ErrorSack"), flavor: .forever)
         let popular = await h.coordinator.browse(flavor: .forever).popular
-        #expect(ids(popular) == ["BigWigsMods/BigWigs", "funkydude/BugSack"])
+        #expect(ids(popular) == ["example-boss/BossWarnings", "example-dev/ErrorSack"])
         #expect(popular.first?.stars == 900)
     }
 }
 
 @Suite struct DirectReferenceTests {
     @Test(arguments: [
-        ("BigWigsMods/BigWigs", "BigWigsMods/BigWigs"),
-        ("  funkydude/BugSack ", "funkydude/BugSack"),
-        ("https://github.com/funkydude/BugSack", "funkydude/BugSack"),
-        ("https://github.com/funkydude/BugSack.git", "funkydude/BugSack"),
-        ("https://github.com/funkydude/BugSack/releases/tag/v1", "funkydude/BugSack"),
+        ("example-boss/BossWarnings", "example-boss/BossWarnings"),
+        ("  example-dev/ErrorSack ", "example-dev/ErrorSack"),
+        ("https://github.com/example-dev/ErrorSack", "example-dev/ErrorSack"),
+        ("https://github.com/example-dev/ErrorSack.git", "example-dev/ErrorSack"),
+        ("https://github.com/example-dev/ErrorSack/releases/tag/v1", "example-dev/ErrorSack"),
         ("github.com/a-b/c.d_e", "a-b/c.d_e"),
         ("http://www.github.com/Owner/Repo/", "Owner/Repo"),
     ])
@@ -383,7 +383,7 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
         #expect(SearchCoordinator.directReference(input) == AddonRef(source: .github, identifier: expected))
     }
 
-    @Test(arguments: ["bigwigs", "boss mods", "a/b/c", "/repo", "owner/", "https://gitlab.com/a/b", "https://github.com/onlyowner", "own er/repo", "-bad/repo"])
+    @Test(arguments: ["bosswarnings", "boss mods", "a/b/c", "/repo", "owner/", "https://gitlab.com/a/b", "https://github.com/onlyowner", "own er/repo", "-bad/repo"])
     func rejects(input: String) {
         #expect(SearchCoordinator.directReference(input) == nil)
     }
