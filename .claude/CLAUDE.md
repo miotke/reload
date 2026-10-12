@@ -18,6 +18,13 @@ Native macOS add-on manager for World of Warcraft: Forever. A SwiftUI app (`App/
 - **After merging app changes into `main`, record the decisions:**
   - architecture, network and performance choices as `docs/decisions/NNNN-short-title.md` (context, decision, alternatives, consequences)
   - updated numbers in `docs/network/` and `docs/performance/`
+- **Before every commit, run `swift scripts/check-docs.swift` and make it pass.** It checks:
+  - every doc link and heading anchor resolves
+  - every doc is in the index and at most 150 lines
+  - doc paths in source comments exist
+  - the "Where things live" tables name only real paths and cover every Swift file under `Sources/` and `App/ForeverAddons/`
+
+  A failing check means the docs are out of date: fix the docs, not the check.
 - No READMEs in subfolders, except the decision index `docs/decisions/README.md`. The root `README.md` is the GitHub landing page and links into `docs/`.
 
 ## Build & test
