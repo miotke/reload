@@ -13,13 +13,13 @@ Every `addonctl` command, how `<ref>` arguments are resolved, and how the instal
 
 | Command | Aliases | What it does |
 |---|---|---|
-| `search <query…>` | `s` | Same local-first search as the Browse tab; see [search](#search). Prints NAME / REPO / *<FLAVOR>* / UPDATED (e.g. `FOREVER`, the installation's display name). `--github` adds a deeper live GitHub search, `--all` keeps add-ons verified unsupported, `--limit N` (default 20) |
-| `info <ref>` | `show` | Description, website, support for the installation's flavor, latest version, installed version, update status, owned folders, rollback target; see [info](#info). `--changelog` adds release notes, `--prerelease` looks at prereleases |
-| `install <ref…>` | `i`, `add` | Installs one after another with a progress row each. `--prerelease`, `--force` (overwrite unmanaged folders), `--version <tag>` (pins it; see [limits](config.md#limits)). Re-installing keeps the add-on's channel unless `--prerelease` is given; new installs use `default-channel` |
+| `search <query…>` | `s` | Same local-first search as the Browse tab; see [search](#search). Prints NAME / REPO / GAMES / UPDATED ([GAMES](output.md#terminal-output): `R F C`). `--github` adds a deeper live GitHub search, `--all` keeps add-ons the [hide-incompatible rule](../features/search.md#hide-incompatible) drops (classic-only ones on Forever), `--limit N` (default 20) |
+| `info <ref>` | `show` | Description, website, the games it ships builds for with a sentence on what that means here, latest version, installed version, update status, owned folders, rollback target; see [info](#info). `--changelog` adds release notes, `--prerelease` looks at prereleases |
+| `install <ref…>` | `i`, `add` | Installs one after another with a progress row each. `--prerelease`, `--force` (overwrite unmanaged folders), `--version <tag>` (pins it; see [limits](config.md#limits)), `--retail-build` / `--allow-family-fallback` (Forever only: install the Retail build of an add-on with no Forever build; [release-selection.md](../features/release-selection.md#retail-build-on-forever)). Re-installing keeps the add-on's channel unless `--prerelease` is given; new installs use `default-channel` |
 | `remove <ref…>` | `rm`, `uninstall` | Moves folders to the Trash after confirmation. `--unmanaged <folder…>` moves unmanaged folders instead; it refuses `Blizzard_*`, managed folders and anything outside `AddOns/` before moving any ([installing.md](../features/installing.md#removing-unmanaged-folders)) |
 | `update [<ref…>]` | `upgrade`, `up` | Checks, then installs only what has an update; see [update](#update). Pinned add-ons are listed as skipped. `--dry-run` shows the `outdated` table and what would be skipped |
 | `outdated` | | NAME / INSTALLED / LATEST / CHANNEL / PUBLISHED for available updates. Always revalidates. Exit code 10 if any |
-| `list` | `ls` | Managed add-ons with version, repo, channel and state (pinned, missing folders). `--unmanaged` adds unmanaged folders: the title and version of the TOC the game loads, the suggested ref, and in STATE "not loaded by Forever" when it isn't plus the suggestion's reason ("Matched CurseForge project 334372") or "N candidates". Grouped folders are one row, `Questie (Questie, QuestieDB)`. `--missing` shows only add-ons with missing folders |
+| `list` | `ls` | Managed add-ons with version, repo, GAMES, channel and state (pinned, "Retail build", missing folders). `--unmanaged` adds unmanaged folders: the title and version of the TOC the game loads, the suggested ref, and in STATE "not loaded by Forever" when it isn't plus the suggestion's reason ("Matched CurseForge project 334372") or "N candidates". Grouped folders are one row, `Questie (Questie, QuestieDB)`. `--missing` shows only add-ons with missing folders |
 | `pin <ref…>` / `unpin <ref…>` | | Pin or unpin, so `update` skips them |
 | `channel <ref> stable\|prerelease` | | Set the release channel (applies on the next `update`) |
 | `rollback <ref>` | | Reinstall `previousRelease` from the download cache and pin it. Asks first |
@@ -46,7 +46,7 @@ Destructive commands (`remove`, `remove --unmanaged`, `adopt`, `rollback`, `cach
 ## info
 
 - Reads stored details (`catalogueEntry(for:)`, `details(for:in:)`), which refresh after a day. Stale details may spend one API call on release notes when more than 30 calls remain.
-- Shows support, latest version and date, README path, screenshots, when details were fetched and any fetch error, last updated, and the changelog with `--changelog`.
+- Shows the GAMES letters and the sentence ("Has a Forever build", "Retail build only: may work on Forever; it will show as out of date", "Classic only: won't load on Forever", "Not checked yet"), "Build: Retail build" for a fallback install, latest version and date, README path, screenshots, when details were fetched and any fetch error, last updated, and the changelog with `--changelog`.
 - "Asset" and "Why this release" (the [reasoning trail](../features/release-selection.md#reasoning-trail)) appear only for prereleases.
 - `updateState` can be `unknown`, or `available` with just a `version`. JSON fields: [output.md](output.md#json---json).
 
@@ -79,7 +79,7 @@ Names go through `AddonManager.lookup`: installed add-ons first (name, repo name
 3. The only installation, of any flavor.
 4. Several installations: a numbered pick on a terminal, otherwise exit 2 listing them with their display names. None at all: exit 1.
 
-`search`, `info` and `resolve` also work with no installation, against a placeholder Forever one (Forever-specific on purpose).
+`list` reads GAMES from the stored per-repo flavors, falling back to the TOCs on disk (always, for unmanaged folders). `search`, `info` and `resolve` also work with no installation, against a placeholder Forever one (Forever-specific on purpose).
 
 **Flavor names.** `installs`, `doctor`, `info` and the ambiguity error show each installation's display name (Forever, Retail, Mists Classic, …). The `search` column header, "no *<flavor>* build" messages and the `refresh` summary use the installation's flavor name. Reasoning strings print the raw flavor value (`forever 16001`).
 

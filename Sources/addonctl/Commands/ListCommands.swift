@@ -20,18 +20,43 @@ struct ListCommand: ContextCommand {
     func run(_ context: CLIContext) async throws {
         let installation = try await context.installation()
         let statuses = Self.filter(try await context.manager.addons(in: installation), unmanaged: unmanaged, missing: missing)
+        let games = await Self.games(statuses, in: installation, manager: context.manager)
 
         if context.json {
-            try context.emit(Output(installation: installation, addons: statuses.map(AddonStatusJSON.init)))
+            try context.emit(Output(installation: installation, addons: statuses.map { AddonStatusJSON($0, availableFlavors: games[$0.id]) }))
             return
         }
         guard !statuses.isEmpty else {
             context.say(missing ? "No add-ons have missing folders." : "No add-ons installed. Try `addonctl search <words>`.")
             return
         }
-        context.print(Format.listTable(statuses, flavor: installation.flavor, style: context.style))
+        context.print(Format.listTable(statuses, flavor: installation.flavor, games: games, style: context.style))
         let managedCount = statuses.filter { if case .managed = $0 { true } else { false } }.count
         context.detail("\(managedCount) managed in \(installation.addonsDirectory.path(percentEncoded: false))")
+    }
+
+    /// Available flavors by `AddonStatus.id`: stored per repo for managed add-ons (falling back
+    /// to their folders' TOCs), read from the TOCs on disk for unmanaged folders.
+    static func games(_ statuses: [AddonStatus], in installation: Installation, manager: AddonManager) async -> [String: Set<Flavor>] {
+        let stored = await manager.availableFlavors(for: statuses.compactMap { if case .managed(let addon, _) = $0 { addon.id } else { nil } })
+        var out: [String: Set<Flavor>] = [:]
+        for status in statuses {
+            let folders: [String]
+            switch status {
+            case .managed(let addon, _):
+                if let flavors = stored[addon.id] {
+                    out[status.id] = flavors
+                    continue
+                }
+                folders = addon.folders
+            case .unmanaged(let unmanaged):
+                folders = unmanaged.folders
+            }
+            let urls = folders.map { installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
+            let found = ZipInspector.availableFlavors(addonFolders: urls)
+            if !found.isEmpty { out[status.id] = found }
+        }
+        return out
     }
 
     static func filter(_ statuses: [AddonStatus], unmanaged: Bool, missing: Bool) -> [AddonStatus] {

@@ -21,10 +21,11 @@ Accepted by every command (they go after the command name).
 
 ```
 $ addonctl search boss
-  NAME                 REPO                              FOREVER   UPDATED
-  BigWigs              BigWigsMods/BigWigs               ✓ v426.4  2 days ago   (installed)
-  DBM - Core           DeadlyBossMods/DeadlyBossMods     ✓ 12.1.12 3 days ago
-  BossTimers           someone/BossTimers                · not checked  1 week ago
+  NAME                 REPO                              GAMES  UPDATED
+  BigWigs              BigWigsMods/BigWigs               R F C  2 days ago   (installed)
+  DBM - Core           DeadlyBossMods/DeadlyBossMods     R F C  3 days ago
+  RetailOnly           someone/RetailOnly                R · ·  5 days ago
+  BossTimers           someone/BossTimers                —      1 week ago
 
 $ addonctl update
   BigWigs      v426.3 → v426.4   ━━━━━━━━━━━━━━━━━━━━ done
@@ -32,7 +33,7 @@ $ addonctl update
 ```
 
 - Aligned tables go to stdout.
-- The support column shows stored verdicts. `· not checked` (dimmed) means no verdict for this flavor yet; it's not a warning. `? needs download` means the releases have no `release.json`.
+- **GAMES** (`search`, `list`, `info`): which games the latest release ships builds for, in fixed positions: **R** Retail, **F** Forever, **C** Classic, `·` for a family with no build. On a terminal R is blue, F cyan, C yellow, and the installation's own family is bold. `—` (dimmed) means nobody has checked yet (no `release.json`, or not refreshed); it's not a warning. `Format.games`.
 - Progress rows and spinners go to **stderr**, and only when stderr is a terminal. When it isn't, each result is printed as a line on stdout instead.
 - After anything that changed files, `WoW is running; type /reload to load the changes.` is printed if an app with bundle id `com.blizzard.worldofwarcraft` is running.
 
@@ -47,8 +48,8 @@ $ addonctl update
 | `ReleaseJSON` | all `ResolvedRelease` fields including `reasoning` |
 | `SupportJSON` | `{"status": "supported", "version": …}` |
 | `UpdateStateJSON` | `{"state": "available", "version": …, "release": …}`; `release` may be missing (only `version` known), and `state` can be `unknown` |
-| `SearchResultJSON` | a search result |
-| `AddonStatusJSON` | `{"kind": "managed"\|"unmanaged", …}`; unmanaged entries add `folders`, `title` and `tocVersion` (from the TOC the game loads), `tocFile`, `supportsFlavor`, `suggestedRef` and `candidates` (`ref`, `name`, `reason`, `confidence`) |
+| `SearchResultJSON` | a search result, plus `availableFlavors` (flavor raw values in `Flavor.allCases` order) and `families` (`retail`, `forever`, `classic`); both absent when not checked |
+| `AddonStatusJSON` | `{"kind": "managed"\|"unmanaged", …}`; unmanaged entries add `folders`, `title` and `tocVersion` (from the TOC the game loads), `tocFile`, `supportsFlavor`, `suggestedRef` and `candidates` (`ref`, `name`, `reason`, `confidence`); every entry may carry `availableFlavors` and `families`. A managed `addon` has `installedFlavorBuild` (`mainline`) when it's a Retail build on Forever |
 
 - Batch commands report `installed` / `updated` / `removed` plus `failed: [{ref, code, message}]`.
 
@@ -57,7 +58,7 @@ Per-command documents:
 | Command | Top-level fields |
 |---|---|
 | `search` | `query`, `searchedGitHub`, `results` |
-| `info` | the add-on plus `support`, `latestVersion`, `latestPublishedAt`, `readmePath`, `screenshots` (a count), `detailsFetchedAt`, `detailsError`, `lastUpdated`, `changelog`, `updateState`; `latest` (a `ReleaseJSON`) only for prereleases |
+| `info` | the add-on plus `support`, `availableFlavors`, `families`, `games` (the sentence), `latestVersion`, `latestPublishedAt`, `readmePath`, `screenshots` (a count), `detailsFetchedAt`, `detailsError`, `lastUpdated`, `changelog`, `updateState`; `latest` (a `ReleaseJSON`) only for prereleases |
 | `refresh` | `installation`, `skipped`, `lastRefresh`, `updates[]` |
 | `cache info` | cache sizes plus `metadataDatabase` |
 - `export` prints the [`addons.json`](config.md#addonsjson) itself.

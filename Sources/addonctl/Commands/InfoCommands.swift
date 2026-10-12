@@ -5,7 +5,7 @@ import Foundation
 struct InfoCommand: ContextCommand {
     static let configuration = CommandConfiguration(
         commandName: "info",
-        abstract: "Show details about an add-on: description, Forever support, latest version, installed version and folders.",
+        abstract: "Show details about an add-on: description, the games it has builds for, latest version, installed version and folders.",
         discussion: """
             Uses the stored details, refreshed from github.com and raw.githubusercontent.com when \
             they're over a day old. With --prerelease (or for an add-on on the prerelease \
@@ -71,6 +71,9 @@ struct InfoCommand: ContextCommand {
                 ref: addonRef, name: name, summary: summary, stars: details?.stars, url: Self.webURL(addonRef),
                 lastUpdated: details?.lastUpdated ?? entry?.lastUpdated,
                 support: details.map { SupportJSON($0.support) },
+                availableFlavors: GamesJSON.flavors(details?.availableFlavors),
+                families: GamesJSON.families(details?.availableFlavors),
+                games: details.map { GameAvailability.sentence(availableFlavors: $0.availableFlavors, for: installation.flavor) },
                 latestVersion: details?.latestVersion, latestPublishedAt: details?.latestPublishedAt,
                 readmePath: readmePath?.nilIfEmpty, screenshots: details?.screenshots.count ?? 0,
                 detailsFetchedAt: details?.fetchedAt, detailsError: detailsError.map(ExitStatus.message(for:)),
@@ -90,7 +93,8 @@ struct InfoCommand: ContextCommand {
         if let stars = details?.stars { rows.append(["Stars", "\(stars)"]) }
         if let updated = details?.lastUpdated ?? entry?.lastUpdated { rows.append(["Updated", Format.relative(updated)]) }
         if let details {
-            rows.append([installation.flavor.displayName, Format.support(details.support, style: style)])
+            rows.append(["Games", Format.games(details.availableFlavors, flavor: installation.flavor, style: style)
+                + "  " + GameAvailability.sentence(availableFlavors: details.availableFlavors, for: installation.flavor)])
             if let version = details.latestVersion {
                 let published = details.latestPublishedAt.map { "  " + style.dim(Format.relative($0)) } ?? ""
                 rows.append(["Latest", style.green(version) + published])
@@ -111,6 +115,7 @@ struct InfoCommand: ContextCommand {
             var version = installed.version + "  " + style.dim("installed \(Format.relative(installed.installedAt))")
             if installed.pinned { version += style.yellow("  pinned") }
             rows.append(["Installed", version])
+            if let build = Format.build(installed) { rows.append(["Build", style.yellow(build)]) }
             if let state { rows.append(["Status", Self.describe(state, flavor: installation.flavor, style: style)]) }
             rows.append(["Folders", installed.folders.joined(separator: ", ")])
             if let previous = installed.previousRelease { rows.append(["Rollback to", previous.version]) }
@@ -181,6 +186,10 @@ struct InfoCommand: ContextCommand {
         var url: URL?
         var lastUpdated: Date?
         var support: SupportJSON?
+        var availableFlavors: [Flavor]?
+        var families: [GameFamily]?
+        /// The sentence `info` prints, e.g. "Has a Forever build".
+        var games: String?
         var latestVersion: String?
         var latestPublishedAt: Date?
         var readmePath: String?
