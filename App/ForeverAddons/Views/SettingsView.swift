@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.settingsTab) private var tab: SettingsTab = .general
     @AppStorage(SettingsKey.appIcon) private var appIcon: AppIconChoice = .classic
     @State private var github = GitHubTokenModel(keychain: KeychainStore())
+    @State private var gitHubStatus = GitHubStatusModel()
 
     var body: some View {
         @Bindable var model = model
@@ -20,7 +21,15 @@ struct SettingsView: View {
                 AppearanceSettingsTab()
             }
             Tab(SettingsTab.github.title, systemImage: SettingsTab.github.systemImage, value: .github) {
-                GitHubSettingsTab(token: github) { Task { await model.manager.tokenDidChange() } }
+                let manager = model.manager
+                GitHubSettingsTab(token: github, status: gitHubStatus,
+                                  tokenDidChange: {
+                                      Task {
+                                          await manager.tokenDidChange()
+                                          await gitHubStatus.refresh(from: manager)
+                                      }
+                                  },
+                                  watchStatus: { await gitHubStatus.watch(manager) })
             }
             Tab(SettingsTab.commandLine.title, systemImage: SettingsTab.commandLine.systemImage, value: .commandLine) {
                 CommandLineSettingsTab(tool: model.commandLineTool)

@@ -218,13 +218,18 @@ import UniformTypeIdentifiers
         let keychain = GitHubTokenModel(keychain: nil, environment: [:])
         keychain.token = "ghp_snapshotexample"
         keychain.show(hasToken: true, message: "Token saved in Keychain.")
+        let status = GitHubStatusModel()
+        status.show(Fixtures.gitHubStatus, now: Fixtures.gitHubStatusNow)
         try Snapshot.render("settings-github", width: SettingsLayout.width) {
-            GitHubSettingsTab(token: keychain, tokenDidChange: {})
+            GitHubSettingsTab(token: keychain, status: status, tokenDidChange: {}, watchStatus: {})
         }
+        // Nothing reported yet, as before the first API call.
         let environment = GitHubTokenModel(keychain: nil, environment: ["GITHUB_TOKEN": "ghp_fromenvironment"])
         environment.show(hasToken: false, message: "No token saved.")
+        let unknown = GitHubStatusModel()
+        unknown.show(GitHubStatus(), now: Fixtures.gitHubStatusNow)
         try Snapshot.render("settings-github-environment", width: SettingsLayout.width) {
-            GitHubSettingsTab(token: environment, tokenDidChange: {})
+            GitHubSettingsTab(token: environment, status: unknown, tokenDidChange: {}, watchStatus: {})
         }
     }
 
