@@ -102,6 +102,7 @@ enum ExitStatus {
             case .notInstalled: "not_installed"
             case .noRollbackAvailable: "no_rollback"
             case .installationNotFound: "installation_not_found"
+            case .cannotRemove: "cannot_remove"
             }
         case let error as CLIError:
             switch error {

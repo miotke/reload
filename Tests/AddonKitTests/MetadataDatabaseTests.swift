@@ -57,7 +57,7 @@ import Testing
                 """, nil, nil, nil)
         }
         let db = try MetadataDatabase(url: url)
-        #expect(try await db.schemaVersion() == 3)
+        #expect(try await db.schemaVersion() == MetadataDatabase.migrations.count)
         let rows = try await db.query("SELECT full_name, status, checked_at, error_at, retry_after FROM support ORDER BY full_name")
         #expect(rows.map { $0.string(0) } == ["o/bad", "o/good"])
         #expect(rows[0].string(1) == nil && rows[0].double(2) == nil, "a failure is no longer a status")

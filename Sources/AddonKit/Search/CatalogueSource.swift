@@ -108,6 +108,18 @@ public actor CatalogueSource {
         index(for: try await localEntries())
     }
 
+    /// Lookups by CurseForge, Wago and WoWInterface ID and by name over what's stored, for
+    /// adoption suggestions. Local only; rebuilt only when the rows change.
+    public func adoptionIndex() async -> AdoptionIndex {
+        let entries = (try? await localEntries()) ?? []
+        if let adoption, adoption.generation == generation { return adoption.value }
+        let built = AdoptionIndex(entries: entries)
+        adoption = (generation, built)
+        return built
+    }
+
+    private var adoption: (generation: Int, value: AdoptionIndex)?
+
     private func index(for entries: [CatalogueEntry]) -> SearchIndex {
         if let index, index.generation == generation { return index.value }
         let built = SearchIndex(entries: entries)

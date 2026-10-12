@@ -64,8 +64,9 @@ All parsers are pure functions, and their tests use fixture files.
 
 - Handles a byte-order mark, CRLF line endings and case-insensitive keys.
 - `## Interface:` may be a comma-separated list (`120100, 16001`), parsed into `[Int]`.
-- Reads `Title`, `Version`, `Notes`, `Author`, dependencies and `X-Website` (used to suggest a repo when adopting).
-- Strips WoW colour and texture codes from titles for display.
+- Reads `Title`, `Version`, `Notes`, `Author`, dependencies, and `X-Website`, `X-Github`, `X-Curse-Project-ID`, `X-Wago-ID` and `X-WoWI-ID` (used to suggest a repo when adopting).
+- Strips WoW colour and texture codes from titles for display. `displayTitle` also drops a version written into the title, and `displayVersion` is `## Version` (unless it's an unexpanded `@project-version@`) or else that version: `Questie|cFF00FF00 v12.0.4|r` → "Questie", `v12.0.4`.
+- Which of a folder's TOCs the client loads: `ZipInspector.readTocs(addonFolder:flavor:)`, the same rule as the zip check ([release-selection.md](../features/release-selection.md#zipinspector-does-a-zip-support-the-flavor)).
 
 ### ReleaseJSON
 

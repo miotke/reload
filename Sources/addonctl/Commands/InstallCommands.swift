@@ -152,15 +152,24 @@ struct RemoveCommand: ContextCommand {
 
     @OptionGroup var global: GlobalOptions
 
-    @Argument(help: "Installed add-ons to remove.", completion: .installedAddons)
+    @Argument(help: "Installed add-ons to remove, or folders with --unmanaged.", completion: .installedAddons)
     var refs: [String]
 
+    @Flag(help: "Move unmanaged folders in Interface/AddOns to the Trash instead (see `addonctl list --unmanaged`).")
+    var unmanaged = false
+
     func validate() throws {
-        guard !refs.isEmpty else { throw ValidationError("Name at least one add-on to remove.") }
+        guard !refs.isEmpty else {
+            throw ValidationError(unmanaged ? "Name at least one folder to remove." : "Name at least one add-on to remove.")
+        }
     }
 
     func run(_ context: CLIContext) async throws {
         let installation = try await context.installation()
+        if unmanaged {
+            try await removeUnmanaged(context, installation: installation)
+            return
+        }
         var targets: [InstalledAddon] = []
         for input in refs {
             let ref = try await context.ref(for: input, in: installation)
@@ -198,6 +207,40 @@ struct RemoveCommand: ContextCommand {
         var installation: String
         var removed: [InstalledAddon]
         var failed: [FailureJSON]
+    }
+
+    /// The core checks every folder (no `Blizzard_*`, nothing managed, only folders directly in
+    /// `AddOns/`) before moving any, so a refusal changes nothing.
+    private func removeUnmanaged(_ context: CLIContext, installation: Installation) async throws {
+        let statuses = try await context.manager.addons(in: installation)
+        guard try context.confirm(Self.unmanagedQuestion(refs, statuses: statuses), action: "remove") else {
+            throw CLIError.cancelled
+        }
+        let removed = try await context.manager.removeUnmanaged(folders: refs, from: installation)
+        if context.json {
+            try context.emit(RemoveUnmanagedOutput(installation: installation.id, removed: removed))
+        } else {
+            context.say("Moved \(removed.joined(separator: ", ")) to the Trash.")
+            context.noteIfGameRunning(changed: removed.count)
+        }
+    }
+
+    /// Lists the folders, and any grouped with them that weren't named.
+    static func unmanagedQuestion(_ folders: [String], statuses: [AddonStatus]) -> String {
+        let named = Set(folders.map { $0.lowercased() })
+        let left = statuses.compactMap(\.unmanagedFolder)
+            .filter { named.contains($0.folder.lowercased()) }
+            .flatMap { $0.folders.dropFirst() }
+            .filter { !named.contains($0.lowercased()) }
+        let count = folders.count
+        var question = "Move \(folders.joined(separator: ", ")) (\(count) unmanaged folder\(count == 1 ? "" : "s")) to the Trash?"
+        if !left.isEmpty { question += " \(left.joined(separator: ", ")) \(left.count == 1 ? "is" : "are") grouped with it but stays." }
+        return question
+    }
+
+    struct RemoveUnmanagedOutput: Encodable {
+        var installation: String
+        var removed: [String]
     }
 }
 
@@ -529,22 +572,27 @@ struct AdoptCommand: ContextCommand {
     func run(_ context: CLIContext) async throws {
         let installation = try await context.installation()
         let statuses = try await context.manager.addons(in: installation)
-        var candidates: [(folders: [String], ref: AddonRef)] = []
+        var candidates: [(folders: [String], ref: AddonRef, reason: String?)] = []
 
         if let folder, let ref {
-            guard let match = statuses.first(where: {
-                if case .unmanaged(let name, _, _) = $0 { name.caseInsensitiveCompare(folder) == .orderedSame } else { false }
-            }), case .unmanaged(let name, _, _) = match else {
+            guard let match = Self.unmanaged(named: folder, in: statuses) else {
                 throw CLIError.usage("\(folder) isn't an unmanaged folder in \(installation.addonsDirectory.path(percentEncoded: false)). See `addonctl list --unmanaged`.")
             }
-            candidates = [([name], try await context.ref(for: ref, in: installation))]
+            candidates = [(match.folders, try await context.ref(for: ref, in: installation), nil)]
         } else {
-            for status in statuses {
-                guard case .unmanaged(let name, _, let suggested?) = status else { continue }
-                if let index = candidates.firstIndex(where: { $0.ref == suggested }) {
-                    candidates[index].folders.append(name)
-                } else {
-                    candidates.append(([name], suggested))
+            for plan in Self.plan(statuses) {
+                switch plan {
+                case .adopt(let unmanaged, let candidate):
+                    candidates.append((unmanaged.folders, candidate.ref, candidate.reason))
+                case .choose(let unmanaged):
+                    let options = unmanaged.candidates.map { "\(Format.ref($0.ref)) (\($0.reason))" }
+                    guard context.interactive, !context.yes,
+                          let index = context.prompter.choose("\(unmanaged.title) could be one of these:", options: options) else {
+                        context.warn("\(unmanaged.folder): several candidates (\(unmanaged.candidates.map(\.ref.identifier).joined(separator: ", "))). Run `addonctl adopt \(unmanaged.folder) <ref>`.")
+                        continue
+                    }
+                    let candidate = unmanaged.candidates[index]
+                    candidates.append((unmanaged.folders, candidate.ref, candidate.reason))
                 }
             }
             if candidates.isEmpty {
@@ -557,7 +605,7 @@ struct AdoptCommand: ContextCommand {
         var adopted: [InstalledAddon] = []
         var failures: [(ref: AddonRef, error: any Error)] = []
         for candidate in candidates {
-            let question = "Adopt \(candidate.folders.joined(separator: ", ")) as \(Format.ref(candidate.ref))? The latest release is installed over it."
+            let question = Self.question(folders: candidate.folders, ref: candidate.ref, reason: candidate.reason)
             guard try context.confirm(question, action: "adopt") else { continue }
             do {
                 let addon = try await context.manager.adopt(folder: candidate.folders[0], as: candidate.ref, in: installation)
@@ -581,5 +629,33 @@ struct AdoptCommand: ContextCommand {
         var installation: String
         var adopted: [InstalledAddon]
         var failed: [FailureJSON]
+    }
+
+    enum Plan: Equatable {
+        /// One clear best candidate: ask to confirm it.
+        case adopt(UnmanagedFolder, AdoptionCandidate)
+        /// Several equally good candidates: the user picks.
+        case choose(UnmanagedFolder)
+    }
+
+    /// What `adopt` with no arguments offers, in list order: every unmanaged entry with a
+    /// candidate. Grouped folders come as one entry.
+    static func plan(_ statuses: [AddonStatus]) -> [Plan] {
+        statuses.compactMap(\.unmanagedFolder).compactMap { unmanaged in
+            guard let best = unmanaged.suggestion else { return nil }
+            return unmanaged.isAmbiguous ? .choose(unmanaged) : .adopt(unmanaged, best)
+        }
+    }
+
+    /// The unmanaged entry named `folder`, or the group that contains it.
+    static func unmanaged(named folder: String, in statuses: [AddonStatus]) -> UnmanagedFolder? {
+        let all = statuses.compactMap(\.unmanagedFolder)
+        if let own = all.first(where: { $0.folder.caseInsensitiveCompare(folder) == .orderedSame }) { return own }
+        return all.first { $0.folders.contains { $0.caseInsensitiveCompare(folder) == .orderedSame } }
+    }
+
+    static func question(folders: [String], ref: AddonRef, reason: String?) -> String {
+        let why = reason.map { " (\($0))" } ?? ""
+        return "Adopt \(folders.joined(separator: ", ")) as \(Format.ref(ref))\(why)? The latest release is installed over it."
     }
 }

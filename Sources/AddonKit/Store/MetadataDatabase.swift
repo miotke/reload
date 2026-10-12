@@ -508,6 +508,16 @@ public actor MetadataDatabase {
         ALTER TABLE repo_meta ADD COLUMN api_checked_at REAL;
         ALTER TABLE repo_meta ADD COLUMN api_checked_tag TEXT;
         """,
+        // 4: the top-level folders a repo's release zip shipped when last downloaded, so
+        // unmanaged folders one release covers can be grouped without the network.
+        """
+        CREATE TABLE release_folders (
+            full_name TEXT PRIMARY KEY COLLATE NOCASE,
+            tag TEXT NOT NULL,
+            folders_json TEXT NOT NULL,
+            recorded_at REAL NOT NULL
+        ) WITHOUT ROWID;
+        """,
     ]
 }
 
@@ -541,5 +551,32 @@ extension MetadataDatabase {
             ON CONFLICT(resource) DO UPDATE SET remaining = excluded.remaining, reset_at = excluded.reset_at, updated_at = excluded.updated_at
             WHERE (rate_limit.remaining, rate_limit.reset_at) IS NOT (excluded.remaining, excluded.reset_at)
             """, resource, state.remaining, state.resetAt, date)
+    }
+}
+
+// MARK: - Release folders
+
+extension MetadataDatabase {
+    /// Lower-cased `owner/repo` → the folders its release zip shipped when last downloaded.
+    public func releaseFolders() -> [String: [String]] {
+        guard let rows = try? query("SELECT full_name, folders_json FROM release_folders") else { return [:] }
+        var result: [String: [String]] = [:]
+        for row in rows {
+            guard let name = row.string(0), let json = row.string(1),
+                  let folders = try? JSONDecoder().decode([String].self, from: Data(json.utf8)) else { continue }
+            result[name.lowercased()] = folders
+        }
+        return result
+    }
+
+    /// Records the folders of `fullName`'s release `tag`. Writes nothing when they're unchanged.
+    public func setReleaseFolders(_ folders: [String], tag: String, for fullName: String, at date: Date) {
+        let json = (try? JSONEncoder().encode(folders.sorted())).map { String(decoding: $0, as: UTF8.self) } ?? "[]"
+        let changed = (try? execute("""
+            INSERT INTO release_folders(full_name, tag, folders_json, recorded_at) VALUES (?, ?, ?, ?)
+            ON CONFLICT(full_name) DO UPDATE SET tag = excluded.tag, folders_json = excluded.folders_json, recorded_at = excluded.recorded_at
+            WHERE (release_folders.tag, release_folders.folders_json) IS NOT (excluded.tag, excluded.folders_json)
+            """, fullName, tag, json, date)) ?? 0
+        if changed > 0 { notify(["release_folders"], repos: [fullName]) }
     }
 }

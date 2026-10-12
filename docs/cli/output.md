@@ -24,6 +24,7 @@ $ addonctl search boss
   NAME                 REPO                              FOREVER   UPDATED
   BigWigs              BigWigsMods/BigWigs               ✓ v426.4  2 days ago   (installed)
   DBM - Core           DeadlyBossMods/DeadlyBossMods     ✓ 12.1.12 3 days ago
+  BossTimers           someone/BossTimers                · not checked  1 week ago
 
 $ addonctl update
   BigWigs      v426.3 → v426.4   ━━━━━━━━━━━━━━━━━━━━ done
@@ -31,6 +32,7 @@ $ addonctl update
 ```
 
 - Aligned tables go to stdout.
+- The support column shows stored verdicts. `· not checked` (dimmed) means no verdict for this flavor yet; it's not a warning. `? needs download` means the releases have no `release.json`.
 - Progress rows and spinners go to **stderr**, and only when stderr is a terminal. When it isn't, each result is printed as a line on stdout instead.
 - After anything that changed files, `WoW is running; type /reload to load the changes.` is printed if an app with bundle id `com.blizzard.worldofwarcraft` is running.
 
@@ -46,7 +48,7 @@ $ addonctl update
 | `SupportJSON` | `{"status": "supported", "version": …}` |
 | `UpdateStateJSON` | `{"state": "available", "version": …, "release": …}`; `release` may be missing (only `version` known), and `state` can be `unknown` |
 | `SearchResultJSON` | a search result |
-| `AddonStatusJSON` | `{"kind": "managed"\|"unmanaged", …}` |
+| `AddonStatusJSON` | `{"kind": "managed"\|"unmanaged", …}`; unmanaged entries add `folders`, `title` and `tocVersion` (from the TOC the game loads), `tocFile`, `supportsFlavor`, `suggestedRef` and `candidates` (`ref`, `name`, `reason`, `confidence`) |
 
 - Batch commands report `installed` / `updated` / `removed` plus `failed: [{ref, code, message}]`.
 
@@ -68,7 +70,7 @@ Errors go to stderr:
 
 Messages come from [`AddonError`](../architecture/errors.md) or the CLI's own `CLIError`.
 
-JSON error codes: `invalid_reference`, `not_found`, `no_compatible_release`, `rate_limited`, `http_error`, `invalid_archive`, `unsafe_archive`, `folder_conflict`, `unmanaged_folder`, `not_installed`, `no_rollback`, `installation_not_found`, `usage`, `ambiguous_reference`, `no_installation`, `ambiguous_installation`, `confirmation_required`, `cancelled`, `partial_failure`, `failed`, `error`. `no_forever_installation` was removed with `CLIError.noForeverInstallation`: any single installation is used now ([commands.md](commands.md#choosing-the-installation)).
+JSON error codes: `invalid_reference`, `not_found`, `no_compatible_release`, `rate_limited`, `http_error`, `invalid_archive`, `unsafe_archive`, `folder_conflict`, `unmanaged_folder`, `not_installed`, `no_rollback`, `installation_not_found`, `cannot_remove`, `usage`, `ambiguous_reference`, `no_installation`, `ambiguous_installation`, `confirmation_required`, `cancelled`, `partial_failure`, `failed`, `error`. `no_forever_installation` was removed with `CLIError.noForeverInstallation`: any single installation is used now ([commands.md](commands.md#choosing-the-installation)).
 
 ## Exit codes
 

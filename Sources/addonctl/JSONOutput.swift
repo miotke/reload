@@ -152,6 +152,19 @@ struct AddonStatusJSON: Encodable {
     var title: String?
     var tocVersion: String?
     var suggestedRef: AddonRef?
+    /// Every folder in an unmanaged group, `folder` first.
+    var folders: [String]?
+    /// The TOC the client loads for the installation's flavor, e.g. `Questie_Camelot.toc`.
+    var tocFile: String?
+    var supportsFlavor: Bool?
+    var candidates: [CandidateJSON]?
+
+    struct CandidateJSON: Encodable, Equatable {
+        var ref: AddonRef
+        var name: String
+        var reason: String
+        var confidence: String
+    }
 
     init(_ status: AddonStatus) {
         switch status {
@@ -159,12 +172,16 @@ struct AddonStatusJSON: Encodable {
             kind = "managed"
             self.addon = addon
             missingFolders = missing
-        case .unmanaged(let folder, let toc, let suggested):
+        case .unmanaged(let unmanaged):
             kind = "unmanaged"
-            self.folder = folder
-            title = toc?.title
-            tocVersion = toc?.version
-            suggestedRef = suggested
+            folder = unmanaged.folder
+            folders = unmanaged.folders
+            title = unmanaged.toc?.displayTitle
+            tocVersion = unmanaged.version
+            tocFile = unmanaged.tocFile
+            supportsFlavor = unmanaged.supportsFlavor
+            suggestedRef = unmanaged.suggestedRef
+            candidates = unmanaged.candidates.map { CandidateJSON(ref: $0.ref, name: $0.name, reason: $0.reason, confidence: $0.confidence.label) }
         }
     }
 }

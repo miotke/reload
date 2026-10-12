@@ -129,8 +129,15 @@ public actor AddonManager: AddonManaging {
 
     // MARK: - Add-ons
 
+    /// Reconciles the store with disk, then suggests repos for unmanaged folders from the
+    /// local catalogue and groups the folders one release covers. No network.
     public func addons(in installation: Installation) async throws -> [AddonStatus] {
-        try await store.reconcile(installation)
+        let statuses = try await store.reconcile(installation)
+        let unmanaged = statuses.compactMap(\.unmanagedFolder)
+        guard !unmanaged.isEmpty else { return statuses }
+        let index = await catalogue.adoptionIndex()
+        let grouped = AdoptionIndex.group(unmanaged.map(index.suggesting), releaseFolders: await database.releaseFolders())
+        return statuses.filter { $0.unmanagedFolder == nil } + grouped.map(AddonStatus.unmanaged)
     }
 
     /// Managed add-ons only, straight from the store.
@@ -254,6 +261,7 @@ public actor AddonManager: AddonManaging {
         // Extraction is the slow part; it runs before the lock the CLI and app wait on, and
         // off this actor. Only the ownership check, the swap and the store write are locked.
         let prepared = try await Self.prepare(installer, archive: archive, into: installation)
+        await database.setReleaseFolders(prepared.folders, tag: release.version, for: release.ref.identifier, at: now())
         do {
             return try await store.withLock { store in
                 let current = try store.addons(in: installation)
@@ -285,7 +293,66 @@ public actor AddonManager: AddonManaging {
 
     public func adopt(folder: String, as ref: AddonRef, in installation: Installation) async throws -> InstalledAddon {
         let release = try await resolve(ref, for: installation, channel: .stable)
-        return try await install(release, into: installation, channel: .stable, force: true, pin: nil, progress: { _ in })
+        return try await adopt(release, in: installation)
+    }
+
+    // MARK: - Adoption (docs/features/installing.md#adopting-unmanaged-folders)
+
+    /// Installs a release `adoptionPreview` resolved, over whatever unmanaged folders it ships.
+    public func adopt(_ release: ResolvedRelease, in installation: Installation) async throws -> InstalledAddon {
+        try await install(release, into: installation, channel: .stable, force: true, pin: nil, progress: { _ in })
+    }
+
+    /// Repositories `folder` probably comes from, best first, with reasons: TOC GitHub links,
+    /// then CurseForge, Wago and WoWInterface IDs and names matched against the local
+    /// catalogue (decision 0018). No network.
+    public func adoptionCandidates(folder: String, in installation: Installation) async -> [AdoptionCandidate] {
+        let unmanaged = UnmanagedFolder(reading: folder, in: installation.addonsDirectory, flavor: installation.flavor)
+        return await catalogue.adoptionIndex().candidates(folder: folder, hints: unmanaged.hints)
+    }
+
+    /// Resolves `ref`'s stable release for the installation's flavor (quota-free when it has
+    /// a release.json), downloads its zip to the cache the install reuses, and says which
+    /// folders adopting it would replace. `folders` are the unmanaged folders being adopted;
+    /// those the zip doesn't ship come back in `notCovered`.
+    /// - Throws: `AddonError.noCompatibleRelease` when no release has a build for the flavor.
+    public func adoptionPreview(for ref: AddonRef, folders: [String], in installation: Installation) async throws -> AdoptionPreview {
+        let release = try await resolve(ref, for: installation, channel: .stable)
+        let archive = try await downloader.download(release, progress: { _ in })
+        let shipped = try await Self.topLevelFolders(archive)
+        await database.setReleaseFolders(shipped, tag: release.version, for: ref.identifier, at: now())
+
+        let managed = try await store.addons(in: installation)
+        var replaces: [String] = [], adds: [String] = [], conflicts: [String: AddonRef] = [:]
+        for folder in shipped {
+            if let owner = managed.first(where: { $0.id != ref && $0.folders.contains { Installer.same($0, folder) } }) {
+                conflicts[folder] = owner.id
+            } else if Installer.exists(installation.addonsDirectory.appending(path: folder, directoryHint: .isDirectory))
+                        && !managed.contains(where: { $0.id == ref && $0.folders.contains { Installer.same($0, folder) } }) {
+                replaces.append(folder)
+            } else {
+                adds.append(folder)
+            }
+        }
+        let notCovered = folders.filter { folder in !shipped.contains { Installer.same($0, folder) } }
+        return AdoptionPreview(release: release, folders: shipped, replaces: replaces, adds: adds, conflicts: conflicts, notCovered: notCovered)
+    }
+
+    @concurrent
+    private static func topLevelFolders(_ archive: URL) async throws -> [String] {
+        try ZipExtractor.topLevelFolders(in: archive)
+    }
+
+    /// Moves unmanaged `folders` to the Trash with the installer's trash handler. Every folder
+    /// is checked before any moves: `Blizzard_*`, folders a managed add-on owns, names that
+    /// aren't a single folder in `AddOns/`, and folders that don't exist are refused with
+    /// `AddonError.cannotRemove`. Returns the folders removed, as named on disk.
+    @discardableResult
+    public func removeUnmanaged(folders: [String], from installation: Installation) async throws -> [String] {
+        let installer = self.installer
+        return try await store.withLock { store in
+            try installer.removeUnmanaged(folders, from: installation, managed: store.addons(in: installation))
+        }
     }
 
     // MARK: - Updates

@@ -15,6 +15,8 @@ public enum AddonError: Error, Sendable, Equatable, LocalizedError {
     case notInstalled(AddonRef)
     case noRollbackAvailable(AddonRef)
     case installationNotFound(String)
+    /// `removeUnmanaged` refused `folder`; nothing was moved.
+    case cannotRemove(folder: String, reason: String)
 
     public var errorDescription: String? {
         switch self {
@@ -32,6 +34,7 @@ public enum AddonError: Error, Sendable, Equatable, LocalizedError {
         case .notInstalled(let ref): "\(ref.identifier) isn't installed."
         case .noRollbackAvailable(let ref): "No previous version of \(ref.identifier) is cached."
         case .installationNotFound(let id): "Installation \(id) not found."
+        case .cannotRemove(let folder, let reason): "Can't move \(folder) to the Trash: it \(reason)."
         }
     }
 }

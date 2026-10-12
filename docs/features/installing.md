@@ -63,9 +63,41 @@ Folder names are compared case-insensitively.
 | Update | Check first, quota-free on the stable channel ([release-selection.md](release-selection.md#quota-free-resolve-stable-channel)); install only if an update is available. `update(releases:in:)` installs already-resolved releases without re-resolving. Up to 4 at once; pinned add-ons are skipped |
 | Rollback | Reinstall `previousRelease` from the download cache, then pin. Fails with `noRollbackAvailable` if the zip is gone |
 | Uninstall | Move the add-on's folders to the Trash (`FileManager.trashItem`), then remove the record. Folders already missing aren't an error |
-| Adopt | Resolve the suggested repo and install over the unmanaged folder after confirmation |
+| Adopt | Resolve the chosen repo and install over the unmanaged folders its zip ships, after confirmation ([below](#adopting-unmanaged-folders)) |
+| Remove unmanaged | Move unmanaged folders to the Trash after confirmation ([below](#removing-unmanaged-folders)) |
 
 If WoW is running, the CLI says to `/reload` after changes ([cli/output.md](../cli/output.md)). Installs aren't blocked.
+
+## Adopting unmanaged folders
+
+How an unmanaged folder's TOC is read and grouped: [data-storage.md](../architecture/data-storage.md#reconcile). Why suggestions work this way: [decision 0018](../decisions/0018-adoption-suggestions-from-toc-hints.md).
+
+1. **Suggest** (`adoptionCandidates(folder:in:)`, local only). Hints from all of the folder's TOCs are matched in this order, each repo listed once with its strongest reason:
+
+   | Source | Reason shown | Confidence |
+   |---|---|---|
+   | `X-Website` / `X-Github` on github.com | "TOC links to github.com/owner/repo" | high |
+   | `X-Curse-Project-ID` = catalogue `curse_id` | "Matched CurseForge project 334372" | high |
+   | `X-Wago-ID` = `wago_id` | "Matched Wago project qv634BKb" | high |
+   | `X-WoWI-ID` = `wowi_id` | "Matched WoWInterface project …" | high |
+   | catalogue name = folder or TOC title (no case) | "Matched folder name" / "Matched TOC title …" | medium |
+   | repository name = folder or title | "Matched repository name" | low |
+
+   Ties within a source are ordered by catalogue `last_updated`, newest first. Up to 5 candidates; when more than one shares the best confidence (`isAmbiguous`), the user picks.
+2. **Preview** (`adoptionPreview(for:folders:in:)`). Resolves the repo's stable release for the flavor the normal way (quota-free for `release.json` add-ons), downloads its zip into the cache the install reuses, and lists the top-level folders it `replaces`, `adds`, those another managed add-on owns (`conflicts`), and the asked-about folders it doesn't ship (`notCovered`). It records `release_folders`, so the Installed list groups those folders from then on. No build for the flavor throws `noCompatibleRelease`.
+3. **Adopt** (`adopt(_ release:in:)`, or `adopt(folder:as:in:)`, which resolves first). Installs with `force`, so every unmanaged folder the zip ships is replaced in one transaction.
+
+The Questie case: `Questie/` has `Questie.toc` (interface `00000`, "game client not supported"), `Questie_Camelot.toc` (16001, "Questie v12.0.4", CurseForge 334372, Wago qv634BKb) and classic TOCs. Forever reads `Questie_Camelot.toc`, so the row says "Questie", `v12.0.4`, and suggests `Questie/Questie` ("Matched CurseForge project 334372"). `QuestieDB/` has no hints: it stays a separate row until a downloaded Questie release is seen to ship it.
+
+## Removing unmanaged folders
+
+`removeUnmanaged(folders:from:)` moves folders to the Trash with the installer's trash handler, under the store lock. It checks **every** name before moving any, and refuses with `cannotRemove(folder:reason:)`:
+- `Blizzard_*` folders
+- folders a managed add-on owns (uninstall that instead)
+- anything that isn't a single folder directly in `AddOns/` (`..`, paths, files)
+- folders that don't exist
+
+Names compare case-insensitively and duplicates are removed once, so a whole group can be passed at once. The app asks first (listing the folders); the CLI is `addonctl remove --unmanaged <folder…>`.
 
 ## Downloader
 
