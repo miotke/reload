@@ -114,11 +114,14 @@ func makeAddonZip(folders: [String], marker: String = "v1", named name: String =
         #expect(throws: AddonError.unsafeArchivePath("A/link")) { try ZipExtractor.topLevelFolders(in: zip) }
     }
 
-    @Test func rejectsStrayTopLevelFiles() throws {
+    @Test func skipsStrayTopLevelFiles() throws {
         let tmp = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: tmp) }
-        let zip = try makeTestZip([.file("A/A.toc", "## Interface: 16001"), .file("README.md", "hi")], in: tmp)
-        #expect(throws: AddonError.invalidArchive("stray top-level file README.md")) { try ZipExtractor.topLevelFolders(in: zip) }
+        let zip = try makeTestZip([.file("A/A.toc", "## Interface: 16001"), .file("BUILD_INFO.txt", "hi")], in: tmp)
+        #expect(try ZipExtractor.topLevelFolders(in: zip) == ["A"])
+        let destination = tmp.appending(path: "out", directoryHint: .isDirectory)
+        #expect(try ZipExtractor.extract(zip, to: destination) == ["A"])
+        #expect(try FileManager.default.contentsOfDirectory(atPath: destination.path(percentEncoded: false)) == ["A"])
     }
 
     @Test func rejectsArchiveWithoutToc() throws {

@@ -14,7 +14,7 @@ The app and the CLI can run at the same time and both write the record of what's
 ## Decision
 
 **Installer:**
-1. Validate the whole zip before touching disk: reject `..`, absolute and symlink entries (zip-slip), `Blizzard_*` folders and stray top-level files.
+1. Validate the whole zip before touching disk: reject `..`, absolute and symlink entries (zip-slip), and `Blizzard_*` folders. (Stray top-level files were rejected at first; they're now skipped, since packagers ship READMEs and build notes there.)
 2. Check folder ownership: replace own folders, refuse another add-on's (`folderConflict`), and require `force` to overwrite an unmanaged one.
 3. Extract into a staging folder on the same volume, so moves are atomic renames.
 4. Move each old folder to a backup, move the new one in. **On any failure, restore backups in reverse order.** If that fails too, keep the staging folder.

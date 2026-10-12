@@ -32,8 +32,8 @@ The download comes first, then `Installer.prepare` validates the zip and extract
 
 Nothing touches disk until the whole archive passes these checks:
 - Every entry must stay inside the destination. `..`, absolute paths, `C:` paths and symlink entries are rejected (`unsafeArchivePath`); this blocks "zip-slip" attacks.
-- `__MACOSX/` and `.DS_Store` are ignored.
-- There must be at least one top-level folder containing a `.toc`, and no stray top-level files. Otherwise the archive is `invalidArchive`.
+- `__MACOSX/`, `.DS_Store` and loose top-level files (READMEs, `BUILD_INFO.txt`) are skipped, not extracted. WoW ignores files in AddOns, so they're no reason to fail.
+- There must be at least one top-level folder containing a `.toc`. Otherwise the archive is `invalidArchive`.
 - `Blizzard_*` folders are rejected.
 
 ### 2. Ownership (`Installer`)

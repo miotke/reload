@@ -3,9 +3,9 @@ import ZIPFoundation
 
 /// Validates and extracts add-on zips (docs/features/installing.md step 1).
 ///
-/// A valid archive has only top-level folders (plus ignored `__MACOSX/` and `.DS_Store`
-/// noise), at least one of which contains a `.toc`, and no entry that could escape the
-/// destination (`..`, absolute paths, symlinks).
+/// A valid archive has at least one top-level folder with a `.toc`, and no entry that could
+/// escape the destination (`..`, absolute paths, symlinks). `__MACOSX/`, `.DS_Store` and
+/// top-level files are skipped.
 public enum ZipExtractor {
     /// Top-level folder names in `archive`, after full validation. Extracts nothing.
     public static func topLevelFolders(in archive: URL) throws -> [String] {
@@ -76,9 +76,9 @@ public enum ZipExtractor {
             }
 
             let isDirectory = entry.type == .directory
-            if components.count == 1 && !isDirectory {
-                throw AddonError.invalidArchive("stray top-level file \(top)")
-            }
+            // Packagers leave READMEs and build notes next to the folders. WoW ignores loose
+            // files in AddOns, so they're left out rather than failing the install.
+            if components.count == 1 && !isDirectory { continue }
             if seenFolders.insert(top).inserted {
                 folders.append(top)
             }
