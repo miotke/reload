@@ -47,7 +47,7 @@ flowchart TB
 
 ## A typical install
 
-1. You search "boss" in Browse. Results come from the local catalogue, ranked, with Forever badges ([search.md](features/search.md)).
+1. You search "boss" in Browse. Results come from the local catalogue, ranked, with R / F / C games bubbles ([search.md](features/search.md)).
 2. You click Install. The core resolves the newest release with a Forever build ([release-selection.md](features/release-selection.md)).
 3. The zip is downloaded, validated and swapped into `Interface/AddOns` with backups ([installing.md](features/installing.md)).
 4. The record is written to the install store. `addonctl list` shows it at once.

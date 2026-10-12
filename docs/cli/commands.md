@@ -37,7 +37,7 @@ Destructive commands (`remove`, `remove --unmanaged`, `adopt`, `rollback`, `cach
 
 ## search
 
-- **No support checks.** Badges are the stored verdicts: `✓ <version>`, `— not yet`, `— no releases`, `? needs download` (no `release.json`) or `· not checked` (never checked for this flavor).
+- **No support checks.** GAMES shows what's stored: `R F C` letters, `·` for a missing family, `—` when not checked (no `release.json`, or never refreshed or opened).
 - It asks GitHub only when there are fewer than 3 local matches (3+ character query), or with `--github`. When it does so on its own, it prints `Few local matches, so GitHub was searched too.` on stderr.
 - A spinner shows "Searching GitHub…" while the live search runs (terminal only).
 - `--json` output gains `searchedGitHub`.

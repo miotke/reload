@@ -61,7 +61,8 @@ struct AddonDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 RowProgress(rowState: rowState)
-                InspectorActions(state: state, ref: ref, installed: installed, rowState: rowState)
+                InspectorActions(state: state, ref: ref, installed: installed, rowState: rowState,
+                                 availableFlavors: availableFlavors, name: name)
                 about
                 detailsStatus
                 if let loaded {
@@ -104,14 +105,19 @@ struct AddonDetailView: View {
     var name: String { installed?.name ?? result?.name ?? loaded?.name ?? ref.identifier }
     private var owner: String? { result?.owner ?? loaded?.owner }
     private var summary: String? { result?.summary ?? loaded?.summary }
-    private var support: SupportStatus? { loaded?.support ?? result?.support }
+    private var support: SupportStatus { loaded?.support ?? result?.support ?? .unknown }
+    private var availableFlavors: Set<Flavor>? { loaded?.availableFlavors ?? result?.availableFlavors }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let flavor = state.installation.flavor
+        return VStack(alignment: .leading, spacing: 6) {
             Text(name).font((style == .window ? Font.largeTitle : .title2).weight(.semibold)).textSelection(.enabled)
+            if let owner { Text("by \(owner)").foregroundStyle(.secondary).font(.callout) }
             HStack(spacing: 8) {
-                if let owner { Text("by \(owner)").foregroundStyle(.secondary) }
-                if let support { SupportBadge(status: support, flavor: state.installation.flavor) }
+                GameBubbles(model: GameBubblesModel(availableFlavors: availableFlavors, flavor: flavor, support: support))
+                Text(GameAvailability.sentence(availableFlavors: availableFlavors, for: flavor))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .font(.callout)
             if let summary {
@@ -192,6 +198,12 @@ struct AddonDetailView: View {
         section("Installed") {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
                 row("Version") { Text(addon.version).monospacedDigit().textSelection(.enabled) }
+                if let build = RetailBuildOffer.buildLabel(addon) {
+                    row("Build") {
+                        Text(build)
+                            .help("\(state.installation.flavor.displayName) lists it as out of date until you tick Load out of date AddOns")
+                    }
+                }
                 if let release = state.availableRelease(for: ref) {
                     row("Available") { Text(release.version).monospacedDigit().foregroundStyle(.tint) }
                 }
@@ -335,9 +347,12 @@ private struct InspectorActions: View {
     var ref: AddonRef
     var installed: InstalledAddon?
     var rowState: RowState
+    var availableFlavors: Set<Flavor>?
+    var name: String
 
     @State private var confirmUninstall = false
     @State private var confirmRollback = false
+    @State private var confirmRetailBuild = false
 
     var body: some View {
         let busy = rowState.activity != nil
@@ -375,11 +390,49 @@ private struct InspectorActions: View {
                     Task { await state.install(ref, channel: defaultChannel, force: true) }
                 }
                 .disabled(busy)
+            } else if RetailBuildOffer.isOffered(availableFlavors: availableFlavors, flavor: state.installation.flavor) {
+                Button("Install Retail Build…") { confirmRetailBuild = true }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(busy)
+                    .help("No \(state.installation.flavor.displayName) build yet; the Retail build may work")
             } else {
                 Button("Install") { Task { await state.install(ref, channel: defaultChannel) } }
                     .buttonStyle(.borderedProminent)
                     .disabled(busy)
             }
         }
+        .sheet(isPresented: $confirmRetailBuild) {
+            RetailBuildSheet(name: name, flavor: state.installation.flavor) {
+                Task { await state.install(ref, channel: defaultChannel, allowFamilyFallback: true) }
+            }
+        }
+    }
+}
+
+/// Confirms installing the Retail build on Forever, and explains the out-of-date checkbox.
+private struct RetailBuildSheet: View {
+    var name: String
+    var flavor: Flavor
+    var install: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Install the Retail build of \(name)?").font(.headline)
+            Text(RetailBuildOffer.explanation(for: flavor))
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Install Retail Build") {
+                    install()
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 420)
     }
 }

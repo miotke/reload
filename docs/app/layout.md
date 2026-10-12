@@ -23,7 +23,7 @@ Code: `App/ForeverAddons/Views/` (`ContentView`, `InstalledView`, `BrowseView`),
 
 ## Flavor names
 
-Labels follow the selected installation's game, `installation.flavor.displayName` (Forever, Retail, Classic Era, TBC Anniversary, Wrath Classic, Titan, Cata Classic, Mists Classic; see [flavors.md](../architecture/flavors.md#flavors)): the Browse column, the badge and its tooltips, the "<flavor> only" toggle, Installed status, the inspector, the adopt sheet and the seeding sheet.
+Labels follow the selected installation's game, `installation.flavor.displayName` (Forever, Retail, Classic Era, TBC Anniversary, Wrath Classic, Titan, Cata Classic, Mists Classic; see [flavors.md](../architecture/flavors.md#flavors)): the Games tooltips, the filter toggle's help, Installed status, the inspector, the adopt sheet and the seeding sheet. The Games column and the filter toggle's label follow the installation's game family.
 
 Forever-specific on purpose: the app name, help text and the empty state that suggests adding `World of Warcraft/_classic_beta_`.
 
@@ -39,7 +39,7 @@ Forever-specific on purpose: the app name, help text and the empty state that su
 | Column | Shows |
 |---|---|
 | Name | name, with the repository beside it |
-| Version | `1.2 → 1.3` when an update is available |
+| Version | `1.2 → 1.3` when an update is available (`→ Forever build` when it replaces a Retail build); **Retail build** beside it when that's the build in use |
 | Channel | stable / prerelease |
 | Status | missing files / update / check failed / no *<flavor>* build / pinned / up to date / unmanaged / not loaded by *<flavor>* |
 | Installed | date |
@@ -71,17 +71,32 @@ Browse rows, the inspector and the add-on window all take an add-on's installed 
 | Column | Shows |
 |---|---|
 | Name | author and a one-line summary under it |
-| *<flavor>* (e.g. Forever) | support badge |
+| Games | [R F C bubbles](#games) |
 | Stars | count; hidden by default, turn it on from the header's context menu |
 | Last updated | date |
 | Action | Install / progress / Overwrite / ✓ Installed / Update |
 
 - With an empty query, a **Popular / Recently Updated** switch picks the list. It's one table rather than two sections, so sorting applies to whichever list you're looking at.
-- Category chips run their saved query; the **"<flavor> only"** toggle filters both the home lists and search results ([search.md](../features/search.md#in-the-app)).
+- Category chips run their saved query; the **Hide Classic-only** toggle ("Hide add-ons without a Retail build" on Retail, "…without a Classic build" on the classics; on by default, same `browseForeverOnly` key) filters both the home lists and search results by the [per-family rule](../features/search.md#hide-incompatible). Rows whose own game isn't confirmed are dimmed.
 - Installed rows show a ✓ **Installed** label, or **Update** when one is stored. Double-click or Return opens the add-on window; the context menu has **Show in Installed**.
-- **Badges.** "✓ Forever", "— not yet", "— no releases", "⋯ checking". **Not checked** (plain secondary text, no capsule) means no verdict for this flavor yet; its tooltip says "Open this add-on to check Forever support". **Unknown, no release.json** is a verdict: support can only be confirmed by installing. Rows aren't checked in the background.
+- **Visible-row checks.** About 1 s after scrolling stops, the rows on screen (unchecked ones first, up to 20) go to `checkVisible`, which skips fresh answers and spends no API quota ([refresh.md](../features/refresh.md#visible-row-checks)). Rows report themselves through the Name cell's `onAppear` / `onDisappear`: AppKit hosts cells only for rows on screen, and `Table` on macOS has no scroll-phase or visible-range API, so this is the visible range. Each change restarts the 1 s timer. A new query or an empty search cancels it; nothing runs while a refresh does. Answers patch rows live ([live-data.md](live-data.md)).
 - A status bar shows the count, "Searching…" until the last update (or "Searching GitHub…" while the core reports a live search), and **Search GitHub for More Results**. "No results" appears only after the last update.
-- Beside the count: **Last fetched Oct 12, 7:18 AM** ("Today, 7:18 AM" for today, "Not fetched yet" before the first refresh), from `lastRefresh(in:)` and updated when a refresh finishes (`FetchLabel`). The ⟳ button next to it runs a forced refresh, like ⌘R; while one runs it's a small spinner and disabled.
+- Beside the count, the **legend** "R Retail · F Forever · C Classic" (`GameLegend`; letters only, with a tooltip, when the bar is narrow), and **Last fetched Oct 12, 7:18 AM** ("Today, 7:18 AM" for today, "Not fetched yet" before the first refresh), from `lastRefresh(in:)` and updated when a refresh finishes (`FetchLabel`). The ⟳ button next to it runs a forced refresh, like ⌘R; while one runs it's a small spinner and disabled.
+
+## Games
+
+Which games an add-on's latest release ships builds for, replacing the old single "Forever" verdict ([decision 0019](../decisions/0019-available-games-and-visible-row-checks.md)). One view, `GameBubbles`, in the Browse column, the inspector, the add-on window, the unmanaged inspector and the adopt sheet's search results.
+
+```
+ R  F  C     filled = this installation's family   tinted = present   outline = no build   —  not checked
+```
+
+- Three fixed-position capsules: **R** blue, **F** teal, **C** orange (system colours, so light and dark mode work). Present ones are tinted; the installation's own family is filled, with a bold letter; absent ones are a faint outline in the same slot, so columns line up.
+- **Not checked** (no `release.json`, never checked): a dim "—", whose tooltip says why.
+- Tooltips per bubble: "Classic: Era, TBC Anniversary, Wrath, Cata, Mists"; on Forever, R says "Retail build: may work on Forever, which lists it as out of date until you tick Load out of date AddOns"; "No Forever build".
+- **Cheap cells.** `GameBubblesModel` is built with the row (`BrowseRow.games`), so the cell reads stored values and no environment.
+- **Sorting:** own family present first, then the number of families; unchecked rows last. The column keeps the `support` sort key.
+- **Inspector and add-on window:** the bubbles plus `GameAvailability.sentence`: "Has a Forever build", "Retail build only: may work on Forever; it will show as out of date", "Classic only: won't load on Forever", "Not checked yet". For a Retail-only add-on on Forever the action is **Install Retail Build…**, whose confirmation sheet explains *Load out of date AddOns* and installs with `allowFamilyFallback: true`. Installed add-ons show **Build: Retail build**, and **Update to Forever build** once one appears ([release-selection.md](../features/release-selection.md#retail-build-on-forever)).
 
 ## Sorting
 

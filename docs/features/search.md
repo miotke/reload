@@ -108,7 +108,7 @@ Results that are already installed are marked.
 - Browse calls `searchUpdates(_:in:installed:)` and shows each `SearchUpdate` as it arrives.
 - "Searching GitHub…" shows only while the update says `isSearchingGitHub`; "No results" only after the update with `isComplete`.
 - The **Hide Classic-only** toggle ("Hide add-ons without a Retail build" on Retail, "…without a Classic build" on the classics) sets `hideIncompatible` and filters search results as well as the home lists. On by default; it keeps the `@AppStorage("browseForeverOnly")` key so users keep their setting.
-- Badges fill in live during a refresh ([app/live-data.md](../app/live-data.md)). Table layout: [app/layout.md](../app/layout.md#browse-table).
+- Games fill in live during a refresh and after visible-row checks ([app/live-data.md](../app/live-data.md)). Table layout: [app/layout.md](../app/layout.md#browse-table).
 
 ## In the CLI
 

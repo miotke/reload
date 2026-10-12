@@ -23,7 +23,7 @@ Code: `Sources/AddonKit/Model/Flavor.swift`, `Sources/AddonKit/Parsing/`. Why on
 - Mainline's ranges are the original releases before each classic re-release, then everything from 6.0 on.
 - Suffixes are matched after `_` or `-`, case-insensitively.
 - **Shared suffixes count only when the TOC's interface is in the flavor's range**: `_Mainline` counts for Forever only with a `16xxx` interface, `_Classic` for any classic game with an interface in its range. Titan has no suffix of its own, so it treats `_Wrath`/`_WOTLKC` TOCs as shared.
-- `displayName` is what the app and CLI show ("Forever only", "no Retail build").
+- `displayName` is what the app and CLI show ("No Forever build yet", "no Retail build").
 
 ### Helpers
 

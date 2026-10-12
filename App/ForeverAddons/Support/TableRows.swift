@@ -16,15 +16,23 @@ extension AddonRef {
 
 // MARK: - Browse
 
+/// What the database says about one repo now: its verdict for the flavor, and every flavor
+/// its latest release ships. Nil fields are left alone when patching.
+nonisolated struct StoredAnswer: Hashable, Sendable {
+    var support: SupportStatus?
+    var availableFlavors: Set<Flavor>?
+}
+
 extension [SearchResult] {
-    /// The same results with `support` replaced where `statuses` has a verdict, so a
-    /// database change touches only its own rows.
-    nonisolated func patchingSupport(_ statuses: [AddonRef: SupportStatus]) -> [SearchResult] {
+    /// The same results with `support` and `availableFlavors` replaced where `answers` has
+    /// them, so a database change touches only its own rows.
+    nonisolated func patching(_ answers: [AddonRef: StoredAnswer]) -> [SearchResult] {
         map { result in
-            guard let status = statuses[result.id], status != result.support else { return result }
-            var result = result
-            result.support = status
-            return result
+            guard let answer = answers[result.id] else { return result }
+            var patched = result
+            if let support = answer.support { patched.support = support }
+            if let flavors = answer.availableFlavors { patched.availableFlavors = flavors }
+            return patched
         }
     }
 }
@@ -65,6 +73,11 @@ nonisolated struct BrowseRow: Identifiable, Hashable, Sendable {
     var owner: String
     var summary: String?
     var support: SupportStatus
+    var availableFlavors: Set<Flavor>?
+    /// The Games column, pre-computed for the installation.
+    var games: GameBubblesModel
+    /// Shown dimmed: the installation's own game isn't confirmed.
+    var isDimmed: Bool
     var stars: Int?
     var starsText: String
     var lastUpdated: Date?
@@ -75,13 +88,16 @@ nonisolated struct BrowseRow: Identifiable, Hashable, Sendable {
     /// Found by a live GitHub search rather than the local catalogue.
     var isFromGitHub: Bool
 
-    init(_ result: SearchResult, action: InstallAction? = nil, now: Date = .now) {
+    init(_ result: SearchResult, flavor: Flavor, action: InstallAction? = nil, now: Date = .now) {
         id = result.id.description
         ref = result.id
         name = result.name
         owner = result.owner
         summary = result.summary
         support = result.support
+        availableFlavors = result.availableFlavors
+        games = GameBubblesModel(availableFlavors: result.availableFlavors, flavor: flavor, support: result.support)
+        isDimmed = !(result.availableFlavors?.contains(flavor) ?? false) && !(result.support.isSupported)
         stars = result.stars
         starsText = result.stars.map { $0.formatted() } ?? "—"
         lastUpdated = result.lastUpdated
@@ -92,12 +108,13 @@ nonisolated struct BrowseRow: Identifiable, Hashable, Sendable {
 }
 
 nonisolated enum BrowseColumn: String, SortableColumn {
-    case name, support, stars, updated
+    // `games` keeps the stored raw value of the support column it replaced.
+    case name, games = "support", stars, updated
 
     func ascending(_ lhs: BrowseRow, _ rhs: BrowseRow) -> ComparisonResult {
         switch self {
         case .name: lhs.name.localizedStandardCompare(rhs.name)
-        case .support: compareValues(Self.supportRank(lhs.support), Self.supportRank(rhs.support))
+        case .games: GameBubblesModel.ascending(lhs.games, rhs.games)
         case .stars: compareValues(lhs.stars ?? 0, rhs.stars ?? 0)
         case .updated: compareValues(lhs.lastUpdated ?? .distantPast, rhs.lastUpdated ?? .distantPast)
         }
@@ -105,7 +122,8 @@ nonisolated enum BrowseColumn: String, SortableColumn {
 
     func hasValue(_ row: BrowseRow) -> Bool {
         switch self {
-        case .name, .support: true
+        case .name: true
+        case .games: row.games.isChecked
         case .stars: row.stars != nil
         case .updated: row.lastUpdated != nil
         }
@@ -115,17 +133,11 @@ nonisolated enum BrowseColumn: String, SortableColumn {
         let byName = lhs.name.localizedStandardCompare(rhs.name)
         return byName == .orderedSame ? lhs.id.compare(rhs.id) : byName
     }
+}
 
-    /// Ascending puts confirmed Forever support first.
-    static func supportRank(_ status: SupportStatus) -> Int {
-        switch status {
-        case .supported: 0
-        case .checking: 1
-        case .needsDownload: 2
-        case .unknown: 3
-        case .unsupported: 4
-        case .noReleases: 5
-        }
+extension SupportStatus {
+    nonisolated var isSupported: Bool {
+        if case .supported = self { true } else { false }
     }
 }
 
@@ -147,7 +159,11 @@ nonisolated struct InstalledRow: Identifiable, Hashable, Sendable {
     /// Repository for managed add-ons, TOC title for unmanaged folders.
     var subtitle: String?
     var version: String
+    /// The update's version, or "Forever build" when the update swaps a Retail build for the
+    /// installation's own.
     var availableVersion: String?
+    /// "Retail build" when the installed build is another game's.
+    var buildText: String?
     var channel: Channel?
     var installedAt: Date?
     var installedText: String
@@ -160,7 +176,7 @@ nonisolated struct InstalledRow: Identifiable, Hashable, Sendable {
 
     var isManaged: Bool { ref != nil }
 
-    init(status: AddonStatus, update: UpdateState?, now: Date = .now) {
+    init(status: AddonStatus, update: UpdateState?, flavor: Flavor, now: Date = .now) {
         id = status.id
         isPinned = false
         missingFolders = []
@@ -174,7 +190,11 @@ nonisolated struct InstalledRow: Identifiable, Hashable, Sendable {
             installedAt = addon.installedAt
             isPinned = addon.pinned
             missingFolders = missing
-            if case .available(let release) = update, !addon.pinned { availableVersion = release.version }
+            buildText = RetailBuildOffer.buildLabel(addon)
+            if case .available(let release) = update, !addon.pinned {
+                let switchesBuild = addon.installedFlavorBuild != nil && release.flavorBuild == nil
+                availableVersion = switchesBuild ? "\(flavor.displayName) build" : release.version
+            }
             if !missing.isEmpty {
                 condition = .missingFolders
             } else if addon.pinned {
