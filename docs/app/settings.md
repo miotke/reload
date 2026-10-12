@@ -2,7 +2,7 @@
 
 The Settings window's tabs, what each stores and where, and how the alternate app icon works (and why Finder never shows it).
 
-Code: `App/ForeverAddons/Views/SettingsView.swift` (scene root, General and Advanced), `Views/AppearanceSettings.swift`, `Views/GitHubSettings.swift`, `Views/CommandLineToolViews.swift`, `Support/SettingsSupport.swift`.
+Code: `App/ForeverAddons/Views/SettingsView.swift` (scene root, General and Advanced), `Views/AppearanceSettings.swift`, `Views/GitHubSettings.swift`, `Views/CommandLineToolViews.swift`, `Support/SettingsSupport.swift`. Why: [decision 0022](../decisions/0022-mac-style-settings-and-alternate-icons.md).
 
 ## Layout
 
