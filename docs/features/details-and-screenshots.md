@@ -27,13 +27,20 @@ Opening an add-on is one of the times the core goes to the network.
 |---|---|
 | name, owner, summary, last updated | the `catalogue` row (also for repos found by live search), else the installed record or repo name |
 | stars | `repo_meta`, from live search results |
-| support, latest version | the stored verdict, via `check(policy: .revalidateIfStale)` (quota-free) |
+| support, latest version | `latestRelease`: `.revalidateIfStale` when the details are stale, the stored verdict otherwise (quota-free) |
 | README | raw.githubusercontent.com, see [README](#readme) |
 | screenshots | images in the README, see [Screenshots](#screenshots) |
-| latest release date and notes | the API resolve, only while quota is comfortable; otherwise the last stored ones |
+| latest release notes and date | on demand, see [Release notes](#release-notes); shown when stored for the current latest tag |
 
 - The result is stored in the `details` table and reused for 24 h. If the README couldn't be fetched, nothing is stored, so a network blip isn't kept for a day.
-- Cost: 2–4 quota-free requests for that repo, only when stale ([budget.md](../network/budget.md)).
+- Cost: **no API calls and no zip downloads**. A cold open is a `HEAD` for the latest tag, that tag's `release.json` (once per tag, [caching.md](../network/caching.md#lifetimes)) and the README paths; fresh details cost nothing ([budget.md](../network/budget.md)).
+
+## Release notes
+
+- `AddonManager.releaseNotes(for:in:)` → `(version, publishedAt, markdown)?`, nil when the repo has no releases.
+- Stored notes for the current latest tag are returned without a request. Otherwise it's **one API call** (`releases/latest`; none if this process already holds the release list), never a zip, and the answer is stored in `details` by tag.
+- The inspector and the add-on window show **Show Release Notes** where notes aren't stored. With a token and comfortable quota, `details` loads them automatically.
+- A new latest tag hides the old notes until they're asked for again. Installed add-ons also show the changelog stored with the install.
 
 ## Loading details in the app
 
@@ -47,7 +54,7 @@ Opening an add-on is one of the times the core goes to the network.
 **Fetching (core):**
 - Fetched from `raw.githubusercontent.com/{owner}/{repo}/HEAD/<path>`: `HEAD` there means the default branch, which the catalogue doesn't give.
 - The paths GitHub itself uses are tried in order: `README.md`, `.github/README.md`, `readme.md`, `Readme.md`, `docs/README.md`, `README.markdown`, `README.MD`, `README`.
-- The path that worked and its ETag are kept in `repo_meta`, so the next check is one conditional request. "No README" is remembered too.
+- The path that worked and its ETag are kept in `repo_meta`, so the next check is one conditional request. "No README" is remembered too, and trusted for 7 days before the paths are tried again.
 - READMEs are capped at 512 KB. The API's `/readme` is asked only with a token, when every path 404s.
 
 **Rendering (app):**

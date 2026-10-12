@@ -119,14 +119,20 @@ public actor SearchCoordinator {
             continuation.yield(SearchUpdate(results: session.visible, isComplete: true))
             return
         }
-        if !explicit {
-            continuation.yield(SearchUpdate(results: session.visible))
-            // Only a settled query spends a request: typing on cancels this search.
-            try? await Task.sleep(for: liveSearchDelay)
-            guard !Task.isCancelled else { return }
+        // A stored answer needs neither the settle delay nor the "searching GitHub" state.
+        let live: [SearchResult]
+        if let stored = await storedLiveResults(text, explicit: explicit, stars: stars) {
+            live = stored
+        } else {
+            if !explicit {
+                continuation.yield(SearchUpdate(results: session.visible))
+                // Only a settled query spends a request: typing on cancels this search.
+                try? await Task.sleep(for: liveSearchDelay)
+                guard !Task.isCancelled else { return }
+            }
+            continuation.yield(SearchUpdate(results: session.visible, isSearchingGitHub: true))
+            live = await liveResults(text, flavor: query.flavor, explicit: explicit, github: github, stars: stars)
         }
-        continuation.yield(SearchUpdate(results: session.visible, isSearchingGitHub: true))
-        let live = await liveResults(text, flavor: query.flavor, explicit: explicit, github: github, stars: stars)
         guard !Task.isCancelled else { return }
         for result in live { session.merge(result) }
         session.attach(installed: installedByKey)
@@ -145,27 +151,33 @@ public actor SearchCoordinator {
         return try? await catalogue.searchIndex()
     }
 
-    /// Live results for `text`: the stored answer if recent, else one request (three stages
-    /// when `explicit`). Failures and rate limits give no results, quietly.
+    private static func liveCacheKey(_ text: String, explicit: Bool) -> String {
+        SearchText.fold(text.split(whereSeparator: \.isWhitespace).joined(separator: " ")) + (explicit ? "#all" : "")
+    }
+
+    /// The stored live answer for `text` while it's within its lifetime, else nil.
+    private func storedLiveResults(_ text: String, explicit: Bool, stars: [String: Int]) async -> [SearchResult]? {
+        let key = Self.liveCacheKey(text, explicit: explicit)
+        guard let row = try? await supportCache.database.query("SELECT full_names, fetched_at FROM search_cache WHERE query = ?", key).first,
+              let names = row.string(0), let fetched = row.date(1) else { return nil }
+        let list = names.split(separator: "\n").map(String.init)
+        let ttl = list.isEmpty ? Self.emptyLiveCacheTTL : Self.liveCacheTTL
+        guard now().timeIntervalSince(fetched) < ttl else { return nil }
+        var results: [SearchResult] = []
+        for name in list {
+            guard let entry = await catalogue.entry(for: AddonRef(source: .github, identifier: name)) else { continue }
+            results.append(Self.result(for: entry, origin: .github, stars: stars))
+        }
+        return results
+    }
+
+    /// Live results for `text` from one request (three stages when `explicit`), stored for
+    /// `storedLiveResults`. Failures and rate limits give no results, quietly.
     private func liveResults(
         _ text: String, flavor: Flavor, explicit: Bool, github: GitHubSearchProvider, stars: [String: Int]
     ) async -> [SearchResult] {
-        let key = SearchText.fold(text.split(whereSeparator: \.isWhitespace).joined(separator: " ")) + (explicit ? "#all" : "")
+        let key = Self.liveCacheKey(text, explicit: explicit)
         let database = supportCache.database
-        if let row = try? await database.query("SELECT full_names, fetched_at FROM search_cache WHERE query = ?", key).first,
-           let names = row.string(0), let fetched = row.date(1) {
-            let list = names.split(separator: "\n").map(String.init)
-            let ttl = list.isEmpty ? Self.emptyLiveCacheTTL : Self.liveCacheTTL
-            if now().timeIntervalSince(fetched) < ttl {
-                var results: [SearchResult] = []
-                for name in list {
-                    guard let entry = await catalogue.entry(for: AddonRef(source: .github, identifier: name)) else { continue }
-                    results.append(Self.result(for: entry, origin: .github, stars: stars))
-                }
-                return results
-            }
-        }
-
         let found: [SearchResult]
         do {
             found = try await github.search(SearchQuery(text: text, flavor: flavor), stages: explicit ? nil : 1)

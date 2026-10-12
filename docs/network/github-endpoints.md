@@ -10,6 +10,7 @@ Code: `Sources/AddonKit/Sources/GitHubSource.swift`, `Search/GitHubSearchProvide
 |---|---|---|---|
 | Latest stable tag | `HEAD github.com/{owner}/{repo}/releases/latest`, redirect **not followed**; the tag is read from `Location: …/releases/tag/{tag}` | No | [support checks](../features/release-selection.md#support-checks), stable update checks and resolves |
 | A tag's `release.json` or asset | `github.com/{owner}/{repo}/releases/download/{tag}/{file}` | No | support checks, [quota-free resolve](../features/release-selection.md#quota-free-resolve-stable-channel), installs |
+| Latest release (notes) | `api.github.com/repos/{owner}/{repo}/releases/latest` | **Yes** | [release notes](../features/details-and-screenshots.md#release-notes), on demand |
 | Release list | `api.github.com/repos/{owner}/{repo}/releases?per_page=10` | **Yes**, including a 304 when unauthenticated | the API resolve: prerelease channel, or when the latest release has no build for the flavor |
 | `release.json`, zips (API path) | each asset's `browser_download_url` | No | API resolve, [Downloader](../features/installing.md#downloader) |
 | Repo search | `api.github.com/search/repositories` | **Yes**, separate limit | [GitHub fallback](../features/search.md#github-fallback) |
@@ -30,7 +31,7 @@ Avoid `releases/latest/download/release.json`: it takes 3 hops and about 350 ms.
 
 - A `304 Not Modified` to an ETag request **still costs quota when unauthenticated**.
 - `rateLimit()` reports the latest remaining count and reset time. It's stored in the database (`rate_limit`, resources `core` and `search`), so the app and CLI share it, and **no API request is sent while it says 0 calls are left** before the reset.
-- `quotaIsComfortable()` is true above 30 calls left (or when nothing is known). Optional API calls, such as release notes for the inspector, wait for it.
+- `quotaIsComfortable()` is true above 30 calls left (or when nothing is known). Optional API calls, such as loading release notes automatically when a token is set, wait for it.
 - The API support path keeps a 10-call reserve for installs and updates.
 
 ## Headers

@@ -152,13 +152,83 @@ import Testing
         #expect(await h.manager.storedDetails(ref, flavor: .forever) == nil)
     }
 
-    @Test func latestReleaseNotesComeFromTheAPIWhenQuotaAllows() async throws {
+    func noZips(_ h: ManagerHarness) -> Bool {
+        h.transport.requests.isEmpty && !h.http.urls.contains { $0.hasSuffix(".zip") }
+    }
+
+    /// A cold open: one HEAD, the release.json for that tag, and the README paths. No API
+    /// call and no zip, even for a repo without release.json.
+    @Test func openingDetailsSpendsNoQuotaAndDownloadsNoZips() async throws {
         let h = try await makeHarness()
         try h.publish("A/Alpha", [("v1", 1, 3)])
+        h.http.reset()
+        let details = try await h.manager.details(for: ref, in: h.installation)
+        #expect(h.http.apiRequests.isEmpty)
+        #expect(noZips(h), "no zip downloads")
+        #expect(h.http.urls.filter { $0.hasPrefix("https://github.com/") && $0.hasSuffix("/release.json") }.count == 1, "release.json once")
+        #expect(h.http.requests.filter { $0.url?.host() == "github.com" && $0.httpMethod == "HEAD" }.count == 1)
+        #expect(details.support == .supported(version: "v1"))
+        #expect(details.latestVersion == "v1")
+        #expect(details.latestChangelog == nil, "notes are on demand")
+
+        // Without release.json: still nothing but github.com and raw.githubusercontent.com.
+        let bare = AddonRef(source: .github, identifier: "B/Bare")
+        h.http.publishLatest("B/Bare", tag: "v9", flavors: nil)
+        h.http.reset()
+        #expect(try await h.manager.details(for: bare, in: h.installation).support == .needsDownload)
+        #expect(h.http.apiRequests.isEmpty)
+        #expect(noZips(h))
+    }
+
+    @Test func releaseNotesAreOneAPICallThenStoredByTag() async throws {
+        let h = try await makeHarness()
+        try h.publish("A/Alpha", [("v1", 1, 3)])
+        h.http.stub("https://api.github.com/repos/A/Alpha/releases/latest", headers: ["x-ratelimit-remaining": "50"], body: Data("""
+            {"id": 1, "tag_name": "v1", "draft": false, "prerelease": false, "published_at": "2026-10-03T12:00:00Z",
+             "body": "Notes for v1", "assets": []}
+            """.utf8))
+        _ = try await h.manager.details(for: ref, in: h.installation)
+        h.http.reset()
+
+        let notes = try #require(try await h.manager.releaseNotes(for: ref, in: h.installation))
+        #expect(notes.version == "v1")
+        #expect(notes.markdown == "Notes for v1")
+        #expect(notes.publishedAt != nil)
+        #expect(h.http.urls == ["https://api.github.com/repos/A/Alpha/releases/latest"])
+        #expect(noZips(h))
+
+        // Stored: asking again, or reopening the details, costs nothing and shows them.
+        h.http.reset()
+        #expect(try await h.manager.releaseNotes(for: ref, in: h.installation)?.markdown == "Notes for v1")
         let details = try await h.manager.details(for: ref, in: h.installation)
         #expect(details.latestChangelog == "Notes for v1")
         #expect(details.latestPublishedAt != nil)
-        #expect(h.http.apiRequests.count == 1)
+        #expect(h.http.requests.isEmpty)
+
+        // Once the details are revalidated, a new latest tag hides the old notes.
+        await h.manager.setClock { Date().addingTimeInterval(25 * 3600) }
+        h.http.publishLatest("A/Alpha", tag: "v2")
+        #expect(try await h.manager.details(for: ref, in: h.installation).latestChangelog == nil)
+    }
+
+    @Test func aStoredNoReadmeIsTrustedForAWeek() async throws {
+        let h = try await ManagerHarness()
+        let other = AddonRef(source: .github, identifier: "Z/None")
+        h.http.publishLatest("Z/None", tag: nil)
+        let clock = MutableClock()
+        await h.manager.setClock(clock.now)
+        _ = try await h.manager.details(for: other, in: h.installation)
+        #expect(h.http.urls.filter { $0.contains("raw.githubusercontent.com") }.count == GitHubSource.readmeCandidates.count)
+
+        clock.date += 2 * 24 * 3600
+        h.http.reset()
+        _ = try await h.manager.details(for: other, in: h.installation)
+        #expect(!h.http.urls.contains { $0.contains("raw.githubusercontent.com") }, "details are stale, the stored 'none' isn't")
+
+        clock.date += 6 * 24 * 3600
+        h.http.reset()
+        _ = try await h.manager.details(for: other, in: h.installation)
+        #expect(h.http.urls.contains { $0.contains("raw.githubusercontent.com") })
     }
 
     @Test func largeReadmesAreCapped() {

@@ -219,6 +219,23 @@ private let bugsackLive: [(fullName: String, stars: Int, archived: Bool, fork: B
         #expect(local[0].isComplete && !local[0].isSearchingGitHub)
     }
 
+    /// A remembered live answer is read before the settle delay, and isn't shown as a
+    /// GitHub search.
+    @Test func aStoredLiveAnswerSkipsTheDelay() async throws {
+        let h = try await Harness()
+        h.stubGitHub("bugsack", body: githubSearchBody(bugsackLive))
+        _ = await h.updates(SearchQuery(text: "bugsack", flavor: .forever))
+        await h.coordinator.setLiveSearchDelay(.seconds(30))
+        let clock = ContinuousClock()
+        let start = clock.now
+        let updates = await h.updates(SearchQuery(text: "bugsack", flavor: .forever))
+        #expect(clock.now - start < .seconds(5), "no 30 s delay")
+        #expect(updates.allSatisfy { !$0.isSearchingGitHub })
+        #expect(updates.last?.isComplete == true)
+        #expect(updates.last?.results.count == 5)
+        #expect(h.githubRequests.count == 1)
+    }
+
     @Test func cancellingDuringTheDelaySkipsGitHub() async throws {
         let h = try await Harness(liveDelay: .seconds(30))
         h.stubGitHub("bugsack", body: githubSearchBody(bugsackLive))
