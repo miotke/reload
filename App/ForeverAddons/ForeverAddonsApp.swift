@@ -18,7 +18,10 @@ struct ForeverAddonsApp: App {
                 .frame(minWidth: 900, minHeight: 480)
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     // Belt and braces next to the store watcher: pick up changes made while inactive.
-                    Task { await model.reload() }
+                    Task {
+                        await model.reload()
+                        await model.reloadMetadataIfChanged()
+                    }
                     model.refreshInBackground()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
@@ -45,6 +48,12 @@ struct ForeverAddonsApp: App {
                 Button("Add Installation…") { model.addInstallationWithPanel() }
             }
         }
+
+        WindowGroup("Add-on", id: AddonWindowID.sceneID, for: AddonWindowID.self) { $id in
+            AddonWindow(model: model, id: id)
+                .environment(model)
+        }
+        .defaultSize(width: 900, height: 800)
 
         Settings {
             SettingsView()

@@ -5,7 +5,7 @@ import SwiftUI
 /// installed add-ons, so the tables don't open half-empty. Closes itself when the refresh
 /// finishes; after a few seconds it can be sent to the background, where the sidebar shows it.
 struct SeedingSheet: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
     var state: InstallationModel
 
     @State private var canContinueInBackground = false

@@ -16,6 +16,19 @@ extension AddonRef {
 
 // MARK: - Browse
 
+extension [SearchResult] {
+    /// The same results with `support` replaced where `statuses` has a verdict, so a
+    /// database change touches only its own rows.
+    nonisolated func patchingSupport(_ statuses: [AddonRef: SupportStatus]) -> [SearchResult] {
+        map { result in
+            guard let status = statuses[result.id], status != result.support else { return result }
+            var result = result
+            result.support = status
+            return result
+        }
+    }
+}
+
 nonisolated struct BrowseRow: Identifiable, Hashable, Sendable {
     var id: String
     var ref: AddonRef

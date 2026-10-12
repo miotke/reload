@@ -119,6 +119,7 @@ final class AppModel {
     func initialLoad() async {
         guard !didInitialLoad else { return }
         didInitialLoad = true
+        lastDataVersion = await dataVersion()
         await loadInstallations()
         watchStore()
         scheduleAutoRefresh()
@@ -234,6 +235,23 @@ final class AppModel {
         let ids = Set(installations.map(\.id))
         models = models.filter { ids.contains($0.key) }
         await current?.reload()
+    }
+
+    @ObservationIgnored private var lastDataVersion: Int64?
+
+    /// Changes whenever another process (`addonctl`) writes to the metadata database.
+    private func dataVersion() async -> Int64? {
+        try? await addonManager?.database.dataVersion()
+    }
+
+    /// On activation: re-reads metadata only if something else wrote it meanwhile. The app's
+    /// own writes reach the models through `MetadataDatabase.changes()`.
+    func reloadMetadataIfChanged() async {
+        guard didInitialLoad, let version = await dataVersion() else { return }
+        let previous = lastDataVersion
+        lastDataVersion = version
+        guard let previous, previous != version else { return }
+        for model in models.values { await model.reloadMetadata() }
     }
 
     func loadInstallations() async {

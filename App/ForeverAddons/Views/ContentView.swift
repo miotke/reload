@@ -7,15 +7,15 @@ struct ContentView: View {
     var body: some View {
         @Bindable var model = model
         NavigationSplitView {
-            SidebarView()
+            SidebarView(model: model)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 300)
         } detail: {
             if let state = model.current {
-                DetailView(state: state)
+                DetailView(model: model, state: state)
             } else if model.isLoadingInstallations {
                 ProgressView()
             } else {
-                NoInstallationView()
+                NoInstallationView(model: model)
             }
         }
         .sheet(item: $model.adoptTarget) { target in
@@ -25,11 +25,11 @@ struct ContentView: View {
         }
         .sheet(isPresented: $model.isSeedingPresented, onDismiss: model.seedingSheetDidClose) {
             if let state = model.seeding {
-                SeedingSheet(state: state)
+                SeedingSheet(model: model, state: state)
             }
         }
         .sheet(isPresented: Bindable(model.commandLineTool).isOfferPresented) {
-            CommandLineToolOfferSheet()
+            CommandLineToolOfferSheet(model: model)
         }
         .task {
             await model.initialLoad()
@@ -39,7 +39,7 @@ struct ContentView: View {
 
 /// First launch, or nothing detected: explain how to point the app at the game folder.
 private struct NoInstallationView: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
 
     var body: some View {
         ContentUnavailableView {
@@ -73,7 +73,7 @@ private struct NoInstallationView: View {
 }
 
 private struct SidebarView: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
 
     var body: some View {
         @Bindable var model = model
@@ -128,7 +128,7 @@ private struct InstallationRow: View {
 /// window toolbar (tabs, search, buttons) spans the whole detail area and the inspector
 /// starts below it instead of growing its own toolbar section.
 private struct DetailView: View {
-    @Environment(AppModel.self) private var model
+    var model: AppModel
     @AppStorage("inspectorWidth") private var inspectorWidth = 340.0
     var state: InstallationModel
 
@@ -137,8 +137,8 @@ private struct DetailView: View {
         InspectorSplit(isPresented: model.showInspector, width: $inspectorWidth) {
             Group {
                 switch model.tab {
-                case .installed: InstalledView(state: state)
-                case .browse: BrowseView(state: state)
+                case .installed: InstalledView(model: model, state: state)
+                case .browse: BrowseView(model: model, state: state)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -153,7 +153,7 @@ private struct DetailView: View {
             }
             .animation(.default, value: model.banner)
         } inspector: {
-            InspectorPane(state: state)
+            InspectorPane(model: model, state: state)
         }
         .searchable(
             text: $model.searchText, placement: .toolbar,
