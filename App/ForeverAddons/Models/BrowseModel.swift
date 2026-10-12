@@ -64,7 +64,8 @@ final class BrowseModel {
 
     /// A Browse row for `result`, with its action from the managed list.
     func row(for result: SearchResult, now: Date = .now) -> BrowseRow {
-        BrowseRow(result, flavor: installation.flavor, action: installed.installAction(for: result.id), now: now)
+        BrowseRow(result, flavor: installation.flavor,
+                  action: installed.installAction(for: result.id, availableFlavors: result.availableFlavors), now: now)
     }
 
     /// Also called when the managed list or an update state changes.
@@ -78,20 +79,15 @@ final class BrowseModel {
             results = searchResults
         }
         // The home lists come back unfiltered, and live patches can fill in a search result's games.
-        if options.hideIncompatible { results = results.filter(passesFamilyFilter) }
+        if options.hideIncompatible {
+            let flavor = installation.flavor
+            results = results.filter { !BrowseFilter.isHidden($0, for: flavor, isInstalled: installed.addon(for: $0.id) != nil) }
+        }
         var rows = results.map { row(for: $0, now: now) }
         if let sort = options.sort { rows.sort(using: sort) }
         guard rows != self.rows else { return }
         self.rows = rows
         rowIndex = Dictionary(rows.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
-    }
-
-    // Decision logic: moves to core.
-    // TODO(core-ui): the core should apply the per-family filter (including "installed rows
-    // always show") to the home lists as it does to search results.
-    private func passesFamilyFilter(_ result: SearchResult) -> Bool {
-        installed.addon(for: result.id) != nil
-            || !installation.flavor.hidesAsIncompatible(families: result.families, support: result.support)
     }
 
     // MARK: Search and home lists
@@ -220,15 +216,10 @@ final class BrowseModel {
         await manager.checkVisible(refs, in: installation)
     }
 
-    /// The core's per-call cap for `checkVisible`; `BrowseModelTests` keeps the two equal.
-    nonisolated static let visibleCheckLimit = 20
-
-    // Decision logic: moves to core.
-    // TODO(core-ui): which visible rows to check first, and how many, is the core's call;
-    // the app should pass every visible ref and let `checkVisible` order and cap them.
+    /// The rows on screen, in table order, ordered and capped by the core.
     nonisolated static func visibleCheckTargets(rows: [BrowseRow], visible: Set<BrowseRow.ID>) -> [AddonRef] {
         let onScreen = rows.filter { visible.contains($0.id) }
-        let ordered = onScreen.filter { !$0.games.isChecked } + onScreen.filter(\.games.isChecked)
-        return Array(ordered.prefix(visibleCheckLimit).map(\.ref))
+        let checked = Set(onScreen.filter(\.games.isChecked).map(\.ref))
+        return BrowseFilter.visibleCheckTargets(onScreen.map(\.ref), isChecked: checked.contains)
     }
 }

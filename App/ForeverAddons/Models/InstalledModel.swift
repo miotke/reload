@@ -32,8 +32,8 @@ final class InstalledModel {
         }
     }
     @ObservationIgnored private var addonIndex: [AddonStatus.ID: Int] = [:]
-    /// Managed add-ons by lower-cased `AddonRef.description`. GitHub names are
-    /// case-insensitive, and search results don't always match the stored case.
+    /// Managed add-ons by lower-cased `AddonRef.description`: the hashable form of
+    /// `AddonRef.isSameRepo(as:)`, so lookups per row stay O(1).
     @ObservationIgnored private var managedIndex: [String: InstalledAddon] = [:]
     private(set) var hasLoaded = false
     private(set) var isLoading = false
@@ -90,32 +90,18 @@ final class InstalledModel {
 
     var updateCount: Int { refsWithUpdates.count }
 
-    // Decision logic: moves to core.
-    // TODO(core-ui): which add-ons Update All installs (not pinned, an update stored) belongs
-    // to the core; the app should only ask for the list.
+    /// Managed add-ons the core offers an update for (not pinned, an update stored): Update All.
     var refsWithUpdates: [AddonRef] {
-        managed.filter { addon in
-            guard !addon.pinned, case .available = updateStates[addon.id] else { return false }
-            return true
-        }.map(\.id)
+        managed.filter { UpdateOffer(installed: $0, update: updateStates[$0.id], flavor: installation.flavor) != nil }.map(\.id)
     }
 
-    // Decision logic: moves to core.
-    // TODO(core-ui): the core should report the install action (install / installed / update,
-    // and whether the update replaces a Retail build), so Browse, the inspector and the
-    // add-on window only display it.
-    /// The primary action for `ref` wherever it's shown: Browse rows, the inspector and the
-    /// add-on window all ask this, so they can't disagree.
-    func installAction(for ref: AddonRef) -> InstallAction {
+    /// The core's primary action for `ref` wherever it's shown: Browse rows, the inspector and
+    /// the add-on window all ask this, so they can't disagree. `availableFlavors` decides
+    /// whether a fallback build is offered when it isn't installed.
+    func installAction(for ref: AddonRef, availableFlavors: Set<Flavor>?) -> InstallAction {
         let addon = addon(for: ref)
-        let update = addon.flatMap { updateStates[$0.id] }
-        var action = InstallAction(installed: addon, update: update)
-        // A Retail build being replaced by the installation's own reads "Update to Forever build".
-        if case .update(let ref, let version, _) = action, let addon,
-           case .available(let release)? = update, RetailBuildOffer.replacesFallbackBuild(addon, with: release) {
-            action = .update(ref: ref, version: version, available: "\(installation.flavor.displayName) build")
-        }
-        return action
+        return InstallAction(installed: addon, update: addon.flatMap { updateStates[$0.id] },
+                             availableFlavors: availableFlavors, flavor: installation.flavor)
     }
 
     // MARK: Changes (from `UpdateQueue`)

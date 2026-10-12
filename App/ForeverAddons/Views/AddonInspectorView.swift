@@ -360,15 +360,15 @@ private struct InspectorActions: View {
 
     var body: some View {
         let busy = rowState.activity != nil
-        let action = installedModel.installAction(for: ref)
+        let action = installedModel.installAction(for: ref, availableFlavors: availableFlavors)
         let flavor = queue.installation.flavor
         HStack {
             if let installed, let installedRef = action.installedRef {
                 Label("Installed \(installed.version)", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.secondary)
                     .labelStyle(.titleAndIcon)
-                if case .update(_, _, let available) = action {
-                    Button("Update to \(available)") { Task { await queue.update([installedRef]) } }
+                if case .update(_, _, let offer) = action {
+                    Button("Update to \(offer.label)") { Task { await queue.update([installedRef]) } }
                         .buttonStyle(.borderedProminent)
                         .disabled(busy)
                 }
@@ -395,7 +395,7 @@ private struct InspectorActions: View {
                     Task { await queue.install(ref, channel: defaultChannel, force: true) }
                 }
                 .disabled(busy)
-            } else if RetailBuildOffer.isOffered(availableFlavors: availableFlavors, flavor: flavor) {
+            } else if case .installFallbackBuild = action {
                 Button("Install Retail Build…") { confirmRetailBuild = true }
                     .buttonStyle(.borderedProminent)
                     .disabled(busy)

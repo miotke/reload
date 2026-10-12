@@ -124,9 +124,6 @@ final class AppModel {
         offerCommandLineTool()
     }
 
-    // Decision logic: moves to core.
-    // TODO(core-ui): whether an installation still needs its first full refresh is the core's
-    // call (it owns `lastRefresh`); the app should only decide to show the sheet.
     /// No refresh has ever completed: the catalogue, update states and support badges are all empty.
     private func needsSeeding(_ state: InstallationModel) async -> Bool {
         if seedDefaults?.bool(forKey: Self.didSeedKey) == true { return false }

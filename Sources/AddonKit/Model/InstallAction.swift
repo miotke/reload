@@ -107,3 +107,10 @@ extension AddonRef {
         source == other.source && identifier.caseInsensitiveCompare(other.identifier) == .orderedSame
     }
 }
+
+extension BrowseFilter {
+    /// `AddonManager.visibleCheckTargets`, for front ends that only know `AddonManaging`.
+    public static func visibleCheckTargets(_ onScreen: [AddonRef], isChecked: (AddonRef) -> Bool) -> [AddonRef] {
+        AddonManager.visibleCheckTargets(onScreen, isChecked: isChecked)
+    }
+}

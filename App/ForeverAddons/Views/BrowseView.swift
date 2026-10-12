@@ -329,9 +329,9 @@ struct BrowseActionCell: View {
             }
             if let activity = rowState.activity ?? row.action.installedRef.flatMap({ queue.row($0.description).activity }) {
                 ActivityIndicator(activity: activity, showsLabel: false)
-            } else if case .update(let ref, let version, let available) = row.action {
+            } else if case .update(let ref, let version, let offer) = row.action {
                 Button("Update") { Task { await queue.update([ref]) } }
-                    .help("Update \(version) to \(available)")
+                    .help("Update \(version) to \(offer.label)")
                     .disabled(queue.isUpdatingAll)
             } else if case .installed(_, let version) = row.action {
                 Label("Installed", systemImage: "checkmark")
@@ -344,6 +344,8 @@ struct BrowseActionCell: View {
                 }
                 .help("Replace the existing unmanaged folder")
             } else {
+                // The fallback build needs the inspector's confirmation, so Browse installs only
+                // the installation's own build.
                 Button("Install") {
                     Task { await queue.install(row.ref, channel: defaultChannel) }
                 }

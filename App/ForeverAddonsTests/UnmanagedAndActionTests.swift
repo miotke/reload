@@ -48,12 +48,12 @@ import Testing
 
     @Test(arguments: ["Questie/Questie", "github:Questie/Questie", "https://github.com/Questie/Questie.git", " www.github.com/Questie/Questie "])
     func parsesRefs(text: String) {
-        #expect(AdoptForm.parse(text) == ref)
+        #expect(AddonRef(parsing: text) == ref)
     }
 
     @Test(arguments: ["", "owner/repo/extra", "just words", "owner/re po"])
     func rejectsOtherText(text: String) {
-        #expect(AdoptForm.parse(text) == nil)
+        #expect(AddonRef(parsing: text) == nil)
     }
 
     @Test func reasons() {
@@ -163,12 +163,12 @@ import Testing
 
         let cases: [(String, InstallAction)] = [
             ("cidan/betterbags", .installed(ref: bags.id, version: "v0.5.14")),
-            ("funkydude/BugSack", .update(ref: bugSack.id, version: "v1", available: "v2")),
+            ("funkydude/BugSack", .update(ref: bugSack.id, version: "v1", to: .version("v2"))),
             ("someone/NotInstalled", .install),
         ]
         for (identifier, expected) in cases {
             let ref = AddonRef(source: .github, identifier: identifier)
-            let inspector = model.installed.installAction(for: ref)
+            let inspector = model.installed.installAction(for: ref, availableFlavors: nil)
             let row = model.browse.row(for: result(identifier))
             #expect(inspector == expected, "\(identifier)")
             #expect(row.action == inspector, "\(identifier)")
@@ -183,13 +183,17 @@ import Testing
         let forever = ResolvedRelease(ref: bags.id, name: "BetterBags", version: "v0.5.14", releaseID: -3, publishedAt: .now,
                                       downloadURL: URL(string: "https://x")!, assetName: "b.zip")
         model.queue.apply([bags.id: .available(forever)])
-        #expect(model.installed.installAction(for: bags.id) == .update(ref: bags.id, version: "v0.5.14", available: "Forever build"))
+        #expect(model.installed.installAction(for: bags.id, availableFlavors: nil) == .update(ref: bags.id, version: "v0.5.14", to: .ownBuild(.forever)))
         #expect(model.installed.managedRows.first { $0.ref == bags.id }?.availableVersion == "Forever build")
         #expect(model.installed.managedRows.first { $0.ref == bags.id }?.buildText == "Retail build")
 
         // A pinned add-on with an update shows as installed, not as an update.
         var pinned = bugSack
         pinned.pinned = true
-        #expect(InstallAction(installed: pinned, update: .available(release)) == .installed(ref: bugSack.id, version: "v1"))
+        #expect(InstallAction(installed: pinned, update: .available(release), availableFlavors: nil, flavor: .forever)
+            == .installed(ref: bugSack.id, version: "v1"))
+        // Not installed with only a Retail build: the core offers the fallback build.
+        #expect(model.installed.installAction(for: AddonRef(source: .github, identifier: "o/RetailOnly"), availableFlavors: [.mainline])
+            == .installFallbackBuild(.mainline))
     }
 }

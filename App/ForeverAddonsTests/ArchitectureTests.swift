@@ -19,6 +19,15 @@ import Testing
     ]
     static let allowed: Set<String> = ["AppEnvironment.swift"]
 
+    /// Decisions the core makes, which app code must call rather than re-implement.
+    static let reimplemented: [(pattern: String, instead: String)] = [
+        (#"\b(enum|struct|class)\s+(InstallAction|UpdateOffer|BrowseFilter)\b"#, "the core's `InstallAction`, `UpdateOffer` and `BrowseFilter`"),
+        (#"\.rules\b|\binterfaceRanges\b"#, "the core's flavor decisions (`BrowseFilter`, `InstallAction`, `GameAvailability`), not TOC rules or interface ranges"),
+        (#"\bhidesAsIncompatible\b"#, "`BrowseFilter.isHidden(_:for:isInstalled:)`"),
+        (#"\bfallbackFlavor\b"#, "`InstallAction.installFallbackBuild` / `Flavor.offeredFallbackBuild(availableFlavors:)`"),
+        (#"installedFlavorBuild\s*!=\s*nil\s*&&"#, "`UpdateOffer(installed:update:flavor:)`"),
+    ]
+
     @Test func appSourcesNeverNameCoreInternals() throws {
         let files = try #require(FileManager.default.enumerator(at: EnvironmentUsageTests.appSources, includingPropertiesForKeys: nil))
             .compactMap { $0 as? URL }
@@ -35,5 +44,21 @@ import Testing
             }
         }
         #expect(offenders.isEmpty, "App code must not reach core internals:\n\(offenders.joined(separator: "\n"))")
+    }
+
+    @Test func appSourcesDontReimplementCoreDecisions() throws {
+        let files = try #require(FileManager.default.enumerator(at: EnvironmentUsageTests.appSources, includingPropertiesForKeys: nil))
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" }
+        var offenders: [String] = []
+        for file in files {
+            let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n", omittingEmptySubsequences: false)
+            for (number, line) in lines.enumerated() {
+                for (pattern, instead) in Self.reimplemented where try Regex(pattern).firstMatch(in: String(line)) != nil {
+                    offenders.append("\(file.lastPathComponent):\(number + 1): use \(instead)")
+                }
+            }
+        }
+        #expect(offenders.isEmpty, "App code re-implements a core decision:\n\(offenders.joined(separator: "\n"))")
     }
 }

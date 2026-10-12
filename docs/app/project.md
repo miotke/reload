@@ -84,9 +84,9 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | Shared views: game bubbles and legend, activity, errors, refresh bar, banner | `App/ForeverAddons/Views/Components.swift` |
 | README rendering | `App/ForeverAddons/Views/MarkdownView.swift` |
 | Screenshot strip and viewer | `App/ForeverAddons/Views/ScreenshotViews.swift` |
-| Pre-formatted Browse and Installed rows, `InstallAction`, live `patching` | `App/ForeverAddons/Support/TableRows.swift` |
+| Pre-formatted Browse and Installed rows, live `patching` | `App/ForeverAddons/Support/TableRows.swift` |
 | Sortable columns and the stored sort | `App/ForeverAddons/Support/TableSorting.swift` |
-| `DayLabel`, `FetchLabel`, `GameBubblesModel`, filter labels, `RetailBuildOffer` | `App/ForeverAddons/Support/AddonFormatting.swift` |
+| `DayLabel`, `FetchLabel`, `GameBubblesModel`, filter labels, `UpdateOffer.label`, Retail build wording | `App/ForeverAddons/Support/AddonFormatting.swift` |
 | Adopt targets, removal requests, `AdoptForm`, adoption preview state | `App/ForeverAddons/Support/UnmanagedSupport.swift` |
 | Settings keys, ⌘F search focus, small extensions, `RecentKeys` | `App/ForeverAddons/Support/AppSupport.swift` |
 | Store folder watcher | `App/ForeverAddons/Support/DirectoryWatcher.swift` |

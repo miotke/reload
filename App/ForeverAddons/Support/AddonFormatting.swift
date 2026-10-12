@@ -116,25 +116,19 @@ nonisolated enum IncompatibleFilterLabel {
     }
 }
 
-/// Offering the Retail build on Forever: only with no build for the installation's flavor but
-/// one for its fallback (decision 0019).
+extension UpdateOffer {
+    /// "v1.3", or "Forever build" when the update replaces a fallback build with the installation's own.
+    nonisolated var label: String {
+        switch self {
+        case .version(let version): version
+        case .ownBuild(let flavor): "\(flavor.displayName) build"
+        }
+    }
+}
+
+/// Wording for the fallback (Retail) build on Forever; whether it's offered is the core's
+/// `InstallAction.installFallbackBuild` (decision 0019).
 nonisolated enum RetailBuildOffer {
-    // Decision logic: moves to core.
-    // TODO(core-ui): whether to offer the fallback build (and install with
-    // `allowFamilyFallback`) is the core's call; the app should only show the offer.
-    static func isOffered(availableFlavors: Set<Flavor>?, flavor: Flavor) -> Bool {
-        guard let available = availableFlavors, let fallback = flavor.fallbackFlavor else { return false }
-        return !available.contains(flavor) && available.contains(fallback)
-    }
-
-    // Decision logic: moves to core.
-    // TODO(core-ui): the core should say when an update swaps a fallback (Retail) build for
-    // the installation's own, so "Update to Forever build" is only a label here.
-    /// The update installs the installation's own build over a fallback family's.
-    static func replacesFallbackBuild(_ addon: InstalledAddon, with release: ResolvedRelease) -> Bool {
-        addon.installedFlavorBuild != nil && release.flavorBuild == nil
-    }
-
     /// "Retail build" for an add-on installed as another game's build, else nil.
     static func buildLabel(_ addon: InstalledAddon) -> String? {
         addon.installedFlavorBuild.map { "\($0.family.displayName) build" }

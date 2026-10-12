@@ -40,7 +40,7 @@ Each installation has one `InstallationModel`, which only owns and wires four fe
 
 - Views take the model they need as a property: cells take `UpdateQueue`, `BrowseModel` or a pre-built row; tables take their tab's models. `AddonDetailView`, `InspectorPane` and `AddonWindow` combine all four, so they take `InstallationModel` and read its parts directly. There are no forwarding methods.
 - The app reaches the core only through `AddonManaging`; `ArchitectureTests` fails on any app file but `AppEnvironment.swift` that names `AddonManager` or a core internal.
-- Decisions the core will take over are isolated in helpers marked `TODO(core-ui)`.
+- Decisions come from the core: `InstallAction` (including the Retail build offer), `UpdateOffer`, `BrowseFilter` (hide incompatible, dimming, visible-check order), `AddonRef(parsing:)` and `isSameRepo`, `AdoptionPreview.canAdopt`. `ArchitectureTests` also fails if app code re-implements them.
 
 ## Inspector placement
 
@@ -79,7 +79,7 @@ Each installation has one `InstallationModel`, which only owns and wires four fe
 
 ## Installed state
 
-Browse rows, the inspector and the add-on window all take an add-on's installed state from `InstalledModel.installAction(for:)`: the managed list keyed by lower-cased ref, plus the stored update state. They never read it from a `SearchResult` or `AddonDetails`, so `Cidan/BetterBags` found as `cidan/betterbags` still shows as installed. The inspector shows **Installed v0.5.14**, **Update to …** when an update is stored, and **Uninstall…**.
+Browse rows, the inspector and the add-on window all take an add-on's installed state from `InstalledModel.installAction(for:availableFlavors:)`, the core's `InstallAction`: the managed list keyed by lower-cased ref, plus the stored update state. They never read it from a `SearchResult` or `AddonDetails`, so `Cidan/BetterBags` found as `cidan/betterbags` still shows as installed. The inspector shows **Installed v0.5.14**, **Update to …** when an update is stored, and **Uninstall…**.
 
 ## Browse table
 

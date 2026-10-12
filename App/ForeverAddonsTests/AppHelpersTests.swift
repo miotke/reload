@@ -249,12 +249,9 @@ import Testing
         #expect(GameBubblesModel(availableFlavors: nil, flavor: .forever, support: .noReleases).uncheckedHelp == "This repository has no GitHub releases")
     }
 
-    @Test func retailBuildIsOfferedOnlyWhenItHelps() {
-        #expect(RetailBuildOffer.isOffered(availableFlavors: [.mainline], flavor: .forever))
-        #expect(!RetailBuildOffer.isOffered(availableFlavors: [.mainline, .forever], flavor: .forever))
-        #expect(!RetailBuildOffer.isOffered(availableFlavors: [.vanilla], flavor: .forever))
-        #expect(!RetailBuildOffer.isOffered(availableFlavors: nil, flavor: .forever))
-        #expect(!RetailBuildOffer.isOffered(availableFlavors: [.mainline], flavor: .mists))
+    @Test func retailBuildWording() {
+        #expect(UpdateOffer.ownBuild(.forever).label == "Forever build")
+        #expect(UpdateOffer.version("v1.3").label == "v1.3")
         #expect(RetailBuildOffer.explanation(for: .forever).contains("Load out of date AddOns"))
     }
 
@@ -277,10 +274,5 @@ import Testing
         #expect(targets.count == 20)
         #expect(targets.first?.identifier == "o/r5", "unchecked rows go first")
         #expect(!targets.contains { $0.identifier == "o/r29" }, "only rows on screen")
-    }
-
-    /// The app's copy of the cap is a stopgap until the core orders and caps visible checks.
-    @Test func visibleCheckLimitMatchesTheCore() {
-        #expect(BrowseModel.visibleCheckLimit == AddonManager.visibleCheckLimit)
     }
 }
