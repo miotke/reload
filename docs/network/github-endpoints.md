@@ -10,7 +10,7 @@ Code: `Sources/AddonKit/Sources/GitHubSource.swift`, `Search/GitHubSearchProvide
 |---|---|---|---|
 | Latest stable tag | `HEAD github.com/{owner}/{repo}/releases/latest`, redirect **not followed**; the tag is read from `Location: …/releases/tag/{tag}` | No | [support checks](../features/release-selection.md#support-checks), stable update checks and resolves |
 | A tag's `release.json` or asset | `github.com/{owner}/{repo}/releases/download/{tag}/{file}` | No | support checks, [quota-free resolve](../features/release-selection.md#quota-free-resolve-stable-channel), installs |
-| Release list | `api.github.com/repos/{owner}/{repo}/releases?per_page=10` | **Yes**, including a 304 when unauthenticated | the API resolve: prerelease channel, or when the latest release has no Forever build |
+| Release list | `api.github.com/repos/{owner}/{repo}/releases?per_page=10` | **Yes**, including a 304 when unauthenticated | the API resolve: prerelease channel, or when the latest release has no build for the flavor |
 | `release.json`, zips (API path) | each asset's `browser_download_url` | No | API resolve, [Downloader](../features/installing.md#downloader) |
 | Repo search | `api.github.com/search/repositories` | **Yes**, separate limit | [GitHub fallback](../features/search.md#github-fallback) |
 | Catalogue | `raw.githubusercontent.com/layday/github-wow-addon-catalogue/main/addons.csv` | No | [catalogue import](../features/search.md#the-catalogue-cataloguesource) |

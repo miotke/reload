@@ -11,7 +11,7 @@ addonctl refresh            # like the app's 2-hour refresh
 addonctl refresh --force    # refresh now, re-checking every installed add-on
 ```
 
-- Runs the core's refresh for the chosen installation: catalogue, update checks, Forever verdicts ([features/refresh.md](../features/refresh.md)).
+- Runs the core's refresh for the chosen installation: catalogue, update checks, support verdicts for its flavor ([features/refresh.md](../features/refresh.md)).
 - If the last refresh was under 2 hours ago, it says `Already refreshed …; use --force to refresh now.` and does nothing.
 - On a terminal, one progress line is redrawn on stderr. Afterwards it prints a summary per phase, plus a table of available updates (UPDATE / INSTALLED / LATEST).
 - Checks go to github.com, so add-ons with a `release.json` cost no API quota; ones without may still need an API call.

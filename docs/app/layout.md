@@ -21,6 +21,12 @@ Code: `App/ForeverAddons/Views/` (`ContentView`, `InstalledView`, `BrowseView`),
 - **Toolbar:** tab picker, ⟳ Check for Updates (⌘R), Update All, inspector toggle, search field. ⌘F focuses search from any tab; on Installed it filters the list.
 - **Menu bar extra** (optional, Settings): shows the update count.
 
+## Flavor names
+
+Labels follow the selected installation's game, `installation.flavor.displayName` (Forever, Retail, Classic Era, TBC Anniversary, Wrath Classic, Titan, Cata Classic, Mists Classic; see [flavors.md](../architecture/flavors.md#flavors)): the Browse column, the badge and its tooltips, the "<flavor> only" toggle, Installed status, the inspector, the adopt sheet and the seeding sheet.
+
+Forever-specific on purpose: the app name, help text and the empty state that suggests adding `World of Warcraft/_classic_beta_`.
+
 ## Inspector placement
 
 - The inspector is part of the detail column's content (a small custom split, `InspectorSplit` in `ContentView.swift`), **not `.inspector`**. That way the toolbar and search field span the detail area and the inspector starts below them.
@@ -35,7 +41,7 @@ Code: `App/ForeverAddons/Views/` (`ContentView`, `InstalledView`, `BrowseView`),
 | Name | name, with the repository beside it |
 | Version | `1.2 → 1.3` when an update is available |
 | Channel | stable / prerelease |
-| Status | missing files / update / check failed / no Forever build / pinned / up to date / unmanaged |
+| Status | missing files / update / check failed / no *<flavor>* build / pinned / up to date / unmanaged |
 | Installed | date |
 | Action | Update / Retry, Adopt…, progress |
 
@@ -49,13 +55,13 @@ Code: `App/ForeverAddons/Views/` (`ContentView`, `InstalledView`, `BrowseView`),
 | Column | Shows |
 |---|---|
 | Name | author and a one-line summary under it |
-| Forever | support badge |
+| *<flavor>* (e.g. Forever) | support badge |
 | Stars | count |
 | Updated | date |
 | Action | Install / progress / Overwrite / Open |
 
 - With an empty query, a **Popular / Recently Updated** switch picks the list. It's one table rather than two sections, so sorting applies to whichever list you're looking at.
-- Category chips run their saved query; **Forever only** filters both the home lists and search results ([search.md](../features/search.md#in-the-app)).
+- Category chips run their saved query; the **"<flavor> only"** toggle filters both the home lists and search results ([search.md](../features/search.md#in-the-app)).
 - A status bar shows the count, "Searching…" until the last update (or "Searching GitHub…" while the core reports a live search), and **Search GitHub for More Results**. "No results" appears only after the last update.
 
 ## Sorting

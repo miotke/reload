@@ -4,9 +4,9 @@ What ForeverAddons is, its three parts (the app, the CLI and the core), and how 
 
 ## What it is
 
-A native macOS add-on manager for **World of Warcraft: Forever**, written in Swift. It finds add-ons, tells you whether each one supports Forever, and installs, updates, pins, rolls back and removes them safely.
+A native macOS add-on manager for **World of Warcraft: Forever**, written in Swift. It finds add-ons, tells you whether each one supports your game (Forever first; Retail and the classic games work too), and installs, updates, pins, rolls back and removes them safely.
 
-- **Forever first.** Every rule is checked against how Forever is packaged: interface `16xxx`, `_Camelot` / `-Forever` TOC suffixes ([flavors.md](architecture/flavors.md)).
+- **Forever first.** Every rule is checked against how Forever is packaged: interface `16xxx`, `_Camelot` / `-Forever` TOC suffixes. Retail and the classic games use the same machinery, each with its own rules ([flavors.md](architecture/flavors.md)).
 - **No API keys.** Add-ons come from GitHub Releases. Users may add their own GitHub token to raise rate limits ([decision 0002](decisions/0002-github-releases-no-keyed-apis.md)).
 - **Safe on disk.** Installs are transactional, removed add-ons go to the Trash, and folders the app doesn't manage are never overwritten without asking ([installing.md](features/installing.md)).
 - **Local first.** Search and browse read a local database; the network is used on a schedule and on demand ([network/overview.md](network/overview.md)).

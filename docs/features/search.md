@@ -44,7 +44,7 @@ sequenceDiagram
 - `search(_:installed:)` returns plain result arrays; `searchUpdates(_:installed:)` returns `SearchUpdate { results, isSearchingGitHub, isComplete }`. `AddonManager` has both, plus `search(_:in:installed:)` so the caller's add-on list is used instead of rescanning `AddOns/` per keystroke.
 - Results are deduplicated by ref, and their `origin` sets are merged.
 - Cancelling the consumer cancels any work still running.
-- **Forever only** (on by default) hides `.unsupported` and `.noReleases` results. Installed add-ons and direct refs always stay.
+- **`SearchQuery.compatibleOnly`** (on by default; it was `foreverOnly`) hides `.unsupported` and `.noReleases` results for the installation's flavor. Installed add-ons and direct refs always stay. `SearchQuery.init` has no default flavor; callers pass the installation's.
 
 ## GitHub fallback
 
@@ -78,7 +78,7 @@ Known quirk: "bag" ranks the Bagnon plugins above BetterBags, because a name sta
 - **Stale while revalidating:** an old copy is returned at once and refreshed in the background.
 - **Offline:** a failed download isn't retried for 15 minutes. The failure time is stored, so the app and CLI share the backoff.
 - **Import:** all rows are upserted in one transaction. `ON CONFLICT … DO UPDATE … WHERE (columns) IS NOT (new values)` leaves unchanged rows alone, so `refresh()` returns a `CatalogueDiff` of the repos that actually changed. Rows that left the file are deleted; rows found by live search are kept.
-- The catalogue's `flavors` column under-reports Forever, so it isn't trusted; verdicts come from [support checks](release-selection.md#support-checks).
+- The catalogue's `flavors` column under-reports Forever and other flavors, so it isn't trusted; verdicts come from [support checks](release-selection.md#support-checks).
 
 ## Browse (empty query)
 
@@ -93,7 +93,7 @@ Results that are already installed are marked.
 
 - Browse calls `searchUpdates(_:in:installed:)` and shows each `SearchUpdate` as it arrives.
 - "Searching GitHub…" shows only while the update says `isSearchingGitHub`; "No results" only after the update with `isComplete`.
-- **Forever only** filters search results as well as the home lists.
+- The **"<flavor> only"** toggle (e.g. "Forever only", "Mists Classic only") sets `compatibleOnly` and filters search results as well as the home lists. It keeps the `@AppStorage("browseForeverOnly")` key so users keep their setting.
 - Badges fill in live during a refresh ([app/live-data.md](../app/live-data.md)). Table layout: [app/layout.md](../app/layout.md#browse-table).
 
 ## In the CLI

@@ -13,8 +13,8 @@ Every `addonctl` command, how `<ref>` arguments are resolved, and how the instal
 
 | Command | Aliases | What it does |
 |---|---|---|
-| `search <query…>` | `s` | Same local-first search as the Browse tab; see [search](#search). Prints NAME / REPO / FOREVER / UPDATED. `--github` adds a deeper live GitHub search, `--all` keeps add-ons verified unsupported, `--limit N` (default 20) |
-| `info <ref>` | `show` | Description, website, Forever support, latest version, installed version, update status, owned folders, rollback target; see [info](#info). `--changelog` adds release notes, `--prerelease` looks at prereleases |
+| `search <query…>` | `s` | Same local-first search as the Browse tab; see [search](#search). Prints NAME / REPO / *<FLAVOR>* / UPDATED (e.g. `FOREVER`, the installation's display name). `--github` adds a deeper live GitHub search, `--all` keeps add-ons verified unsupported, `--limit N` (default 20) |
+| `info <ref>` | `show` | Description, website, support for the installation's flavor, latest version, installed version, update status, owned folders, rollback target; see [info](#info). `--changelog` adds release notes, `--prerelease` looks at prereleases |
 | `install <ref…>` | `i`, `add` | Installs one after another with a progress row each. `--prerelease`, `--force` (overwrite unmanaged folders), `--version <tag>` (pins it; see [limits](config.md#limits)). Re-installing keeps the add-on's channel unless `--prerelease` is given; new installs use `default-channel` |
 | `remove <ref…>` | `rm`, `uninstall` | Moves folders to the Trash after confirmation |
 | `update [<ref…>]` | `upgrade`, `up` | Checks, then installs only what has an update; see [update](#update). Pinned add-ons are listed as skipped. `--dry-run` shows the `outdated` table and what would be skipped |
@@ -29,7 +29,7 @@ Every `addonctl` command, how `<ref>` arguments are resolved, and how the instal
 | `export [-o file]` | | Writes [`addons.json`](config.md#addonsjson) to stdout or a file |
 | `import <file\|->` | | Installs every entry not already installed; for installed ones it only syncs channel and pin. `--force` |
 | `config get\|set\|unset <key>` | | [Config keys](config.md#config-keys) |
-| `refresh [--force]` | | Refresh the catalogue, update checks and Forever verdicts, like the app's 2-hour refresh ([maintenance.md](maintenance.md#refresh)) |
+| `refresh [--force]` | | Refresh the catalogue, update checks and support verdicts, like the app's 2-hour refresh ([maintenance.md](maintenance.md#refresh)) |
 | `cache info\|clear` | | Sizes of caches and the metadata database; `clear` empties Caches, `clear --metadata` also empties the database ([maintenance.md](maintenance.md#cache)) |
 | `doctor` | | Installations, `AddOns` folders, store integrity, the metadata database, refresh state, GitHub quota, token source, whether WoW is running. Exit 1 if any check fails ([maintenance.md](maintenance.md#doctor)) |
 
@@ -76,10 +76,12 @@ Names go through `AddonManager.lookup`: installed add-ons first (name, repo name
 
 1. `-I/--install`: an installation id, a unique id prefix (4+ characters), or a path (the flavor folder, its `Interface/AddOns`, or the `World of Warcraft` folder).
 2. `config default-install`, if it still exists.
-3. The only Forever installation.
-4. Several Forever installations: a numbered pick on a terminal, otherwise exit 2 listing them. None at all: exit 1.
+3. The only installation, of any flavor.
+4. Several installations: a numbered pick on a terminal, otherwise exit 2 listing them with their display names. None at all: exit 1.
 
-`search`, `info` and `resolve` also work with no installation, against a placeholder Forever one.
+`search`, `info` and `resolve` also work with no installation, against a placeholder Forever one (Forever-specific on purpose).
+
+**Flavor names.** `installs`, `doctor`, `info` and the ambiguity error show each installation's display name (Forever, Retail, Mists Classic, …). The `search` column header, "no *<flavor>* build" messages and the `refresh` summary use the installation's flavor name. Reasoning strings print the raw flavor value (`forever 16001`).
 
 ## Code layout
 

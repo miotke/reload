@@ -15,7 +15,7 @@ Why: [decision 0011](../decisions/0011-single-cache-owner.md).
 
 | Data | Owner | Stored in |
 |---|---|---|
-| Forever support verdicts, latest tags | `GitHubSource` (`latestRelease` / `check`, through `SupportCache`) | `support`, `repo_meta` tables |
+| Support verdicts (per repo and flavor), latest tags | `GitHubSource` (`latestRelease` / `check`, through `SupportCache`) | `support`, `repo_meta` tables |
 | Catalogue | `CatalogueSource` | `catalogue`, `catalogue_state` |
 | Inspector details | `AddonManager.details` | `details` |
 | Live search answers | `SearchCoordinator` | `search_cache` |
