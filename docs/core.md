@@ -68,8 +68,10 @@ Sources/AddonKit/
 - **ETags are stored only while up to date.** That way a `304 Not Modified` always means "still current", never "an update you haven't installed".
 - **Installs take the store lock.** The download happens first. The ownership check, the folder swap and the store write then run as one step under the cross-process store lock, so the app and the CLI can't interleave.
 - **Rollback.** Each install records the release it replaced in `previousRelease`. `rollback` reinstalls that release from the download cache, which keeps the last 2 zips per add-on, and **pins** the add-on so the next update doesn't undo it.
+- **Update checks are mostly quota-free.** For the stable channel, the latest tag comes from github.com: an unchanged tag is up to date, and a new tag whose `release.json` has the flavor is the update (both without an API call). Only when neither decides, or for the prerelease channel, does the API resolve run (with the stored ETag).
 - **Updating:**
-  - `update([])` updates every add-on. Pinned and up-to-date add-ons come back as `.skipped`.
+  - `update([])` updates every add-on. Each one is checked as above first, and only installed if an update is available. Pinned and up-to-date add-ons come back as `.skipped`.
+  - `update(releases:in:)` installs releases the caller already resolved (the app's `.available(release)` states) without resolving again.
   - Up to 4 add-ons are updated at once.
   - One failure doesn't stop the others.
 - **`lookup` order:** a GitHub ref or URL first, then an installed add-on's name, repo or folder, then an exact catalogue name. More than one result means the input was ambiguous.

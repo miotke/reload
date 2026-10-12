@@ -252,9 +252,11 @@ public actor GitHubSource: Source, SupportChecking {
     /// The result has no real release ID or date: `releaseID` is a negative hash of the tag
     /// and `publishedAt` is the stored date if an API call ever revealed it, else now.
     /// `InstalledAddon.isUpdate` compares tags for such releases.
-    public func webResolve(_ ref: AddonRef, flavor: Flavor, background: Bool = false) async throws -> ResolvedRelease? {
+    /// Pass `tag` when the latest tag was just looked up, to skip asking again.
+    public func webResolve(_ ref: AddonRef, flavor: Flavor, tag knownTag: String? = nil, background: Bool = false) async throws -> ResolvedRelease? {
         let (owner, repo) = try Self.split(ref)
-        guard let tag = try await latestTag(for: ref, maxAge: 0, background: background) else { return nil }
+        let latest = if let knownTag { knownTag } else { try await latestTag(for: ref, maxAge: 0, background: background) }
+        guard let tag = latest else { return nil }
         guard let json = try await webReleaseJSON(owner: owner, repo: repo, tag: tag, background: background),
               let build = json.release(for: flavor) else { return nil }
         let interface = build.metadata.first { flavor.rules.releaseJSONFlavors.contains($0.flavor.lowercased()) }?.interface

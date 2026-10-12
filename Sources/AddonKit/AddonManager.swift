@@ -209,8 +209,14 @@ public actor AddonManager: AddonManaging {
 
     // MARK: - Resolve & install
 
+    /// Stable channel: tries the quota-free route first (latest tag + release.json), and
+    /// uses the API only when that can't decide.
     public func resolve(_ ref: AddonRef, for installation: Installation, channel: Channel) async throws -> ResolvedRelease {
-        try await resolve(ref, for: installation, channel: channel, etag: nil).release
+        guard ref.source == .github else { throw AddonError.invalidReference(ref.description) }
+        if channel == .stable, let release = try? await github.webResolve(ref, flavor: installation.flavor) {
+            return release
+        }
+        return try await resolve(ref, for: installation, channel: channel, etag: nil).release
     }
 
     /// `release` is nil only when `etag` was given and nothing changed.
@@ -313,15 +319,20 @@ public actor AddonManager: AddonManaging {
         return states
     }
 
-    private func updateState(of addon: InstalledAddon, in installation: Installation) async -> (UpdateState, String?) {
+    func updateState(of addon: InstalledAddon, in installation: Installation, background: Bool = false) async -> (UpdateState, String?) {
         if addon.pinned { return (.pinned, nil) }
         do {
             guard addon.id.source == .github else { return (.failed("Unsupported source"), nil) }
-            // The free latest-tag check settles most add-ons. It only sees stable releases,
-            // and a differing tag may still not support the flavor, so anything else gets
-            // the full (API) resolve.
-            if addon.channel == .stable, let tag = try? await github.latestTag(for: addon.id, maxAge: 0), tag == addon.version {
-                return (.upToDate, addon.etag)
+            // Stable channel: the free latest tag settles most add-ons. An unchanged tag is
+            // up to date; a new tag whose release.json has the flavor is the update. Only
+            // when neither decides (no release.json, or the new release lacks the flavor) is
+            // the API asked. Prereleases always need the API.
+            if addon.channel == .stable, let tag = try? await github.latestTag(for: addon.id, maxAge: 0, background: background) {
+                await supportCache.setLatestTag(tag, for: addon.id)
+                if tag == addon.version { return (.upToDate, addon.etag) }
+                if let release = try? await github.webResolve(addon.id, flavor: installation.flavor, tag: tag, background: background) {
+                    return addon.isUpdate(release) ? (.available(release), nil) : (.upToDate, addon.etag)
+                }
             }
             switch try await github.resolve(addon.id, flavor: installation.flavor, channel: addon.channel, etag: addon.etag) {
             case .notModified:
@@ -336,18 +347,42 @@ public actor AddonManager: AddonManaging {
         }
     }
 
-    /// Updates `refs`, or every unpinned add-on when `refs` is empty.
+    /// Updates `refs`, or every unpinned add-on when `refs` is empty. Each add-on is checked
+    /// first (latest tag, else ETag) and only installed when an update is available, so an
+    /// up-to-date add-on costs at most one quota-free request.
     public nonisolated func update(_ refs: [AddonRef], in installation: Installation) -> AsyncStream<OperationEvent> {
-        AsyncStream { continuation in
-            let task = Task {
-                await self.performUpdates(refs, in: installation, continuation: continuation)
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in task.cancel() }
+        updateStream { manager, continuation in
+            await manager.performUpdates(refs, releases: [:], in: installation, continuation: continuation)
         }
     }
 
-    private func performUpdates(_ refs: [AddonRef], in installation: Installation, continuation: AsyncStream<OperationEvent>.Continuation) async {
+    /// Installs already-resolved releases, such as the app's `.available(release)` states,
+    /// without resolving them again. Releases that aren't newer than what's installed are skipped.
+    public nonisolated func update(releases: [ResolvedRelease], in installation: Installation) -> AsyncStream<OperationEvent> {
+        let byRef = Dictionary(releases.map { ($0.ref, $0) }, uniquingKeysWith: { first, _ in first })
+        return updateStream { manager, continuation in
+            await manager.performUpdates(releases.map(\.ref), releases: byRef, in: installation, continuation: continuation)
+        }
+    }
+
+    private nonisolated func updateStream(
+        _ body: @escaping @Sendable (AddonManager, AsyncStream<OperationEvent>.Continuation) async -> Void
+    ) -> AsyncStream<OperationEvent> {
+        // A slow consumer loses old progress ticks, never the stream's end: progress is
+        // already throttled, so the buffer only overflows if the consumer stalls.
+        let (stream, continuation) = AsyncStream.makeStream(of: OperationEvent.self, bufferingPolicy: .bufferingNewest(512))
+        let task = Task {
+            await body(self, continuation)
+            continuation.finish()
+        }
+        continuation.onTermination = { _ in task.cancel() }
+        return stream
+    }
+
+    private func performUpdates(
+        _ refs: [AddonRef], releases: [AddonRef: ResolvedRelease], in installation: Installation,
+        continuation: AsyncStream<OperationEvent>.Continuation
+    ) async {
         let installed: [InstalledAddon]
         do {
             installed = try await store.addons(in: installation)
@@ -356,8 +391,7 @@ public actor AddonManager: AddonManaging {
             return
         }
 
-        let explicit = !refs.isEmpty
-        let targets: [AddonRef] = explicit ? refs : installed.map(\.id)
+        let targets: [AddonRef] = refs.isEmpty ? installed.map(\.id) : refs
         for ref in targets { continuation.yield(.queued(ref)) }
 
         await withTaskGroup(of: Void.self) { group in
@@ -365,7 +399,8 @@ public actor AddonManager: AddonManaging {
             func addNext() {
                 guard let ref = pending.popFirst() else { return }
                 let addon = installed.first { $0.id == ref }
-                group.addTask { await self.updateOne(ref, addon: addon, in: installation, continuation: continuation) }
+                let release = releases[ref]
+                group.addTask { await self.updateOne(ref, addon: addon, release: release, in: installation, continuation: continuation) }
             }
             for _ in 0..<Self.maxConcurrentOperations { addNext() }
             while await group.next() != nil { addNext() }
@@ -373,7 +408,7 @@ public actor AddonManager: AddonManaging {
     }
 
     private func updateOne(
-        _ ref: AddonRef, addon: InstalledAddon?, in installation: Installation,
+        _ ref: AddonRef, addon: InstalledAddon?, release given: ResolvedRelease?, in installation: Installation,
         continuation: AsyncStream<OperationEvent>.Continuation
     ) async {
         guard let addon else {
@@ -384,12 +419,29 @@ public actor AddonManager: AddonManaging {
             continuation.yield(.skipped(ref, reason: "Pinned"))
             return
         }
-        do {
-            let release = try await resolve(ref, for: installation, channel: addon.channel)
-            guard addon.isUpdate(release) else {
+        let release: ResolvedRelease
+        if let given {
+            guard addon.isUpdate(given) else {
                 continuation.yield(.skipped(ref, reason: "Up to date"))
                 return
             }
+            release = given
+        } else {
+            switch await updateState(of: addon, in: installation).0 {
+            case .available(let found):
+                release = found
+            case .upToDate, .pinned:
+                continuation.yield(.skipped(ref, reason: "Up to date"))
+                return
+            case .noCompatibleRelease:
+                continuation.yield(.failed(ref, AddonError.noCompatibleRelease(ref, installation.flavor).localizedDescription))
+                return
+            case .failed(let message):
+                continuation.yield(.failed(ref, message))
+                return
+            }
+        }
+        do {
             continuation.yield(.downloading(ref, progress: 0))
             // Download first so progress and the installing phase are reported separately;
             // `install` then reuses the cached archive.
@@ -403,6 +455,7 @@ public actor AddonManager: AddonManaging {
             continuation.yield(.failed(ref, error.localizedDescription))
         }
     }
+
 
     // MARK: - Remove, rollback, settings
 

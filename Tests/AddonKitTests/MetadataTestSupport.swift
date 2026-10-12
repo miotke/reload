@@ -158,7 +158,10 @@ struct ManagerHarness {
             let zipURL = "https://downloads.test/\(repo)/\(v.tag).zip"
             let jsonURL = "https://downloads.test/\(repo)/\(v.tag)-release.json"
             let zip = try makeAddonZip(folders: [folder], marker: v.tag, named: "\(v.tag).zip", in: makeTempDirectory())
-            transport.stub(URL(string: zipURL)!, try Data(contentsOf: zip))
+            let zipData = try Data(contentsOf: zip)
+            transport.stub(URL(string: zipURL)!, zipData)
+            // The quota-free route builds the asset URL from release.json's filename.
+            transport.stub(URL(string: "https://github.com/\(repo)/releases/download/\(v.tag)/Addon-\(v.tag).zip")!, zipData)
             let releaseJSON = #"{"releases":[{"filename":"\#(folder)-\#(v.tag).zip","nolib":false,"metadata":[{"flavor":"forever","interface":16001}]}]}"#
             http.stub(jsonURL, text: releaseJSON)
             releases.append([
