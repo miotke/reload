@@ -7,24 +7,16 @@ struct SupportBadge: View {
     var flavor: Flavor
 
     var body: some View {
-        Text(text)
-            .font(.caption.weight(.medium))
+        // Not checked is an absence of information, not a verdict, so it gets no capsule.
+        let isPlain = status == .unknown
+        Text(SupportLabel.text(for: status, flavor: flavor))
+            .font(.caption.weight(isPlain ? .regular : .medium))
             .foregroundStyle(color)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(color.opacity(0.12), in: Capsule())
-            .help(help)
-            .accessibilityLabel(help)
-    }
-
-    private var text: String {
-        switch status {
-        case .supported: "✓ \(flavor.displayName)"
-        case .checking: "⋯ checking"
-        case .unknown, .needsDownload: "? unknown"
-        case .unsupported: "— not yet"
-        case .noReleases: "— no releases"
-        }
+            .background(isPlain ? Color.clear : color.opacity(0.12), in: Capsule())
+            .help(SupportLabel.help(for: status, flavor: flavor))
+            .accessibilityLabel(SupportLabel.help(for: status, flavor: flavor))
     }
 
     private var color: Color {
@@ -32,17 +24,6 @@ struct SupportBadge: View {
         case .supported: .green
         case .checking, .unknown, .needsDownload: .secondary
         case .unsupported, .noReleases: .orange
-        }
-    }
-
-    private var help: String {
-        switch status {
-        case .supported(let version): "Supports \(flavor.displayName) (\(version))"
-        case .checking: "Checking for a \(flavor.displayName) build…"
-        case .unknown: "\(flavor.displayName) support hasn't been checked yet"
-        case .needsDownload: "Has releases but no release.json; support is confirmed when installing"
-        case .unsupported: "No \(flavor.displayName) build yet"
-        case .noReleases: "This repository has no GitHub releases"
         }
     }
 

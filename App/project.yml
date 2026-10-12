@@ -92,6 +92,7 @@ targets:
       - path: ForeverAddons/Support/AddonFormatting.swift
       - path: ForeverAddons/Support/TableSorting.swift
       - path: ForeverAddons/Support/TableRows.swift
+      - path: ForeverAddons/Support/UnmanagedSupport.swift
       - path: ForeverAddons/Support/MarkdownBlocks.swift
       - path: ForeverAddons/Support/AppSupport.swift
       - path: ForeverAddons/Support/AppEnvironment.swift

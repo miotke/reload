@@ -77,14 +77,25 @@ final class InstallationModel {
     private(set) var addons: [AddonStatus] = [] {
         didSet {
             addonIndex = Dictionary(addons.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+            managedIndex = Dictionary(
+                addons.compactMap { if case .managed(let addon, _) = $0 { (addon.id.description.lowercased(), addon) } else { nil } },
+                uniquingKeysWith: { first, _ in first })
             rebuildInstalledRows()
+            rebuildBrowseRows()
         }
     }
     @ObservationIgnored private var addonIndex: [AddonStatus.ID: Int] = [:]
+    /// Managed add-ons by lower-cased `AddonRef.description`: the one source of "is it
+    /// installed" for Browse rows, the inspector and add-on windows. GitHub names are
+    /// case-insensitive, and search results don't always match the stored case.
+    @ObservationIgnored private var managedIndex: [String: InstalledAddon] = [:]
     private(set) var hasLoaded = false
     private(set) var isLoading = false
     private(set) var updateStates: [AddonRef: UpdateState] = [:] {
-        didSet { rebuildInstalledRows() }
+        didSet {
+            rebuildInstalledRows()
+            rebuildBrowseRows()
+        }
     }
     /// While set, row rebuilds wait for `batchingRows` to finish and run once.
     @ObservationIgnored private var rowsBatched = false
@@ -169,8 +180,16 @@ final class InstallationModel {
         addons.filter { if case .unmanaged = $0 { true } else { false } }
     }
 
+    /// The managed add-on for `ref`, compared case-insensitively.
     func addon(for ref: AddonRef) -> InstalledAddon? {
-        if case .managed(let addon, _)? = status(id: ref.description) { addon } else { nil }
+        managedIndex[ref.description.lowercased()]
+    }
+
+    /// The primary action for `ref` wherever it's shown: Browse rows, the inspector and the
+    /// add-on window all ask this, so they can't disagree.
+    func installAction(for ref: AddonRef) -> InstallAction {
+        let addon = addon(for: ref)
+        return InstallAction(installed: addon, update: addon.flatMap { updateStates[$0.id] })
     }
 
     func status(id: AddonStatus.ID?) -> AddonStatus? {
@@ -193,7 +212,7 @@ final class InstallationModel {
     var updateCount: Int { refsWithUpdates.count }
 
     func availableRelease(for ref: AddonRef) -> ResolvedRelease? {
-        if case .available(let release) = updateStates[ref] { release } else { nil }
+        if case .available(let release) = updateStates[addon(for: ref)?.id ?? ref] { release } else { nil }
     }
 
     // MARK: Table rows
@@ -235,10 +254,15 @@ final class InstallationModel {
             return addon.name.localizedCaseInsensitiveContains(query)
                 || addon.id.identifier.localizedCaseInsensitiveContains(query)
                 || addon.folders.contains(where: { $0.localizedCaseInsensitiveContains(query) })
-        case .unmanaged(let folder, let toc, _):
-            return folder.localizedCaseInsensitiveContains(query)
-                || (toc?.title?.localizedCaseInsensitiveContains(query) ?? false)
+        case .unmanaged(let unmanaged):
+            return unmanaged.folders.contains(where: { $0.localizedCaseInsensitiveContains(query) })
+                || unmanaged.title.localizedCaseInsensitiveContains(query)
         }
+    }
+
+    /// A Browse row for `result`, with its action from the managed list.
+    func browseRow(for result: SearchResult, now: Date = .now) -> BrowseRow {
+        BrowseRow(result, action: installAction(for: result.id), now: now)
     }
 
     private func rebuildBrowseRows() {
@@ -252,7 +276,7 @@ final class InstallationModel {
         }
         // The home lists come back unfiltered, and live patches can turn a search result unsupported.
         results = results.filter { !browseOptions.compatibleOnly || !Self.hiddenByCompatibleOnly($0.support) }
-        var rows = results.map { BrowseRow($0, now: now) }
+        var rows = results.map { browseRow(for: $0, now: now) }
         if let sort = browseOptions.sort { rows.sort(using: sort) }
         guard rows != browseRows else { return }
         browseRows = rows
@@ -314,7 +338,14 @@ final class InstallationModel {
         if didWork, browse != nil { await loadBrowse() }
     }
 
-    private func apply(_ updates: [AddonRef: UpdateState]) {
+    /// Reads when the last refresh finished, for "Last fetched" before this session refreshes.
+    func loadLastRefresh() async {
+        guard lastChecked == nil else { return }
+        lastChecked = await manager.lastRefresh(in: installation)
+    }
+
+    /// Also used by tests to set update states without a refresh.
+    func apply(_ updates: [AddonRef: UpdateState]) {
         if updates != updateStates { updateStates = updates }
         for (ref, state) in updates {
             let error: String? = if case .failed(let message) = state { message } else { nil }
@@ -398,15 +429,57 @@ final class InstallationModel {
         }
     }
 
-    /// Returns true on success so the sheet can dismiss.
-    func adopt(folder: String, as ref: AddonRef) async -> Bool {
-        let id = "unmanaged:\(folder)"
+    /// Returns true on success so the sheet can dismiss. With `release` (from a preview) it's
+    /// installed as is; otherwise `ref` is resolved first.
+    func adopt(folder: String, as ref: AddonRef, release: ResolvedRelease? = nil) async -> Bool {
         var succeeded = false
-        await perform(id, label: "Adopting…") {
-            _ = try await self.manager.adopt(folder: folder, as: ref, in: self.installation)
+        await perform(AddonStatus.unmanagedID(folder), label: "Adopting…") {
+            if let release, release.ref == ref {
+                _ = try await self.manager.adopt(release, in: self.installation)
+            } else {
+                _ = try await self.manager.adopt(folder: folder, as: ref, in: self.installation)
+            }
             succeeded = true
         }
         return succeeded
+    }
+
+    /// Resolves `ref`'s release for this flavor and lists the folders adopting it replaces.
+    /// Reloads afterwards: the core now knows what the release ships, which can group rows.
+    func adoptionPreview(for ref: AddonRef, folders: [String]) async -> AdoptionPreviewState {
+        let state: AdoptionPreviewState
+        do {
+            state = .ready(try await manager.adoptionPreview(for: ref, folders: folders, in: installation))
+        } catch AddonError.noCompatibleRelease {
+            state = .noBuild
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+        if !Task.isCancelled { await reload() }
+        return state
+    }
+
+    /// Moves unmanaged folders to the Trash; `id` is the row that shows progress and errors.
+    /// Returns true on success.
+    @discardableResult
+    func removeUnmanaged(_ folders: [String], id: String) async -> Bool {
+        var succeeded = false
+        await perform(id, label: "Moving to Trash…") {
+            try await self.manager.removeUnmanaged(folders: folders, from: self.installation)
+            succeeded = true
+        }
+        return succeeded
+    }
+
+    /// An explicit live GitHub search, for the Adopt sheet. Spends one search request (of 10
+    /// a minute) unless the answer is stored; never runs on its own.
+    func searchGitHub(_ text: String) async -> [SearchResult] {
+        let query = SearchQuery(text: text, flavor: installation.flavor, compatibleOnly: false, includeLiveGitHub: true)
+        var last: [SearchResult] = []
+        for await update in manager.searchUpdates(query, in: installation, installed: addons) {
+            last = update.results
+        }
+        return last
     }
 
     /// Runs `body`, shows `label` on the row meanwhile, records failures on the row, then reloads.
@@ -654,6 +727,15 @@ final class InstallationModel {
         if browse != nil { await loadBrowse() }
         await patchSupport(for: Set(searchResults.map { $0.id.identifier.lowercased() }))
     }
+}
+
+/// The Adopt sheet's check of the chosen repository.
+enum AdoptionPreviewState: Equatable {
+    case loading
+    case ready(AdoptionPreview)
+    /// No release has a build for the installation's flavor.
+    case noBuild
+    case failed(String)
 }
 
 enum DetailsState {

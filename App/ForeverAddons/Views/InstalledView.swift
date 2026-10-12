@@ -179,8 +179,13 @@ private struct StatusCell: View {
             case .unchecked:
                 Text("—").foregroundStyle(.tertiary).help("Not checked yet")
             case .unmanaged:
-                Label("Unmanaged", systemImage: "questionmark.folder").foregroundStyle(.secondary)
-                    .help("ForeverAddons didn't install this folder and won't update it")
+                if row.isNotLoaded {
+                    Label("Not loaded by \(flavor.displayName)", systemImage: "nosign").foregroundStyle(.orange)
+                        .help("None of this folder's TOC files is for \(flavor.displayName), so the game skips it")
+                } else {
+                    Label("Unmanaged", systemImage: "questionmark.folder").foregroundStyle(.secondary)
+                        .help("ForeverAddons didn't install this folder and won't update it")
+                }
             }
         }
         .lineLimit(1)
@@ -237,12 +242,14 @@ private struct InstalledContextMenu: View {
             if let url = addon.id.webURL {
                 Link("Open on \(addon.id.sourceName)", destination: url)
             }
-            Button("Show in Finder") {
-                let urls = addon.folders.map { state.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
-                NSWorkspace.shared.activateFileViewerSelecting(urls)
-            }
-        } else {
-            Button("Adopt…") { model.adoptTarget = AdoptTarget(status) }
+            Button("Show in Finder") { showInFinder(addon.folders) }
+            Divider()
+            Button("Uninstall…", role: .destructive) { model.pendingRemoval = .managed(addon) }
+        } else if let unmanaged = status.unmanagedFolder {
+            Button("Adopt…") { model.adoptTarget = AdoptTarget(unmanaged) }
+            Button("Show in Finder") { showInFinder(unmanaged.folders) }
+            Divider()
+            Button("Move to Trash…", role: .destructive) { model.pendingRemoval = .unmanaged(unmanaged) }
         }
         Divider()
         Button("Show Details") {
@@ -254,5 +261,10 @@ private struct InstalledContextMenu: View {
                 openWindow(id: AddonWindowID.sceneID, value: AddonWindowID(ref: addon.id, installationID: state.installation.id))
             }
         }
+    }
+
+    private func showInFinder(_ folders: [String]) {
+        let urls = folders.map { state.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
     }
 }

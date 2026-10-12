@@ -15,20 +15,6 @@ struct Banner: Identifiable, Equatable {
     var isError: Bool = true
 }
 
-/// An unmanaged folder offered for adoption.
-struct AdoptTarget: Identifiable {
-    var folder: String
-    var toc: Toc?
-    var suggestedRef: AddonRef?
-    var id: String { folder }
-
-    init?(_ status: AddonStatus) {
-        guard case .unmanaged(let folder, let toc, let suggested) = status else { return nil }
-        self.folder = folder
-        self.toc = toc
-        self.suggestedRef = suggested
-    }
-}
 
 /// Root model. Owns the manager, the installation list and one `InstallationModel` per installation.
 @Observable @MainActor
@@ -67,6 +53,20 @@ final class AppModel {
     var banner: Banner?
     /// Unmanaged folder being adopted (drives the Adopt sheet).
     var adoptTarget: AdoptTarget?
+    /// Waiting for the user to confirm an uninstall or a Move to Trash.
+    var pendingRemoval: RemovalRequest?
+
+    /// Runs a confirmed `pendingRemoval` on the current installation.
+    func performRemoval(_ request: RemovalRequest) {
+        pendingRemoval = nil
+        guard let state = current else { return }
+        Task {
+            switch request {
+            case .managed(let addon): await state.uninstall(addon.id)
+            case .unmanaged(let folder): await state.removeUnmanaged(folder.folders, id: request.id)
+            }
+        }
+    }
 
     /// The first-launch "Gathering add-on details" sheet.
     var isSeedingPresented = false

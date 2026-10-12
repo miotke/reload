@@ -15,9 +15,9 @@ struct InspectorPane: View {
                 case .managed(let addon, let missing):
                     AddonDetailView(state: state, ref: addon.id, missingFolders: missing)
                         .id(addon.id)
-                case .unmanaged(let folder, let toc, let suggested):
-                    UnmanagedInspector(model: model, state: state, folder: folder, toc: toc, suggestedRef: suggested)
-                        .id(folder)
+                case .unmanaged(let unmanaged):
+                    UnmanagedInspector(model: model, state: state, unmanaged: unmanaged)
+                        .id(unmanaged.folder)
                 case nil:
                     noSelection("Select an add-on to see its details.")
                 }
@@ -49,7 +49,8 @@ struct AddonDetailView: View {
     var missingFolders: [String]
     var style: Style = .inspector
 
-    private var id: String { ref.description }
+    /// The installed record's row when installed: a search result's case can differ.
+    private var id: String { (installed?.id ?? ref).description }
     private var installed: InstalledAddon? { state.addon(for: ref) }
     private var result: BrowseRow? { state.browseRow(id: id) }
     private var loaded: AddonDetails? { state.details[ref]?.details }
@@ -199,7 +200,7 @@ struct AddonDetailView: View {
                 row("Channel") {
                     Picker("Channel", selection: Binding(
                         get: { addon.channel },
-                        set: { channel in Task { await state.setChannel(channel, for: ref) } }
+                        set: { channel in Task { await state.setChannel(channel, for: addon.id) } }
                     )) {
                         ForEach(Channel.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
@@ -209,7 +210,7 @@ struct AddonDetailView: View {
                 row("Pinned") {
                     Toggle("Never update automatically", isOn: Binding(
                         get: { addon.pinned },
-                        set: { pinned in Task { await state.setPinned(pinned, for: ref) } }
+                        set: { pinned in Task { await state.setPinned(pinned, for: addon.id) } }
                     ))
                     .toggleStyle(.checkbox)
                 }
@@ -318,7 +319,7 @@ private struct ReleaseNotesButton: View {
 }
 
 /// The row's error and progress. Separate so download ticks re-render only this.
-private struct RowProgress: View {
+struct RowProgress: View {
     var rowState: RowState
 
     var body: some View {
@@ -340,10 +341,14 @@ private struct InspectorActions: View {
 
     var body: some View {
         let busy = rowState.activity != nil
+        let action = state.installAction(for: ref)
         HStack {
-            if let installed {
-                if let release = state.availableRelease(for: ref), !installed.pinned {
-                    Button("Update to \(release.version)") { Task { await state.update([ref]) } }
+            if let installed, let installedRef = action.installedRef {
+                Label("Installed \(installed.version)", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.secondary)
+                    .labelStyle(.titleAndIcon)
+                if case .update(_, _, let available) = action {
+                    Button("Update to \(available)") { Task { await state.update([installedRef]) } }
                         .buttonStyle(.borderedProminent)
                         .disabled(busy)
                 }
@@ -352,7 +357,7 @@ private struct InspectorActions: View {
                         .disabled(busy)
                         .help("Reinstall \(previous.version)")
                         .confirmationDialog("Roll back \(installed.name) to \(previous.version)?", isPresented: $confirmRollback) {
-                            Button("Roll Back") { Task { await state.rollback(ref) } }
+                            Button("Roll Back") { Task { await state.rollback(installedRef) } }
                         } message: {
                             Text("Reinstalls \(previous.version) from the local download cache and pins \(installed.name) so it isn't updated again automatically.")
                         }
@@ -361,7 +366,7 @@ private struct InspectorActions: View {
                 Button("Uninstall…", role: .destructive) { confirmUninstall = true }
                     .disabled(busy)
                     .confirmationDialog("Uninstall \(installed.name)?", isPresented: $confirmUninstall) {
-                        Button("Uninstall", role: .destructive) { Task { await state.uninstall(ref) } }
+                        Button("Uninstall", role: .destructive) { Task { await state.uninstall(installedRef) } }
                     } message: {
                         Text("Removes \(installed.folders.joined(separator: ", ")) from Interface/AddOns. Saved settings are kept.")
                     }
@@ -375,59 +380,6 @@ private struct InspectorActions: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(busy)
             }
-        }
-    }
-}
-
-private struct UnmanagedInspector: View {
-    var model: AppModel
-    var state: InstallationModel
-    var folder: String
-    var toc: Toc?
-    var suggestedRef: AddonRef?
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(toc?.title ?? folder).font(.title2.weight(.semibold))
-                    Text("Unmanaged folder").font(.callout).foregroundStyle(.secondary)
-                }
-                RowProgress(rowState: state.row("unmanaged:\(folder)"))
-                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-                    row("Folder", folder)
-                    if let version = toc?.version { row("Version", version) }
-                    if let author = toc?.author { row("Author", author) }
-                    if let interfaces = toc?.interfaces, !interfaces.isEmpty {
-                        row("Interface", interfaces.map(String.init).joined(separator: ", "))
-                    }
-                    if let toc {
-                        row(state.installation.flavor.displayName, toc.supports(state.installation.flavor) ? "Supported by TOC" : "Not listed in TOC")
-                    }
-                    if let suggestedRef { row("Suggested", suggestedRef.identifier) }
-                }
-                .font(.callout)
-                if let notes = toc?.notes {
-                    Text(notes).font(.callout).foregroundStyle(.secondary)
-                }
-                Text("ForeverAddons didn't install this folder, so it won't update it. Adopt it to manage it from its GitHub repository.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Adopt…") {
-                    model.adoptTarget = AdoptTarget(.unmanaged(folder: folder, toc: toc, suggestedRef: suggestedRef))
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func row(_ label: String, _ value: String) -> some View {
-        GridRow {
-            Text(label).foregroundStyle(.secondary)
-            Text(value).textSelection(.enabled)
         }
     }
 }

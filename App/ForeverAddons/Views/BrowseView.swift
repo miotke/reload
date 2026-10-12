@@ -63,6 +63,7 @@ struct BrowseView: View {
                                            compatibleOnly: compatibleOnly, includeLiveGitHub: includeLiveGitHub))
         }
         .task(id: state.installation.id) {
+            await state.loadLastRefresh()
             await state.loadBrowse()
         }
         .onChange(of: model.searchText) { includeLiveGitHub = false }
@@ -113,6 +114,22 @@ struct BrowseView: View {
             } else {
                 Text(count == 1 ? "1 add-on" : "\(count) add-ons")
             }
+            Text("·")
+            Text(FetchLabel.string(for: state.lastChecked))
+                .help("When this installation's add-on details were last refreshed")
+            Button {
+                model.checkForUpdates()
+            } label: {
+                if state.isRefreshing {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                }
+            }
+            .buttonStyle(.borderless)
+            .disabled(state.isRefreshing)
+            .help("Refresh now (⌘R)")
+            .accessibilityLabel("Refresh")
             if sort != nil {
                 Button(isHome ? "Default Order" : "Sort by Relevance") { sortStorage = "" }
                     .buttonStyle(.link)
@@ -187,8 +204,10 @@ private struct BrowseTable: View {
             }
             .width(min: 50, ideal: 64, max: 90)
             .customizationID("stars")
+            // Empty for most rows; turned on from the header's context menu.
+            .defaultVisibility(.hidden)
 
-            TableColumn("Updated", sortUsing: ColumnSort(BrowseColumn.updated, order: .reverse)) { row in
+            TableColumn("Last updated", sortUsing: ColumnSort(BrowseColumn.updated, order: .reverse)) { row in
                 Text(row.updatedText)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -210,6 +229,9 @@ private struct BrowseTable: View {
                     model.showInspector = true
                 }
                 Button("Open in New Window") { openWindow(id: AddonWindowID.sceneID, value: windowID(ref)) }
+                if let installed = state.installAction(for: ref).installedRef {
+                    Button("Show in Installed") { model.reveal(installed) }
+                }
                 if let url = ref.webURL {
                     Link("Open on \(ref.sourceName)", destination: url)
                 }
@@ -262,11 +284,17 @@ private struct BrowseActionCell: View {
             if let error = rowState.error {
                 RowErrorIcon(message: error)
             }
-            if row.isInstalled {
-                Button("Open") { model.reveal(row.ref) }
-                    .help("Show in the Installed tab")
-            } else if let activity = rowState.activity {
+            if let activity = rowState.activity ?? row.action.installedRef.flatMap({ state.row($0.description).activity }) {
                 ActivityIndicator(activity: activity, showsLabel: false)
+            } else if case .update(let ref, let version, let available) = row.action {
+                Button("Update") { Task { await state.update([ref]) } }
+                    .help("Update \(version) to \(available)")
+                    .disabled(state.isUpdatingAll)
+            } else if case .installed(_, let version) = row.action {
+                Label("Installed", systemImage: "checkmark")
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.secondary)
+                    .help("\(version) is installed. Double-click to open it.")
             } else if rowState.needsOverwrite {
                 Button("Overwrite", role: .destructive) {
                     Task { await state.install(row.ref, channel: defaultChannel, force: true) }
