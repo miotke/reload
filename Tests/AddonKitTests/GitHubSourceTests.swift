@@ -268,39 +268,39 @@ private final class TestClock: Sendable {
     }
 }
 
-@Suite struct GitHubSourceSupportTests {
+@Suite struct GitHubSourceAPISupportTests {
     @Test func supported() async throws {
         let stub = StubHTTPClient()
         let releases = [ghRelease(1, tag: "v1.2", assets: [ghAsset(10, "A.zip", tag: "v1.2"), ghAsset(11, "release.json", tag: "v1.2")])]
         stub.stub(api, body: try encode(releases))
         stub.stub("https://github.com/o/r/releases/download/v1.2/release.json",
                   body: try encode(ghReleaseJSON([("A.zip", false, [("forever", 16001)])])))
-        #expect(await GitHubSource(http: stub).support(for: ref, flavor: .forever) == .supported(version: "v1.2"))
+        #expect(await GitHubSource(http: stub).apiSupport(for: ref, flavor: .forever) == .supported(version: "v1.2"))
     }
 
     @Test func needsDownloadWithoutDownloadingZips() async throws {
         let stub = StubHTTPClient()
         stub.stub(api, body: try encode([ghRelease(1, tag: "v1", assets: [ghAsset(10, "A.zip")])]))
-        #expect(await GitHubSource(http: stub).support(for: ref, flavor: .forever) == .needsDownload)
+        #expect(await GitHubSource(http: stub).apiSupport(for: ref, flavor: .forever) == .needsDownload)
         #expect(stub.requests.count == 1)
     }
 
     @Test func noReleasesAndUnsupported() async throws {
         let stub = StubHTTPClient()
         stub.stub(api, body: try encode([ghRelease(1, tag: "v1", draft: true, assets: [])]))
-        #expect(await GitHubSource(http: stub).support(for: ref, flavor: .forever) == .noReleases)
+        #expect(await GitHubSource(http: stub).apiSupport(for: ref, flavor: .forever) == .noReleases)
 
         stub.stub(api, body: try encode([ghRelease(1, tag: "v1", assets: [ghAsset(10, "A.zip"), ghAsset(11, "release.json")])]))
         stub.stub("https://github.com/o/r/releases/download/v1/release.json",
                   body: try encode(ghReleaseJSON([("A.zip", false, [("mainline", 120100)])])))
-        #expect(await GitHubSource(http: stub).support(for: ref, flavor: .forever) == .unsupported)
+        #expect(await GitHubSource(http: stub).apiSupport(for: ref, flavor: .forever) == .unsupported)
     }
 
     @Test func errorsAreUnknown() async {
         let stub = StubHTTPClient()
         stub.stub(api, status: 500, body: Data())
-        #expect(await GitHubSource(http: stub).support(for: ref, flavor: .forever) == .unknown)
-        #expect(await GitHubSource(http: stub).support(for: AddonRef(source: .tukui, identifier: "elvui"), flavor: .forever) == .unknown)
+        #expect(await GitHubSource(http: stub).apiSupport(for: ref, flavor: .forever) == .unknown)
+        #expect(await GitHubSource(http: stub).apiSupport(for: AddonRef(source: .tukui, identifier: "elvui"), flavor: .forever) == .unknown)
     }
 
     @Test func keepsQuotaReserve() async throws {
@@ -310,33 +310,30 @@ private final class TestClock: Sendable {
         let source = GitHubSource(http: stub)
         let clock = TestClock()
         await source.setClock { clock.date }
-        #expect(await source.support(for: ref, flavor: .forever) == .needsDownload)
+        #expect(await source.apiSupport(for: ref, flavor: .forever) == .needsDownload)
 
         let other = AddonRef(source: .github, identifier: "o/other")
-        #expect(await source.support(for: other, flavor: .forever) == .unknown)
+        #expect(await source.apiSupport(for: other, flavor: .forever) == .unknown)
         #expect(stub.requests.count == 1)
 
         // Once the window resets, checks resume.
         clock.date = Date(timeIntervalSince1970: 1_800_003_601)
-        _ = await source.support(for: other, flavor: .forever)
+        _ = await source.apiSupport(for: other, flavor: .forever)
         #expect(stub.requests.count == 2)
     }
 
-    @Test func cachesForSixHoursThenRevalidatesWithETag() async throws {
+    /// `apiSupport` keeps no answers of its own (`check` stores them); it revalidates its
+    /// releases list with the ETag.
+    @Test func revalidatesWithETag() async throws {
         let stub = StubHTTPClient()
         stub.stub(api, headers: ["ETag": #""v1""#, "x-ratelimit-remaining": "50"],
                   body: try encode([ghRelease(1, tag: "v1", assets: [ghAsset(10, "A.zip")])]))
         let source = GitHubSource(http: stub)
-        let clock = TestClock()
-        await source.setClock { clock.date }
-        #expect(await source.support(for: ref, flavor: .forever) == .needsDownload)
-        clock.date += 5 * 3600
-        #expect(await source.support(for: AddonRef(source: .github, identifier: "O/R"), flavor: .forever) == .needsDownload)
+        #expect(await source.apiSupport(for: ref, flavor: .forever) == .needsDownload)
         #expect(stub.requests.count == 1)
 
-        clock.date += 2 * 3600
         stub.stub(api, status: 304, headers: ["x-ratelimit-remaining": "50"], body: Data())
-        #expect(await source.support(for: ref, flavor: .forever) == .needsDownload)
+        #expect(await source.apiSupport(for: ref, flavor: .forever) == .needsDownload)
         #expect(stub.requests.count == 2)
         #expect(stub.requests.last?.value(forHTTPHeaderField: "If-None-Match") == #""v1""#)
     }

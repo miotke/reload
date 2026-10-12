@@ -9,55 +9,61 @@ What is cached, for how long, how ETags and failures are handled, and the single
 - **Never refetch what's stored and fresh.**
 - **One owner per kind of remote data** decides freshness. Nobody else keeps a second cache.
 
-## Single cache owner and `CachePolicy`
+## Owners and `CachePolicy`
 
-> **Landing with the core merge.** Why: [decision 0011](../decisions/0011-single-cache-owner.md).
+Why: [decision 0011](../decisions/0011-single-cache-owner.md).
 
 | Data | Owner | Stored in |
 |---|---|---|
-| Forever support, latest tag | `GitHubSource.check` | SQLite metadata DB |
-| Catalogue | `CatalogueSource` | SQLite metadata DB |
+| Forever support verdicts, latest tags | `GitHubSource` (`latestRelease` / `check`, through `SupportCache`) | `support`, `repo_meta` tables |
+| Catalogue | `CatalogueSource` | `catalogue`, `catalogue_state` |
+| Inspector details | `AddonManager.details` | `details` |
+| Live search answers | `SearchCoordinator` | `search_cache` |
+| Rate-limit state | `GitHubSource` (`core`), `GitHubSearchProvider` (`search`) | `rate_limit` |
 | Downloaded zips | `Downloader` | `<caches>/downloads/` |
-| Screenshot bytes | `ScreenshotLoader` | its own `URLCache` |
+| Screenshot bytes | `ScreenshotLoader` (app) | its own `URLCache` |
 
-Callers state intent; the owner decides whether to hit the network:
+For support and tags, callers state intent; the owner decides whether to hit the network:
 
-| `CachePolicy` | Meaning |
-|---|---|
-| `.preferStored` | Use what's stored; go to the network only if nothing is stored |
-| `.revalidateIfStale` | Use stored data while fresh; revalidate once past its TTL |
-| `.forceRevalidate` | Revalidate now (still sending the ETag), e.g. for an explicit user check |
-
-Callers never pass `maxAge: 0`-style flags or `reuse: false`, and never call the endpoints around the owner.
-
-## TTLs
-
-| What | Where (this branch) | Lifetime |
+| `CachePolicy` | Network | Store |
 |---|---|---|
-| Parsed catalogue | `<caches>/catalogue.plist` (binary plist, with ETag) | 24 h; a stale copy is used if the network fails |
-| Support statuses | `<caches>/forever-support.json`, keyed by ref + game version | 6 h; `.checking` and `.unknown` are never saved |
-| Decoded `release.json` | in memory and `<caches>/github/release-json/<asset id>.json` | forever (assets don't change) |
-| Inspected zips | `<caches>/downloads/github/<asset id>-<name>` | until evicted |
-| Downloaded install zips | `<caches>/downloads/…` | newest 2 per add-on (for rollback) |
-| Live GitHub search results | in memory, per query | 10 min |
-| Inspector details | in memory, per add-on | the app session |
-| Screenshots | `URLCache` 32 MB memory / 200 MB disk; decoded `NSCache` | HTTP cache rules |
+| `.preferStored` | never | read only; `.unknown` if nothing is stored |
+| `.revalidateIfStale` | only when the stored answer is past its lifetime (below) | writes what it learns |
+| `.forceRevalidate` | always asks for the latest tag; still reuses the stored verdict when the tag is unchanged | writes what it learns |
 
-After the core merge:
+Callers never pass `maxAge: 0`-style flags or `reuse: false`, and never call the raw lookups around the owner. Which caller uses which policy: [decision 0011](../decisions/0011-single-cache-owner.md#who-uses-which-policy).
+
+## Lifetimes
+
+A stored verdict is **shown** as long as it's stored. These lifetimes only decide when `.revalidateIfStale` checks again.
 
 | What | Lifetime |
 |---|---|
-| GitHub fallback query results | 24 h; an empty result 1 h |
-| Catalogue, support and tags | in SQLite; refreshed by the [2-hour refresh](overview.md) |
+| Verdict: supported, unsupported, needs download | 1 h |
+| Verdict: no releases / repo gone (negative) | 24 h |
+| Failed check (`error` row, never shown) | 15 min before retrying |
+| Catalogue | 24 h, revalidated with ETag; a stale copy is served while it refreshes |
+| Catalogue download failure | 15 min backoff, shared by app and CLI |
+| Inspector details | 24 h; not stored if the README couldn't be fetched |
+| README | revalidated with its stored ETag; "no README" remembered |
+| Live search answer | 24 h; an empty answer 1 h |
+| Refresh | skipped if the last one finished under 2 h ago, unless forced ([refresh.md](../features/refresh.md)) |
+| Decoded `release.json` (API path) | in memory and `<caches>/github/release-json/<asset id>.json`; assets don't change |
+| `release.json` by tag (github.com path) | in memory; the stored verdict's tag avoids refetching it across launches |
+| API release lists | in memory for the last 64 repos, revalidated with ETags |
+| Downloaded zips | newest 2 per add-on (rollback) |
+| Screenshots | `URLCache` 32 MB memory / 200 MB disk; decoded images in an `NSCache` |
+
+The refresh also re-checks repos whose catalogue entry changed after `checked_at`, and a slice older than 14 days.
 
 ## ETags and update checks
 
 - `InstalledAddon.etag` is stored **only while the add-on is up to date**. A 304 then always means "still current", never "an update you haven't installed".
-- Without a caller ETag, `GitHubSource` still revalidates its own in-memory copy.
 - Changing an add-on's channel clears its ETag.
-- Unauthenticated 304s still cost API quota, which is why update checks move to the quota-free `releases/latest` redirect ([github-endpoints.md](github-endpoints.md)).
+- Unauthenticated 304s still cost API quota, which is why stable-channel update checks use the quota-free `releases/latest` redirect first ([github-endpoints.md](github-endpoints.md)).
+- The core's URL session has no HTTP cache; ETags are handled explicitly.
 
 ## Clearing
 
-- `AddonManager.clearCaches()` and `addonctl cache clear` delete downloads, the catalogue and support checks. That also removes rollback zips, so the CLI asks first.
+- `AddonManager.clearCaches()` and `addonctl cache clear` empty the `support`, `repo_meta` and `details` tables and delete everything under Caches (downloads, `release.json` files). That also removes rollback zips, so the CLI asks first. The catalogue table is kept.
 - `addonctl cache info` shows the sizes.

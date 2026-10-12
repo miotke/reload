@@ -165,9 +165,17 @@ public struct SearchIndex: Sendable {
     public let entries: [CatalogueEntry]
     private let documents: [SearchDocument]
     private let positions: [String: Int]
+    /// Lower-cased `owner/repo` per entry, the final tie-break, computed once.
+    private let sortKeys: [String]
+    /// Entries with a date, newest first, computed once for Browse.
+    private let recentOrder: [Int]
 
     public init(entries: [CatalogueEntry]) {
         self.entries = entries
+        self.sortKeys = entries.map { $0.fullName.lowercased() }
+        self.recentOrder = entries.indices
+            .filter { entries[$0].lastUpdated != nil }
+            .sorted { entries[$0].lastUpdated! > entries[$1].lastUpdated! }
         var positions: [String: Int] = [:]
         for (i, entry) in entries.enumerated() where positions[entry.fullName.lowercased()] == nil {
             positions[entry.fullName.lowercased()] = i
@@ -203,7 +211,7 @@ public struct SearchIndex: Sendable {
             let da = entries[a.index].lastUpdated ?? .distantPast
             let db = entries[b.index].lastUpdated ?? .distantPast
             if da != db { return da > db }
-            return entries[a.index].fullName.lowercased() < entries[b.index].fullName.lowercased()
+            return sortKeys[a.index] < sortKeys[b.index]
         }
         let ordered = hits.map { entries[$0.index] }
         if let limit { return Array(ordered.prefix(limit)) }
@@ -212,9 +220,7 @@ public struct SearchIndex: Sendable {
 
     /// Entries with the newest `lastUpdated`.
     public func recentlyUpdated(limit: Int) -> [CatalogueEntry] {
-        Array(entries.filter { $0.lastUpdated != nil }
-            .sorted { $0.lastUpdated! > $1.lastUpdated! }
-            .prefix(limit))
+        recentOrder.prefix(limit).map { entries[$0] }
     }
 
     public func entry(for ref: AddonRef) -> CatalogueEntry? {

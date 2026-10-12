@@ -1,39 +1,66 @@
 import Foundation
 
-/// Runs every search layer and merges them into one live result list (docs/design.md §7).
+/// Runs every search layer and merges them into one result list (docs/search.md).
 ///
-/// `search` emits local results (direct reference, installed, catalogue) at once,
-/// then re-emits as Forever-support checks and GitHub live results land.
+/// Search reads the local database; if it finds nothing, it asks GitHub once and remembers
+/// the answer. It never checks Forever support itself: results carry the stored verdict, or
+/// `.unknown` until the add-on is opened, installed or refreshed.
 public actor SearchCoordinator {
-    /// How many of the top visible results get a support check per search.
-    public static let verificationLimit = 15
-    /// Support checks in flight at once.
-    public static let maxConcurrentChecks = 2
-    /// Below this many catalogue matches, GitHub live search runs automatically.
-    public static let liveSearchThreshold = 5
     /// Catalogue matches kept per search.
     public static let catalogueLimit = 200
+    /// Below this many local results, GitHub live search runs automatically.
+    public static let liveSearchThreshold = 3
+    /// Shorter queries never trigger the automatic live search.
+    public static let minimumLiveQueryLength = 3
+    /// The automatic live search waits this long first, so only a settled query spends a request.
+    public static let liveSearchDelay: Duration = .milliseconds(500)
+    /// How long a live search answer is reused for the same query.
+    public static let liveCacheTTL: TimeInterval = 24 * 60 * 60
+    /// How long an empty live search answer is reused.
+    public static let emptyLiveCacheTTL: TimeInterval = 60 * 60
 
     private let catalogue: CatalogueSource
     private let github: GitHubSearchProvider?
-    private let support: any SupportChecking
     private let supportCache: SupportCache
-    /// Star counts seen in GitHub results, keyed by lower-cased `owner/repo`.
-    private var stars: [String: Int] = [:]
+    private let now: @Sendable () -> Date
+    var liveSearchDelay: Duration = SearchCoordinator.liveSearchDelay
 
-    public init(catalogue: CatalogueSource, github: GitHubSearchProvider?, support: any SupportChecking, supportCache: SupportCache) {
+    public init(
+        catalogue: CatalogueSource, github: GitHubSearchProvider?, supportCache: SupportCache,
+        now: @escaping @Sendable () -> Date = Date.init
+    ) {
         self.catalogue = catalogue
         self.github = github
-        self.support = support
         self.supportCache = supportCache
+        self.now = now
+    }
+
+    func setLiveSearchDelay(_ delay: Duration) {
+        liveSearchDelay = delay
     }
 
     // MARK: Search
 
-    /// Emits the merged result list, then again whenever a layer or support check lands.
+    /// Emits the local results, then once more if a live GitHub search adds any.
     /// Finishes when all work is done; cancelling the consumer cancels outstanding work.
     public nonisolated func search(_ query: SearchQuery, installed: [AddonStatus]) -> AsyncStream<[SearchResult]> {
         let (stream, continuation) = AsyncStream.makeStream(of: [SearchResult].self)
+        let task = Task {
+            var last: [SearchResult]?
+            for await update in self.searchUpdates(query, installed: installed) where update.results != last {
+                last = update.results
+                continuation.yield(update.results)
+            }
+            continuation.finish()
+        }
+        continuation.onTermination = { _ in task.cancel() }
+        return stream
+    }
+
+    /// Like `search`, but each emission also says whether a GitHub live search is running
+    /// and whether this is the last one.
+    public nonisolated func searchUpdates(_ query: SearchQuery, installed: [AddonStatus]) -> AsyncStream<SearchUpdate> {
+        let (stream, continuation) = AsyncStream.makeStream(of: SearchUpdate.self, bufferingPolicy: .bufferingNewest(8))
         let task = Task {
             await self.run(query, installed: installed, continuation: continuation)
             continuation.finish()
@@ -42,20 +69,15 @@ public actor SearchCoordinator {
         return stream
     }
 
-    private enum Event: Sendable {
-        case support(AddonRef, SupportStatus)
-        case github([SearchResult])
-        case githubFailed
-    }
-
-    private func run(_ query: SearchQuery, installed: [AddonStatus], continuation: AsyncStream<[SearchResult]>.Continuation) async {
+    private func run(_ query: SearchQuery, installed: [AddonStatus], continuation: AsyncStream<SearchUpdate>.Continuation) async {
         let text = query.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
-            continuation.yield([])
+            continuation.yield(SearchUpdate(results: [], isComplete: true))
             return
         }
         var session = Session(foreverOnly: query.foreverOnly)
-        let cached = await supportCache.statuses(flavor: query.flavor)
+        let statuses = await keyed(supportCache.statuses(flavor: query.flavor))
+        let stars = await supportCache.stars()
 
         var installedByKey: [String: InstalledAddon] = [:]
         for status in installed {
@@ -76,101 +98,126 @@ public actor SearchCoordinator {
             session.merge(result)
         }
 
-        // 3. Catalogue.
-        let index = try? await catalogue.searchIndex()
-        let catalogueMatches = index?.search(text, limit: Self.catalogueLimit) { cached[$0] } ?? []
-        for entry in catalogueMatches {
-            session.merge(result(for: entry, origin: .catalogue))
+        // 3. Catalogue, from the database. Only a never-downloaded catalogue is fetched here.
+        let index = await localIndex()
+        let matches = index?.search(text, limit: Self.catalogueLimit) { statuses[Session.key($0)] } ?? []
+        for entry in matches {
+            session.merge(Self.result(for: entry, origin: entry.fromLiveSearch ? .github : .catalogue, stars: stars))
         }
         if let direct, let entry = index?.entry(for: direct) {
-            session.merge(result(for: entry, origin: .catalogue))
+            session.merge(Self.result(for: entry, origin: .catalogue, stars: stars))
         }
 
         session.attach(installed: installedByKey)
-        session.apply(cached)
+        session.apply(statuses)
         guard !Task.isCancelled else { return }
 
-        let runGitHub = github != nil
-            && (query.includeLiveGitHub || (direct == nil && catalogueMatches.count < Self.liveSearchThreshold))
-        session.queueVerification(limit: Self.verificationLimit)
-        continuation.yield(session.visible)
-
-        // 4. Support checks and GitHub live search.
-        let support = self.support
-        let github = self.github
-        let flavor = query.flavor
-        await withTaskGroup(of: Event.self) { group in
-            if runGitHub, let github {
-                group.addTask {
-                    do { return .github(try await github.search(query)) } catch { return .githubFailed }
-                }
-            }
-            var running = 0
-            while running < Self.maxConcurrentChecks, let ref = session.nextToVerify() {
-                running += 1
-                group.addTask { .support(ref, await support.support(for: ref, flavor: flavor)) }
-            }
-
-            for await event in group {
-                if Task.isCancelled {
-                    group.cancelAll()
-                    break
-                }
-                switch event {
-                case .support(let ref, let status):
-                    running -= 1
-                    session.setSupport(status, for: ref)
-                    await supportCache.set(status, for: ref, flavor: flavor)
-                case .github(let results):
-                    let live = results.map { result -> SearchResult in
-                        var result = result
-                        if let count = result.stars { stars[Session.key(result.id)] = count }
-                        if let status = cached[result.id] { result.support = status }
-                        return result
-                    }
-                    for result in live { session.merge(result) }
-                    session.attach(installed: installedByKey)
-                    session.queueVerification(limit: Self.verificationLimit)
-                case .githubFailed:
-                    continue
-                }
-                if Task.isCancelled {
-                    group.cancelAll()
-                    break
-                }
-                while running < Self.maxConcurrentChecks, let ref = session.nextToVerify() {
-                    running += 1
-                    group.addTask { .support(ref, await support.support(for: ref, flavor: flavor)) }
-                }
-                continuation.yield(session.visible)
-            }
+        // 4. GitHub live search, when asked or when the database can't answer.
+        let explicit = query.includeLiveGitHub
+        let automatic = direct == nil && session.count < Self.liveSearchThreshold && text.count >= Self.minimumLiveQueryLength
+        guard let github, explicit || automatic else {
+            continuation.yield(SearchUpdate(results: session.visible, isComplete: true))
+            return
         }
+        if !explicit {
+            continuation.yield(SearchUpdate(results: session.visible))
+            // Only a settled query spends a request: typing on cancels this search.
+            try? await Task.sleep(for: liveSearchDelay)
+            guard !Task.isCancelled else { return }
+        }
+        continuation.yield(SearchUpdate(results: session.visible, isSearchingGitHub: true))
+        let live = await liveResults(text, flavor: query.flavor, explicit: explicit, github: github, stars: stars)
+        guard !Task.isCancelled else { return }
+        for result in live { session.merge(result) }
+        session.attach(installed: installedByKey)
+        session.apply(statuses)
+        continuation.yield(SearchUpdate(results: session.visible, isComplete: true))
     }
 
-    private func result(for entry: CatalogueEntry, origin: SearchOrigin) -> SearchResult {
-        SearchResult(
+    private func keyed(_ statuses: [AddonRef: SupportStatus]) -> [String: SupportStatus] {
+        Dictionary(statuses.map { (Session.key($0.key), $0.value) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The stored catalogue's index. Downloads the catalogue only if it has never been fetched.
+    private func localIndex() async -> SearchIndex? {
+        if let index = try? await catalogue.localSearchIndex(), index.count > 0 { return index }
+        guard await catalogue.lastFetched() == nil else { return nil }
+        return try? await catalogue.searchIndex()
+    }
+
+    /// Live results for `text`: the stored answer if recent, else one request (three stages
+    /// when `explicit`). Failures and rate limits give no results, quietly.
+    private func liveResults(
+        _ text: String, flavor: Flavor, explicit: Bool, github: GitHubSearchProvider, stars: [String: Int]
+    ) async -> [SearchResult] {
+        let key = SearchText.fold(text.split(whereSeparator: \.isWhitespace).joined(separator: " ")) + (explicit ? "#all" : "")
+        let database = supportCache.database
+        if let row = try? await database.query("SELECT full_names, fetched_at FROM search_cache WHERE query = ?", key).first,
+           let names = row.string(0), let fetched = row.date(1) {
+            let list = names.split(separator: "\n").map(String.init)
+            let ttl = list.isEmpty ? Self.emptyLiveCacheTTL : Self.liveCacheTTL
+            if now().timeIntervalSince(fetched) < ttl {
+                var results: [SearchResult] = []
+                for name in list {
+                    guard let entry = await catalogue.entry(for: AddonRef(source: .github, identifier: name)) else { continue }
+                    results.append(Self.result(for: entry, origin: .github, stars: stars))
+                }
+                return results
+            }
+        }
+
+        let found: [SearchResult]
+        do {
+            found = try await github.search(SearchQuery(text: text, flavor: flavor), stages: explicit ? nil : 1)
+        } catch {
+            return []
+        }
+        let entries = found.map { result in
+            CatalogueEntry(
+                id: result.id.identifier, name: result.name, fullName: result.id.identifier,
+                url: URL(string: "https://github.com/\(result.id.identifier)")!, description: result.summary,
+                lastUpdated: result.lastUpdated, fromLiveSearch: true
+            )
+        }
+        try? await catalogue.remember(liveResults: entries)
+        await supportCache.setStars(Dictionary(found.compactMap { r in r.stars.map { (r.id, $0) } }, uniquingKeysWith: { a, _ in a }))
+        _ = try? await database.execute("""
+            INSERT INTO search_cache(query, full_names, fetched_at) VALUES (?, ?, ?)
+            ON CONFLICT(query) DO UPDATE SET full_names = excluded.full_names, fetched_at = excluded.fetched_at
+            """, key, found.map(\.id.identifier).joined(separator: "\n"), now())
+        return found
+    }
+
+    static func result(for entry: CatalogueEntry, origin: SearchOrigin, stars: [String: Int]) -> SearchResult {
+        var result = SearchResult(
             id: entry.ref, name: entry.name, summary: entry.description, owner: entry.owner,
-            stars: stars[Session.key(entry.ref)], lastUpdated: entry.lastUpdated, origin: [origin]
+            stars: stars[entry.fullName.lowercased()], lastUpdated: entry.lastUpdated, origin: [origin]
         )
+        // The catalogue knows which repos ship a release.json; without one, confirming
+        // support needs a zip download, so there's nothing cheaper to check.
+        if !entry.fromLiveSearch, !entry.hasReleaseJSON { result.support = .needsDownload }
+        return result
     }
 
     // MARK: Browse
 
-    /// The Browse tab's content for an empty search box (docs/design.md §7.5).
+    /// The Browse tab's content for an empty search box (docs/design.md §7.5). Local only.
     public func browse(flavor: Flavor = .forever) async -> (popular: [SearchResult], recent: [SearchResult], categories: [SearchCategory]) {
         let statuses = await supportCache.statuses(flavor: flavor)
-        let index = try? await catalogue.searchIndex()
+        let keyedStatuses = keyed(statuses)
+        let stars = await supportCache.stars()
+        let index = await localIndex()
 
         var popular: [SearchResult] = []
         for (ref, status) in statuses {
             guard case .supported = status else { continue }
             var result: SearchResult
             if let entry = index?.entry(for: ref) {
-                result = self.result(for: entry, origin: .catalogue)
+                result = Self.result(for: entry, origin: .catalogue, stars: stars)
             } else {
                 result = SearchResult(
                     id: ref, name: String(ref.identifier.split(separator: "/").last ?? ""),
-                    owner: InstalledSearchProvider.owner(of: ref), stars: stars[Session.key(ref)], origin: []
+                    owner: InstalledSearchProvider.owner(of: ref), stars: stars[ref.identifier.lowercased()], origin: []
                 )
             }
             result.support = status
@@ -186,8 +233,8 @@ public actor SearchCoordinator {
 
         var recent: [SearchResult] = []
         for entry in index?.recentlyUpdated(limit: 60) ?? [] {
-            var result = self.result(for: entry, origin: .catalogue)
-            result.support = statuses[entry.ref] ?? .unknown
+            var result = Self.result(for: entry, origin: .catalogue, stars: stars)
+            if let status = keyedStatuses[Session.key(entry.ref)] { result.support = status }
             if result.support.isVerifiedUnsupported { continue }
             recent.append(result)
             if recent.count == 20 { break }
@@ -242,13 +289,12 @@ private struct Session {
     var foreverOnly: Bool
     private(set) var results: [SearchResult] = []
     private var positions: [String: Int] = [:]
-    private var queue: [AddonRef] = []
-    /// Refs already queued or checked in this search.
-    private var verified: Set<String> = []
 
     init(foreverOnly: Bool) {
         self.foreverOnly = foreverOnly
     }
+
+    var count: Int { results.count }
 
     static func key(_ ref: AddonRef) -> String {
         "\(ref.source.rawValue):\(ref.identifier.lowercased())"
@@ -283,33 +329,11 @@ private struct Session {
         }
     }
 
-    mutating func apply(_ cached: [AddonRef: SupportStatus]) {
+    /// Stored verdicts win over the catalogue's release.json hint.
+    mutating func apply(_ statuses: [String: SupportStatus]) {
         for i in results.indices {
-            if let status = cached[results[i].id] { results[i].support = status }
+            if let status = statuses[Self.key(results[i].id)] { results[i].support = status }
         }
-    }
-
-    /// Queues the top `limit` visible results that have no status yet, marking them `.checking`.
-    mutating func queueVerification(limit: Int) {
-        var considered = 0
-        for i in results.indices where isVisible(results[i]) {
-            considered += 1
-            if considered > limit { break }
-            let key = Self.key(results[i].id)
-            guard results[i].support == .unknown, !verified.contains(key) else { continue }
-            verified.insert(key)
-            queue.append(results[i].id)
-            results[i].support = .checking
-        }
-    }
-
-    mutating func nextToVerify() -> AddonRef? {
-        queue.isEmpty ? nil : queue.removeFirst()
-    }
-
-    mutating func setSupport(_ status: SupportStatus, for ref: AddonRef) {
-        guard let i = positions[Self.key(ref)] else { return }
-        results[i].support = status
     }
 
     private func isVisible(_ result: SearchResult) -> Bool {

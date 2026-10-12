@@ -16,10 +16,10 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0005](0005-swift-6-concurrency.md) | macOS 27, Swift 6.4, approachable concurrency, `Mutex` | Accepted | 2026-10-11 |
 | [0006](0006-bundled-cli-install.md) | Bundle the CLI; symlink install through `osascript` off the main thread | Accepted | 2026-10-11 |
 | [0007](0007-real-data-only.md) | Real data only; mock manager removed | Accepted | 2026-10-11 |
-| [0008](0008-sqlite-metadata-database.md) | SQLite metadata database via the system SQLite3 API; keep `SearchIndex` over FTS5 | Accepted, landing with the core merge | 2026-10-11 |
-| [0009](0009-local-first-search.md) | Local-first search with a one-request GitHub fallback | Accepted, landing with the core merge | 2026-10-11 |
-| [0010](0010-quota-free-endpoints.md) | Quota-free GitHub endpoints, ~200-repo seed, 2-hour refresh | Accepted, landing with the core merge | 2026-10-11 |
-| [0011](0011-single-cache-owner.md) | One cache owner per kind of data, with `CachePolicy` | Accepted, landing with the core merge | 2026-10-11 |
+| [0008](0008-sqlite-metadata-database.md) | SQLite metadata database via the system SQLite3 API; keep `SearchIndex` over FTS5 | Accepted | 2026-10-11 |
+| [0009](0009-local-first-search.md) | Local-first search with a one-request GitHub fallback | Accepted | 2026-10-11 |
+| [0010](0010-quota-free-endpoints.md) | Quota-free GitHub endpoints, ~200-repo seed, 2-hour refresh | Accepted | 2026-10-11 |
+| [0011](0011-single-cache-owner.md) | One cache owner per kind of data, with `CachePolicy` | Accepted | 2026-10-11 |
 | [0012](0012-inspector-and-tables.md) | Inspector inside the detail column; sortable `Table`s | Accepted | 2026-10-11 |
 | [0013](0013-screenshot-loading.md) | Screenshot loading: disk cache, thumbnail decode, full size in the viewer | Accepted | 2026-10-11 |
 | [0014](0014-docs-layout.md) | Docs as small topic files, an index and decision records | Accepted | 2026-10-11 |

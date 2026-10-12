@@ -62,6 +62,7 @@ Managed and unmanaged folders are separate sections, each sorted. Errors show as
 - The sort is remembered per table (`installedSort`, `browseSort` in user defaults, e.g. `updated.desc`). Column widths and visibility are remembered per window (`@SceneStorage`).
 - Browse can return to the core's order (relevance, or stars/date for the home lists) with **Sort by Relevance** / **Default Order**.
 - Rows are pre-formatted and sorted in `InstallationModel`, never in `body` ([performance/guidelines.md](../performance/guidelines.md#tables-and-lists)).
+- **Never read `@Environment(SomeObservable.self)` in `Table` cells, context menus, `primaryAction` handlers or toolbar item views.** AppKit hosts them in separate hosting views; during row rebuilds (sorting, search, category changes) the object can be missing and SwiftUI traps with "No Observable object of type … found". Pass the model, row state or closures in as plain properties.
 
 ## Dates
 

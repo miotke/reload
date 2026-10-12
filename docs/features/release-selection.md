@@ -46,21 +46,47 @@ It uses the TOC file the game client itself would load:
 
 The same check runs on an add-on folder already on disk, which adopting uses. Suffixes and ranges come from [FlavorRules](../architecture/flavors.md).
 
-## Support checks (for search)
+## Quota-free resolve (stable channel)
 
-`support(for:flavor:)` (the `SupportChecking` protocol) runs the same selection but **never downloads zips**:
+`AddonManager.resolve` (stable channel) and stable update checks first ask `GitHubSource.latestRelease` for the latest release. When its `release.json` names a build for the flavor, the release is resolved without the API. The download URL is built as `github.com/{owner}/{repo}/releases/download/{tag}/{filename}`, so installing or updating BigWigs, DBM and other packager-built add-ons costs no API quota. Why: [decision 0010](../decisions/0010-quota-free-endpoints.md).
+
+- It returns nil, and the caller falls back to the API flow above, when the latest release has no `release.json` or lacks the flavor (an older release might still have it).
+- Such a release has no real release ID or date: `releaseID` is a negative hash of `owner/repo@tag` and `publishedAt` is the time of the check. `InstalledAddon.isUpdate` compares **tags** whenever either side has a synthetic ID, so a re-resolve never shows a false "update available".
+- The prerelease channel always uses the API: `releases/latest` excludes prereleases.
+
+## Inspection limits
+
+- At most 2 candidate zips are inspected per release without a `release.json`, and at most 3 releases.
+- Inspected zips are saved at the `Downloader`'s archive path, so the install reuses them and pruning cleans them up ([installing.md](installing.md#downloader)).
+
+## Support checks
+
+`check(_:flavor:policy:background:)` (and `support(for:flavor:)`, the `SupportChecking` protocol) costs **no API quota**. It looks only at the latest stable release:
+
+```mermaid
+flowchart LR
+    A[HEAD releases/latest] -- 302 to releases/tag/T --> V{Stored verdict<br/>made against T?}
+    V -- yes --> R[reuse it]
+    V -- no --> B[GET releases/download/T/release.json]
+    A -- 302 to /releases --> N[.noReleases]
+    A -- 404 --> N
+    B -- has forever --> S[.supported version: T]
+    B -- other flavors only --> U[.unsupported]
+    B -- 404 --> D[.needsDownload]
+```
 
 | Outcome | `SupportStatus` |
 |---|---|
-| Found a Forever build | `.supported(version:)` |
-| Releases, but none for Forever | `.unsupported` |
-| No eligible stable release | `.noReleases` |
-| No `release.json`; confirming needs a download | `.needsDownload` |
-| Error, or quota ≤ 10 calls left | `.unknown` (never cached) |
+| Latest release's `release.json` lists Forever | `.supported(version: tag)` |
+| It lists only other flavors | `.unsupported` |
+| Latest release has no `release.json` | `.needsDownload` |
+| No releases, or the repo is gone | `.noReleases` |
+| Anything else failed | `.unknown` (stored as an `error` row, never shown) |
 
-The 10-call reserve keeps search from using up the quota that installs and updates need. How long results are kept: [caching.md](../network/caching.md).
-
-> **Landing with the core merge:** support and latest-tag data move into SQLite, owned by `GitHubSource.check`, which uses the quota-free `releases/latest` redirect and `release.json` download first ([decision 0010](../decisions/0010-quota-free-endpoints.md), [decision 0011](../decisions/0011-single-cache-owner.md)). The prerelease channel still needs the API release list.
+- `GitHubSource` is the **only owner** of verdicts and latest tags; callers pass a `CachePolicy` and never judge freshness themselves ([decision 0011](../decisions/0011-single-cache-owner.md)). How long each outcome is reused: [caching.md](../network/caching.md#lifetimes).
+- Concurrent lookups for the same repo and flavor share one request.
+- If github.com fails for a reason other than pushing back (429/403), `apiSupport(for:flavor:)`, the API path, answers while quota is comfortable. It also looks past the latest release, and keeps a 10-call reserve.
+- `background: true` requests stay off constrained (Low Data Mode) networks.
 
 ## Parsing refs
 

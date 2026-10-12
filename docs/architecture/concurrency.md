@@ -21,7 +21,7 @@ Swift tools 6.4, minimum macOS 27.
 
 | Kind | Use |
 |---|---|
-| Long-lived services with async work | An actor: `AddonManager`, `InstallStore`, `Downloader`, `GitHubSource`, the search actors |
+| Long-lived services with async work | An actor: `AddonManager`, `InstallStore`, `MetadataDatabase`, `Downloader`, `GitHubSource`, the search actors |
 | A small value read from several threads | `Mutex` from the Synchronization module |
 | App UI state | `@Observable` classes on the main actor |
 
@@ -36,7 +36,7 @@ The main actor only updates UI. Everything else runs elsewhere:
 | Work | Where |
 |---|---|
 | File and network I/O | `AddonManager` and its actors |
-| Database reads and writes | the core (not the main actor) |
+| Database reads and writes | `MetadataDatabase` actor; transaction bodies are synchronous, so no write lock spans an `await` |
 | JSON decoding, Markdown parsing | `nonisolated` helpers |
 | Image decoding | `ScreenshotLoader`, ImageIO off the main actor |
 | Privileged CLI install | `osascript` subprocess off the main thread ([cli-install.md](../app/cli-install.md)) |

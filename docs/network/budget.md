@@ -1,6 +1,6 @@
 # Network budget
 
-How many requests each user action makes: the measured baseline before the core merge, and the target after it.
+How many requests each user action makes: the measured baseline before the core merge, and the design target the core merge implements.
 
 Update these numbers after merges that change network behaviour (see `.claude/CLAUDE.md`).
 
@@ -25,7 +25,7 @@ The catalogue is one 186 KB download (609 KB uncompressed, 2,421 rows), cached 2
 
 One launch, one search and one category click add up to 56 of the 60 calls allowed per hour.
 
-## Target, after the core merge
+## Target (the core merge's design, not yet re-measured)
 
 | Action | Requests | API calls |
 |---|---|---|
@@ -36,7 +36,7 @@ One launch, one search and one category click add up to 56 of the 60 calls allow
 | First launch | about 1,000 (~25 s at concurrency 4) | 0 |
 | Prerelease channel | release list | 1 per add-on |
 
-How: [decision 0009](../decisions/0009-local-first-search.md), [decision 0010](../decisions/0010-quota-free-endpoints.md), [decision 0011](../decisions/0011-single-cache-owner.md).
+Re-measure and replace this table with real numbers on the next network audit. How: [decision 0009](../decisions/0009-local-first-search.md), [decision 0010](../decisions/0010-quota-free-endpoints.md), [decision 0011](../decisions/0011-single-cache-owner.md).
 
 ## Side by side
 

@@ -2,7 +2,7 @@
 
 Support and update checks use GitHub endpoints that cost no API quota; first launch seeds about 200 recent repos plus the installed ones, and a 2-hour refresh keeps them current.
 
-- **Status:** Accepted, landing with the core merge
+- **Status:** Accepted
 - **Date:** 2026-10-11
 
 ## Context
@@ -21,12 +21,13 @@ Some GitHub URLs aren't part of the API and cost no quota:
 
 ## Decision
 
-- **Latest tag:** request `releases/latest` and **don't follow the redirect**; read the tag from `Location`.
+- **Latest tag:** `HEAD releases/latest` and **don't follow the redirect**; read the tag from `Location`.
 - **Flavors:** fetch `releases/download/<tag>/release.json`.
 - **Files:** `raw.githubusercontent.com`.
 - **First launch** seeds the top ~200 recently updated repos that have `release.json`, plus the installed ones: about **1,000 requests, ~25 s at concurrency 4, 0 API calls**.
-- **Refresh every 2 hours** checks installed add-ons, repos whose catalogue `last_updated` changed, and a small rotating slice: about 5 + N requests.
-- **Concurrency 4 with jitter**; honour `retry-after` and back off on 403/429.
+- **Refresh every 2 hours** checks installed add-ons, repos whose catalogue `last_updated` changed, repos new to the catalogue, and the 20 oldest verdicts past 14 days: about 5 + N requests ([refresh.md](../features/refresh.md)).
+- **Stable resolves and update checks** use the same answer: a `release.json` with the flavor gives a quota-free `ResolvedRelease` and download URL.
+- **Concurrency 4 with jitter**; honour `retry-after`; a 403 or a long 429 pauses all github.com requests.
 - **The prerelease channel still needs the API** release list, since `releases/latest` skips prereleases.
 
 ## Alternatives considered
@@ -43,7 +44,7 @@ Some GitHub URLs aren't part of the API and cost no quota:
 
 - Launch, refresh and stable-channel update checks cost 0 API calls.
 - First launch takes about 25 s, shown behind the seeding sheet ([app/first-launch.md](../app/first-launch.md)).
-- Repos outside the seed get support data when opened, searched via the fallback, or reached by the rotating slice.
+- Repos outside the seed get support data when opened or installed, when the catalogue says they changed, or once their verdict is among the oldest.
 - The app depends on GitHub's redirect behaviour, which isn't a documented API; if it changes, checks would have to move back to the API.
 
 ## See also

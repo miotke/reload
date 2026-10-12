@@ -2,9 +2,7 @@
 
 What happens the first time the app opens (the seeding sheet and the CLI offer), and how refreshes run afterwards: progress, the 2-hour timer and manual checks.
 
-Code: `App/ForeverAddons/Models/AppModel.swift`, `Views/SeedingSheet.swift`, `AddonManager.refresh(in:force:)`. What a refresh fetches: [network/overview.md](../network/overview.md).
-
-> `refresh(in:force:)` and `lastRefresh(in:)` are placeholders on this branch (refresh only checks installed add-ons; `lastRefresh` is always `nil`). The real versions land with the core merge.
+Code: `App/ForeverAddons/Models/AppModel.swift`, `Views/SeedingSheet.swift`. What the core's refresh does: [features/refresh.md](../features/refresh.md).
 
 ## Sequence
 
@@ -31,14 +29,7 @@ flowchart TD
 
 ## Refresh progress
 
-`refresh` emits `RefreshProgress` values through three phases, then `.finished`:
-
-| Phase | Work | Share of the bar |
-|---|---|---|
-| `catalogue` | download the add-on catalogue | 0–10% |
-| `updates` | check installed add-ons for updates | 10–30% |
-| `support` | check which add-ons support Forever | 30–100% |
-| `finished` | carries the update states | 100% |
+`refresh` emits `RefreshProgress` through its phases (catalogue, updates, support), then `.finished` ([phases](../features/refresh.md#flow)). The app uses `fraction` for the bar.
 
 - `.finished` carries the update states, which replace the Installed statuses.
 - During the support phase the Browse lists are re-read at most every 2 s so badges fill in.

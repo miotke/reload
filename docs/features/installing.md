@@ -58,7 +58,7 @@ Folder names are compared case-insensitively.
 
 | Operation | What happens |
 |---|---|
-| Update | Resolve the newest release ([release-selection.md](release-selection.md)); if it's newer (different release ID, later date), run the install flow. Up to 4 at once; pinned add-ons are skipped |
+| Update | Check first, quota-free on the stable channel ([release-selection.md](release-selection.md#quota-free-resolve-stable-channel)); install only if an update is available. `update(releases:in:)` installs already-resolved releases without re-resolving. Up to 4 at once; pinned add-ons are skipped |
 | Rollback | Reinstall `previousRelease` from the download cache, then pin. Fails with `noRollbackAvailable` if the zip is gone |
 | Uninstall | Move the add-on's folders to the Trash (`FileManager.trashItem`), then remove the record. Folders already missing aren't an error |
 | Adopt | Resolve the suggested repo and install over the unmanaged folder after confirmation |
@@ -69,6 +69,7 @@ If WoW is running, the CLI says to `/reload` after changes ([cli/output.md](../c
 
 - Downloads with `URLSession` and reports progress from 0 to 1.
 - Reuses a cached zip when one exists. Concurrent requests for the same release share one download.
+- Zips inspected during a resolve are stored at the same paths, so the install reuses them.
 - Runs up to 4 downloads at once.
 - Keeps the newest **2** zips per add-on, which is what rollback uses.
 - The transport is a protocol (`DownloadTransport`), so tests serve zips without the network.

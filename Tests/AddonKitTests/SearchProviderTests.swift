@@ -41,50 +41,77 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         let dir = try makeTempDirectory()
         let clock = SearchTestClock()
         let cache = SupportCache(directory: dir, now: { clock.now })
-        await cache.set(.supported(version: "v1.2"), for: bw)
+        await cache.set(.supported(version: "v1.2"), for: bw, tag: "v1.2")
         await cache.set(.unsupported, for: dbm)
         #expect(await cache.status(for: bw) == .supported(version: "v1.2"))
         #expect(await cache.status(for: bw, flavor: .mainline) == nil)
+        #expect(await cache.record(for: bw)?.tag == "v1.2")
 
         let reopened = SupportCache(directory: dir, now: { clock.now })
-        #expect(await reopened.status(for: bw) == .supported(version: "v1.2"))
+        #expect(await reopened.status(for: AddonRef(source: .github, identifier: "bigwigsmods/bigwigs")) == .supported(version: "v1.2"))
         #expect(await reopened.status(for: dbm) == .unsupported)
         #expect(await reopened.statuses().count == 2)
-        #expect(FileManager.default.fileExists(atPath: dir.appending(path: "forever-support.json").path))
+        #expect(FileManager.default.fileExists(atPath: dir.appending(path: MetadataDatabase.fileName).path))
     }
 
-    @Test func entriesExpireAfterSixHours() async throws {
-        let dir = try makeTempDirectory()
+    func isFresh(_ cache: SupportCache, _ ref: AddonRef) async -> Bool {
+        guard let stored = await cache.storedSupport(for: ref, flavor: .forever) else { return false }
+        return await cache.isFresh(stored)
+    }
+
+    @Test func lifetimesDependOnTheAnswerButVerdictsStayVisible() async throws {
         let clock = SearchTestClock()
-        let cache = SupportCache(directory: dir, now: { clock.now })
+        let cache = SupportCache(database: try .inMemory(), now: { clock.now })
         await cache.set(.noReleases, for: bw)
-        clock.advance(5 * 3600)
+        await cache.set(.supported(version: "1"), for: dbm)
+        clock.advance(50 * 60)
+        #expect(await isFresh(cache, dbm))
+        clock.advance(20 * 60)
+        #expect(!(await isFresh(cache, dbm)), "verdicts: 1 h")
+        #expect(await isFresh(cache, bw), "negative answers: 24 h")
+        clock.advance(24 * 3600)
+        #expect(!(await isFresh(cache, bw)))
         #expect(await cache.status(for: bw) == .noReleases)
-        clock.advance(2 * 3600)
-        #expect(await cache.status(for: bw) == nil)
-        #expect(await cache.statuses().isEmpty)
+        #expect(await cache.status(for: dbm) == .supported(version: "1"))
     }
 
-    @Test func transientStatusesAreNotStored() async throws {
-        let dir = try makeTempDirectory()
-        let cache = SupportCache(directory: dir)
+    @Test func failuresAreRememberedBrieflyAndNeverShown() async throws {
+        let clock = SearchTestClock()
+        let cache = SupportCache(database: try .inMemory(), now: { clock.now })
         await cache.set(.needsDownload, for: bw)
         await cache.set(.checking, for: bw)
         await cache.set(.unknown, for: dbm)
         #expect(await cache.status(for: bw) == .needsDownload)
         #expect(await cache.status(for: dbm) == nil)
-        let text = try String(contentsOf: dir.appending(path: SupportCache.fileName), encoding: .utf8)
-        #expect(!text.contains("checking"))
-        #expect(!text.contains("unknown"))
+        #expect(await cache.statuses().keys.map(\.identifier) == ["BigWigsMods/BigWigs"])
+        #expect(await isFresh(cache, dbm))
+        clock.advance(16 * 60)
+        #expect(!(await isFresh(cache, dbm)))
     }
 
-    @Test func corruptFileIsIgnored() async throws {
-        let dir = try makeTempDirectory()
-        try Data("not json".utf8).write(to: dir.appending(path: SupportCache.fileName))
-        let cache = SupportCache(directory: dir)
-        #expect(await cache.statuses().isEmpty)
-        await cache.set(.unsupported, for: bw)
-        #expect(await SupportCache(directory: dir).status(for: bw) == .unsupported)
+
+    @Test func tagAndStars() async throws {
+        let cache = SupportCache(database: try .inMemory())
+        await cache.setLatestTag("v2", for: bw)
+        #expect(await cache.latestTag(for: bw)?.tag == "v2")
+        await cache.setLatestTag(nil, for: dbm)
+        #expect(await cache.latestTag(for: dbm)?.tag == nil)
+        await cache.setStars([bw: 900])
+        #expect(await cache.stars()["bigwigsmods/bigwigs"] == 900)
+    }
+
+    @Test func batchedWritesNotifyObservers() async throws {
+        let database = try MetadataDatabase.inMemory()
+        let cache = SupportCache(database: database)
+        let changes = await database.changes()
+        await cache.set([
+            SupportRecord(ref: bw, status: .supported(version: "1"), checkedAt: Date()),
+            SupportRecord(ref: dbm, status: .unsupported, checkedAt: Date()),
+        ])
+        var iterator = changes.makeAsyncIterator()
+        let change = try #require(await iterator.next())
+        #expect(change.tables == ["support", "repo_meta"])
+        #expect(change.repos == ["bigwigsmods/bigwigs", "deadlybossmods/deadlybossmods"])
     }
 }
 

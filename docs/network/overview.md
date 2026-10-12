@@ -2,14 +2,14 @@
 
 When ForeverAddons uses the network, and the rules every request follows. Read this before touching anything that makes requests.
 
-> The schedule below is the target, **landing with the core merge** ([decision 0009](../decisions/0009-local-first-search.md), [decision 0010](../decisions/0010-quota-free-endpoints.md)). On this branch, search still runs support checks and update checks use the API; see the [baseline](budget.md).
+Why it works this way: [decision 0009](../decisions/0009-local-first-search.md) (local-first search) and [decision 0010](../decisions/0010-quota-free-endpoints.md) (quota-free endpoints). The refresh itself is in [features/refresh.md](../features/refresh.md).
 
 ## When the network is used
 
 ```mermaid
 flowchart LR
     FL[First launch] --> Seed[Catalogue + ~200 recent repos<br/>+ installed add-ons<br/>~1,000 quota-free requests]
-    T[Every 2 h, launch,<br/>activation] --> R[refresh force: false<br/>installed + changed repos<br/>+ small rotating slice]
+    T[Every 2 h, launch,<br/>activation] --> R[refresh force: false<br/>installed + changed repos<br/>+ 20 oldest verdicts]
     U[⌘R / Check for Updates] --> RF[refresh force: true]
     O[Open, install or update<br/>one add-on] --> One[That repo only]
     S[Search, browse, sort,<br/>categories] --> DB[(Local DB only)]
@@ -19,10 +19,10 @@ flowchart LR
 | Trigger | What's fetched |
 |---|---|
 | First launch (no completed refresh) | Catalogue, a seed of the top ~200 recently updated repos that have `release.json`, plus installed add-ons. About 1,000 requests, ~25 s at concurrency 4, 0 API calls. Shown behind the [seeding sheet](../app/first-launch.md) |
-| Every 2 hours, launch, app activation | Installed add-ons, repos whose catalogue `last_updated` changed, and a small rotating slice. About 5 + N quota-free requests. Throttled by the core, so it's cheap when recent |
-| ⌘R, toolbar, menu bar extra | The same refresh, forced |
+| Every 2 hours, launch, app activation | Installed add-ons, repos whose catalogue `last_updated` changed, repos new to the catalogue, and the 20 oldest verdicts past 14 days. Answers still within their lifetime are skipped. About 5 + N quota-free requests. Skipped entirely if the last refresh finished under 2 h ago |
+| ⌘R, toolbar, menu bar extra | The same refresh, forced: installed add-ons re-checked with `.forceRevalidate`, catalogue revalidated; never re-seeds |
 | Opening an add-on's details | 2–4 quota-free requests for that repo, only if stale |
-| Install, update, adopt | That add-on's release and zip |
+| Install, update, adopt | That add-on's latest tag, `release.json` and zip (quota-free on the stable channel); the API release list otherwise |
 | Rollback | Nothing: it reinstalls from the download cache and pins, no re-check |
 | Search, browse, sort, categories | Nothing, except the automatic [GitHub fallback](../features/search.md#github-fallback) |
 | Store-watcher reload, activation reload | Nothing |
@@ -37,6 +37,7 @@ Automatic refreshes can be turned off in Settings (**Check for updates automatic
 - **Cache everything, failures included**, with a TTL. Use ETags. Never refetch what's stored and fresh ([caching.md](caching.md)).
 - **One owner per kind of data.** Callers state intent with a `CachePolicy`; they never bypass the owner ([decision 0011](../decisions/0011-single-cache-owner.md)).
 - **Be polite.** At most 4 concurrent requests to github.com, with jitter. Honour `retry-after` and back off on 429 and 403.
+- **Background work stays off Low Data Mode networks** (`allowsConstrainedNetworkAccess = false`).
 - **No keys shipped.** Users may add their own GitHub token in Settings or with `addonctl config set github-token`.
 
 ## Related

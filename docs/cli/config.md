@@ -52,5 +52,5 @@ Written by `export`, read by `import`. Use it to share a setup or move to anothe
 ## Limits
 
 - `install --version <tag>` only succeeds when `<tag>` is the release the selector picks today (then it installs and pins it). AddonKit can't install an older tag yet. `import` warns and installs the current release (still pinned) in that case.
-- `search` waits for verification, but `GitHubSource` keeps a reserve of API calls, so with little quota left results show `? unknown`.
+- `search` shows stored verdicts only. Add-ons that were never opened, installed or refreshed show `? unknown` until the next refresh ([refresh.md](../features/refresh.md)).
 - Only GitHub is a source today. The `github:` prefix leaves room for others ([decision 0002](../decisions/0002-github-releases-no-keyed-apis.md)).

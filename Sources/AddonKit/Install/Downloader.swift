@@ -12,7 +12,7 @@ public protocol DownloadTransport: Sendable {
 public struct URLSessionDownloadTransport: DownloadTransport {
     public let session: URLSession
 
-    public init(session: URLSession = .shared) {
+    public init(session: URLSession = URLSessionHTTPClient.sharedSession) {
         self.session = session
     }
 
@@ -106,7 +106,8 @@ public actor Downloader {
 
     private var active = 0
     private var waiters: [CheckedContinuation<Void, Never>] = []
-    private var inFlight: [URL: Task<URL, Error>] = [:]
+    /// Shared downloads and how many callers are still waiting on each.
+    private var inFlight: [URL: (task: Task<URL, Error>, waiters: Int)] = [:]
 
     /// - Parameters:
     ///   - cachesDirectory: The app's caches folder (`AppDirectories.caches`).
@@ -133,22 +134,53 @@ public actor Downloader {
             progress(1)
             return destination
         }
+        let task: Task<URL, Error>
+        let joined = inFlight[destination] != nil
         if let existing = inFlight[destination] {
-            let url = try await existing.value
-            progress(1)
-            return url
+            task = existing.task
+            inFlight[destination]?.waiters += 1
+        } else {
+            let throttled = Self.throttle(progress)
+            task = Task {
+                defer { self.inFlight[destination] = nil }
+                let url = try await self.fetch(release, to: destination, progress: throttled)
+                self.prune(directory: destination.deletingLastPathComponent(), keeping: destination)
+                return url
+            }
+            inFlight[destination] = (task, 1)
         }
-
-        let task = Task { try await self.fetch(release, to: destination, progress: progress) }
-        inFlight[destination] = task
-        defer { inFlight[destination] = nil }
+        // One caller giving up mustn't cancel a download others still wait for.
         let url = try await withTaskCancellationHandler {
             try await task.value
         } onCancel: {
-            task.cancel()
+            Task { await self.waiterCancelled(destination) }
         }
-        prune(directory: destination.deletingLastPathComponent(), keeping: destination)
+        try Task.checkCancellation()
+        // The download reported its own progress to the caller that started it.
+        if joined { progress(1) }
         return url
+    }
+
+    private func waiterCancelled(_ destination: URL) {
+        guard var entry = inFlight[destination] else { return }
+        entry.waiters -= 1
+        inFlight[destination] = entry
+        if entry.waiters <= 0 { entry.task.cancel() }
+    }
+
+    /// Passes on progress only when it moved by 1% and 100 ms passed (or it's done), so a
+    /// fast download doesn't flood the UI with events.
+    static func throttle(_ progress: @escaping @Sendable (Double) -> Void) -> @Sendable (Double) -> Void {
+        let last = Mutex((value: -1.0, at: ContinuousClock.Instant.now - .seconds(1)))
+        return { value in
+            let send = last.withLock { state -> Bool in
+                let now = ContinuousClock.now
+                guard value >= 1 || (value - state.value >= 0.01 && now - state.at >= .milliseconds(100)) else { return false }
+                state = (value, now)
+                return true
+            }
+            if send { progress(value) }
+        }
     }
 
     private func fetch(_ release: ResolvedRelease, to destination: URL, progress: @escaping @Sendable (Double) -> Void) async throws -> URL {

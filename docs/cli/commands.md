@@ -13,7 +13,7 @@ Every `addonctl` command, how `<ref>` arguments are resolved, and how the instal
 
 | Command | Aliases | What it does |
 |---|---|---|
-| `search <query…>` | `s` | Same search as the Browse tab ([search.md](../features/search.md)). Waits for the stream to finish (Forever verification) behind a spinner, then prints NAME / REPO / FOREVER / UPDATED. `--github` adds live GitHub search, `--all` keeps add-ons verified unsupported, `--limit N` (default 20) |
+| `search <query…>` | `s` | Same search as the Browse tab ([search.md](../features/search.md)). Waits for the stream to finish (including any GitHub fallback) behind a spinner, then prints NAME / REPO / FOREVER / UPDATED. `--github` adds live GitHub search, `--all` keeps add-ons verified unsupported, `--limit N` (default 20) |
 | `info <ref>` | `show` | Description, website, latest Forever release and the selector's reasoning, installed version, update status, owned folders, rollback target. `--changelog` adds release notes, `--prerelease` looks at prereleases |
 | `install <ref…>` | `i`, `add` | Installs one after another with a progress row each. `--prerelease`, `--force` (overwrite unmanaged folders), `--version <tag>` (pins it; see [limits](config.md#limits)). Re-installing keeps the add-on's channel unless `--prerelease` is given; new installs use `default-channel` |
 | `remove <ref…>` | `rm`, `uninstall` | Moves folders to the Trash after confirmation |

@@ -11,15 +11,19 @@ public actor AddonManager: AddonManaging {
     let downloader: Downloader
     let keychain: KeychainStore
     let environment: [String: String]
+    /// Catalogue, support verdicts, details and refresh state (docs/search.md).
+    public nonisolated let database: MetadataDatabase
     let catalogue: CatalogueSource
     let supportCache: SupportCache
     /// Used only for `parse`, which never touches the network or the token.
     let parser: GitHubSource
 
-    private var github: GitHubSource
-    private var searchCoordinator: SearchCoordinator
+    let github: GitHubSource
+    let githubSearch: GitHubSearchProvider
+    let searchCoordinator: SearchCoordinator
     /// Automatic detection runs at most once per process; later scans are explicit.
     private var didAutoDetect = false
+    var now: @Sendable () -> Date = Date.init
 
     /// Add-ons checked or updated at once.
     static let maxConcurrentOperations = 4
@@ -40,20 +44,25 @@ public actor AddonManager: AddonManaging {
         self.keychain = keychain
         self.environment = environment
         self.store = InstallStore(directories: directories)
-        self.downloader = Downloader(cachesDirectory: directories.caches, transport: downloadTransport)
-        self.catalogue = CatalogueSource(http: http, cacheDirectory: directories.caches)
-        self.supportCache = SupportCache(directory: directories.caches)
+        let downloader = Downloader(cachesDirectory: directories.caches, transport: downloadTransport)
+        self.downloader = downloader
+        // If the file can't be opened (disk full, permissions), work from memory this session.
+        let database = (try? MetadataDatabase(directories: directories)) ?? (try! MetadataDatabase.inMemory())
+        self.database = database
+        self.catalogue = CatalogueSource(http: http, database: database)
+        let supportCache = SupportCache(database: database)
+        self.supportCache = supportCache
         self.parser = GitHubSource(http: http)
 
-        let token = Self.token(environment: environment, keychain: keychain)
-        let github = GitHubSource(http: http, token: token, cacheDirectory: directories.caches)
-        self.github = github
-        self.searchCoordinator = SearchCoordinator(
-            catalogue: catalogue,
-            github: GitHubSearchProvider(http: http, token: token),
-            support: github,
-            supportCache: supportCache
+        // The Keychain is read on first GitHub use, not here: init runs on the main thread at
+        // launch and a Keychain prompt would block it.
+        let tokenProvider: @Sendable () -> String? = { Self.token(environment: environment, keychain: keychain) }
+        self.github = GitHubSource(
+            http: http, cacheDirectory: directories.caches, database: database, store: supportCache, tokenProvider: tokenProvider,
+            archiveURL: { downloader.archiveURL(for: $0) }
         )
+        self.githubSearch = GitHubSearchProvider(http: http, database: database, tokenProvider: tokenProvider)
+        self.searchCoordinator = SearchCoordinator(catalogue: catalogue, github: githubSearch, supportCache: supportCache)
     }
 
     /// `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (docs/design.md §9.1).
@@ -66,15 +75,21 @@ public actor AddonManager: AddonManaging {
         return keychain.get()
     }
 
+    /// Picks up a new token, keeping ETags, cached release.json files and rate-limit state.
     public func tokenDidChange() async {
         let token = Self.token(environment: environment, keychain: keychain)
-        github = GitHubSource(http: http, token: token, cacheDirectory: directories.caches)
-        searchCoordinator = SearchCoordinator(
-            catalogue: catalogue,
-            github: GitHubSearchProvider(http: http, token: token),
-            support: github,
-            supportCache: supportCache
-        )
+        await github.setToken(token)
+        await githubSearch.setToken(token)
+    }
+
+    /// Tests skip the backoff sleeps between github.com retries.
+    func setRetryDelay(_ delay: @escaping @Sendable (Int, TimeInterval?) -> Duration) async {
+        await github.setRetryDelay(delay)
+    }
+
+    func setClock(_ clock: @escaping @Sendable () -> Date) async {
+        now = clock
+        await github.setClock(clock)
     }
 
     /// Remaining GitHub API calls and when the limit resets, as last reported by GitHub.
@@ -147,18 +162,33 @@ public actor AddonManager: AddonManaging {
 
     // MARK: - Search
 
+    /// Reconciles the installation with disk first; pass `installed` to skip that per query.
     public nonisolated func search(_ query: SearchQuery, in installation: Installation) -> AsyncStream<[SearchResult]> {
         AsyncStream { continuation in
             let task = Task {
                 let installed = (try? await self.addons(in: installation)) ?? []
-                let coordinator = await self.searchCoordinator
-                for await results in coordinator.search(query, installed: installed) {
+                for await results in self.searchCoordinator.search(query, installed: installed) {
                     continuation.yield(results)
                 }
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    /// Search with the caller's current add-on list, so typing doesn't rescan `AddOns/`.
+    public nonisolated func search(_ query: SearchQuery, in installation: Installation, installed: [AddonStatus]) -> AsyncStream<[SearchResult]> {
+        searchCoordinator.search(query, installed: installed)
+    }
+
+    /// Like `search(_:in:installed:)`, but also reports when a GitHub live search is running.
+    public nonisolated func searchUpdates(_ query: SearchQuery, in installation: Installation, installed: [AddonStatus]) -> AsyncStream<SearchUpdate> {
+        searchCoordinator.searchUpdates(query, installed: installed)
+    }
+
+    /// The stored catalogue row for `ref` (including repos found by live search). Local only.
+    public func catalogueEntry(for ref: AddonRef) async -> CatalogueEntry? {
+        await catalogue.entry(for: ref)
     }
 
     public func browse(in installation: Installation) async -> BrowseContent {
@@ -180,8 +210,14 @@ public actor AddonManager: AddonManaging {
 
     // MARK: - Resolve & install
 
+    /// Stable channel: tries the quota-free route first (latest tag + release.json), and
+    /// uses the API only when that can't decide.
     public func resolve(_ ref: AddonRef, for installation: Installation, channel: Channel) async throws -> ResolvedRelease {
-        try await resolve(ref, for: installation, channel: channel, etag: nil).release
+        guard ref.source == .github else { throw AddonError.invalidReference(ref.description) }
+        if channel == .stable, let release = await github.quotaFreeResolve(ref, flavor: installation.flavor, policy: .forceRevalidate) {
+            return release
+        }
+        return try await resolve(ref, for: installation, channel: channel, etag: nil).release
     }
 
     /// `release` is nil only when `etag` was given and nothing changed.
@@ -240,38 +276,74 @@ public actor AddonManager: AddonManaging {
 
     // MARK: - Updates
 
+    /// An explicit check (⌘R, `addonctl outdated`): always asks for the latest tags.
     public func checkForUpdates(in installation: Installation) async throws -> [AddonRef: UpdateState] {
+        try await checkForUpdates(in: installation, policy: .forceRevalidate, progress: { _, _ in })
+    }
+
+    /// `progress` is called once per add-on as its check lands, with the number done so far.
+    /// The background refresh passes `.revalidateIfStale`; explicit checks `.forceRevalidate`.
+    func checkForUpdates(
+        in installation: Installation, policy: GitHubSource.CachePolicy, background: Bool = false,
+        progress: @Sendable (InstalledAddon, Int) -> Void
+    ) async throws -> [AddonRef: UpdateState] {
         let addons = try await store.addons(in: installation)
         var states: [AddonRef: UpdateState] = [:]
+        var etags: [AddonRef: String] = [:]
 
-        try await withThrowingTaskGroup(of: (AddonRef, UpdateState, String?).self) { group in
+        try await withThrowingTaskGroup(of: (InstalledAddon, UpdateState, String?).self) { group in
             var pending = addons[...]
             func addNext() {
                 guard let addon = pending.popFirst() else { return }
                 group.addTask {
-                    let (state, etag) = await self.updateState(of: addon, in: installation)
-                    return (addon.id, state, etag)
+                    let (state, etag) = await self.updateState(of: addon, in: installation, policy: policy, background: background)
+                    return (addon, state, etag)
                 }
             }
             for _ in 0..<Self.maxConcurrentOperations { addNext() }
-            while let (ref, state, etag) = try await group.next() {
-                states[ref] = state
-                if case .upToDate = state, let etag {
-                    // Only remember the ETag while up to date: a 304 then still means "nothing new".
-                    try? await store.modify(installation) { addons in
-                        if let index = addons.firstIndex(where: { $0.id == ref }) { addons[index].etag = etag }
-                    }
-                }
+            while let (addon, state, etag) = try await group.next() {
+                states[addon.id] = state
+                // Only remember the ETag while up to date: a 304 then still means "nothing new".
+                if case .upToDate = state, let etag, etag != addon.etag { etags[addon.id] = etag }
+                progress(addon, states.count)
                 addNext()
+            }
+        }
+
+        // The app reloads whenever the store changes, so a check that learned nothing new
+        // mustn't write.
+        if !etags.isEmpty {
+            let changes = etags
+            try? await store.modify(installation) { addons in
+                for index in addons.indices {
+                    if let etag = changes[addons[index].id] { addons[index].etag = etag }
+                }
             }
         }
         return states
     }
 
-    private func updateState(of addon: InstalledAddon, in installation: Installation) async -> (UpdateState, String?) {
+    func updateState(
+        of addon: InstalledAddon, in installation: Installation, policy: GitHubSource.CachePolicy, background: Bool = false
+    ) async -> (UpdateState, String?) {
         if addon.pinned { return (.pinned, nil) }
         do {
             guard addon.id.source == .github else { return (.failed("Unsupported source"), nil) }
+            // Stable channel: the latest release (the same lookup support checks use) settles
+            // most add-ons. An unchanged tag is up to date; a new tag whose release.json has
+            // the flavor is the update. Only when neither decides (no release.json, the new
+            // release lacks the flavor, or the lookup failed) is the API asked. Prereleases
+            // always need the API.
+            if addon.channel == .stable {
+                let latest = await github.latestRelease(
+                    for: addon.id, flavor: installation.flavor, policy: policy, needBuild: true, background: background)
+                if latest.status != .unknown, let tag = latest.tag {
+                    if tag == addon.version { return (.upToDate, addon.etag) }
+                    if let release = await github.resolvedRelease(addon.id, from: latest, flavor: installation.flavor) {
+                        return addon.isUpdate(release) ? (.available(release), nil) : (.upToDate, addon.etag)
+                    }
+                }
+            }
             switch try await github.resolve(addon.id, flavor: installation.flavor, channel: addon.channel, etag: addon.etag) {
             case .notModified:
                 return (.upToDate, addon.etag)
@@ -285,18 +357,43 @@ public actor AddonManager: AddonManaging {
         }
     }
 
-    /// Updates `refs`, or every unpinned add-on when `refs` is empty.
+
+    /// Updates `refs`, or every unpinned add-on when `refs` is empty. Each add-on is checked
+    /// first (latest tag, else ETag) and only installed when an update is available, so an
+    /// up-to-date add-on costs at most one quota-free request.
     public nonisolated func update(_ refs: [AddonRef], in installation: Installation) -> AsyncStream<OperationEvent> {
-        AsyncStream { continuation in
-            let task = Task {
-                await self.performUpdates(refs, in: installation, continuation: continuation)
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in task.cancel() }
+        updateStream { manager, continuation in
+            await manager.performUpdates(refs, releases: [:], in: installation, continuation: continuation)
         }
     }
 
-    private func performUpdates(_ refs: [AddonRef], in installation: Installation, continuation: AsyncStream<OperationEvent>.Continuation) async {
+    /// Installs already-resolved releases, such as the app's `.available(release)` states,
+    /// without resolving them again. Releases that aren't newer than what's installed are skipped.
+    public nonisolated func update(releases: [ResolvedRelease], in installation: Installation) -> AsyncStream<OperationEvent> {
+        let byRef = Dictionary(releases.map { ($0.ref, $0) }, uniquingKeysWith: { first, _ in first })
+        return updateStream { manager, continuation in
+            await manager.performUpdates(releases.map(\.ref), releases: byRef, in: installation, continuation: continuation)
+        }
+    }
+
+    private nonisolated func updateStream(
+        _ body: @escaping @Sendable (AddonManager, AsyncStream<OperationEvent>.Continuation) async -> Void
+    ) -> AsyncStream<OperationEvent> {
+        // A slow consumer loses old progress ticks, never the stream's end: progress is
+        // already throttled, so the buffer only overflows if the consumer stalls.
+        let (stream, continuation) = AsyncStream.makeStream(of: OperationEvent.self, bufferingPolicy: .bufferingNewest(512))
+        let task = Task {
+            await body(self, continuation)
+            continuation.finish()
+        }
+        continuation.onTermination = { _ in task.cancel() }
+        return stream
+    }
+
+    private func performUpdates(
+        _ refs: [AddonRef], releases: [AddonRef: ResolvedRelease], in installation: Installation,
+        continuation: AsyncStream<OperationEvent>.Continuation
+    ) async {
         let installed: [InstalledAddon]
         do {
             installed = try await store.addons(in: installation)
@@ -305,8 +402,7 @@ public actor AddonManager: AddonManaging {
             return
         }
 
-        let explicit = !refs.isEmpty
-        let targets: [AddonRef] = explicit ? refs : installed.map(\.id)
+        let targets: [AddonRef] = refs.isEmpty ? installed.map(\.id) : refs
         for ref in targets { continuation.yield(.queued(ref)) }
 
         await withTaskGroup(of: Void.self) { group in
@@ -314,7 +410,8 @@ public actor AddonManager: AddonManaging {
             func addNext() {
                 guard let ref = pending.popFirst() else { return }
                 let addon = installed.first { $0.id == ref }
-                group.addTask { await self.updateOne(ref, addon: addon, in: installation, continuation: continuation) }
+                let release = releases[ref]
+                group.addTask { await self.updateOne(ref, addon: addon, release: release, in: installation, continuation: continuation) }
             }
             for _ in 0..<Self.maxConcurrentOperations { addNext() }
             while await group.next() != nil { addNext() }
@@ -322,7 +419,7 @@ public actor AddonManager: AddonManaging {
     }
 
     private func updateOne(
-        _ ref: AddonRef, addon: InstalledAddon?, in installation: Installation,
+        _ ref: AddonRef, addon: InstalledAddon?, release given: ResolvedRelease?, in installation: Installation,
         continuation: AsyncStream<OperationEvent>.Continuation
     ) async {
         guard let addon else {
@@ -333,12 +430,29 @@ public actor AddonManager: AddonManaging {
             continuation.yield(.skipped(ref, reason: "Pinned"))
             return
         }
-        do {
-            let release = try await resolve(ref, for: installation, channel: addon.channel)
-            guard addon.isUpdate(release) else {
+        let release: ResolvedRelease
+        if let given {
+            guard addon.isUpdate(given) else {
                 continuation.yield(.skipped(ref, reason: "Up to date"))
                 return
             }
+            release = given
+        } else {
+            switch await updateState(of: addon, in: installation, policy: .forceRevalidate).0 {
+            case .available(let found):
+                release = found
+            case .upToDate, .pinned:
+                continuation.yield(.skipped(ref, reason: "Up to date"))
+                return
+            case .noCompatibleRelease:
+                continuation.yield(.failed(ref, AddonError.noCompatibleRelease(ref, installation.flavor).localizedDescription))
+                return
+            case .failed(let message):
+                continuation.yield(.failed(ref, message))
+                return
+            }
+        }
+        do {
             continuation.yield(.downloading(ref, progress: 0))
             // Download first so progress and the installing phase are reported separately;
             // `install` then reuses the cached archive.
@@ -352,6 +466,7 @@ public actor AddonManager: AddonManaging {
             continuation.yield(.failed(ref, error.localizedDescription))
         }
     }
+
 
     // MARK: - Remove, rollback, settings
 
@@ -404,27 +519,6 @@ public actor AddonManager: AddonManaging {
         }
     }
 
-    // MARK: - Details & refresh
-
-    // TODO: Core agent replaces these placeholders (docs/core.md, docs/search.md).
-    public func details(for ref: AddonRef, in installation: Installation) async throws -> AddonDetails {
-        let owner = String(ref.identifier.split(separator: "/").first ?? "")
-        let name = String(ref.identifier.split(separator: "/").last ?? "")
-        return AddonDetails(ref: ref, name: name, owner: owner, repositoryURL: URL(string: "https://github.com/\(ref.identifier)")!)
-    }
-
-    public nonisolated func refresh(in installation: Installation, force: Bool) -> AsyncStream<RefreshProgress> {
-        AsyncStream { continuation in
-            let task = Task {
-                let updates = try? await self.checkForUpdates(in: installation)
-                continuation.yield(RefreshProgress(phase: .finished, updates: updates ?? [:]))
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
-    }
-
-    public func lastRefresh(in installation: Installation) async -> Date? { nil }
 
     // MARK: - Maintenance
 

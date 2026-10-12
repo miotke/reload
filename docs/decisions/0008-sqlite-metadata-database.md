@@ -2,7 +2,7 @@
 
 Remote metadata (catalogue, support, latest tags, details, cached searches) moves into one SQLite database accessed with the system SQLite3 C API; search keeps its in-memory `SearchIndex` rather than FTS5.
 
-- **Status:** Accepted, landing with the core merge
+- **Status:** Accepted
 - **Date:** 2026-10-11
 
 ## Context
@@ -21,9 +21,10 @@ Measurements with the system SQLite 3.54 (FTS5 available):
 
 ## Decision
 
-- **One SQLite database** for remote metadata, through `import SQLite3` (the system library).
-- Settings: WAL, `synchronous=NORMAL`, `busy_timeout`, `journal_size_limit`, persistent prepared statements, `WITHOUT ROWID` where it fits, `PRAGMA optimize` on close.
-- Writes are batched in transactions, skipped when nothing changed, and never held across a network `await`.
+- **One SQLite database**, `<applicationSupport>/metadata.sqlite`, for remote metadata, through `import SQLite3` (the system library), behind the `MetadataDatabase` actor.
+- Settings: WAL, `synchronous=NORMAL`, a 5 s `busy_timeout`, `foreign_keys=ON`, a 4 MB `journal_size_limit`, prepared statements cached by SQL text, `WITHOUT ROWID` for `catalogue` and `support`, `PRAGMA optimize` on close.
+- Migrations are ordered SQL steps counted by `PRAGMA user_version`.
+- Writes are batched in transactions (`BEGIN IMMEDIATE`, synchronous body), skipped when nothing changed, and never held across a network `await`.
 - **Keep the in-memory `SearchIndex`** for matching and ranking, built from the database. Don't use FTS5.
 - The install store stays JSON ([0004](0004-transactional-installer.md)).
 
@@ -42,7 +43,8 @@ Measurements with the system SQLite 3.54 (FTS5 available):
 - The app and the CLI can read the same data concurrently (WAL plus `busy_timeout`).
 - A thin wrapper over the C API has to be written and tested in AddonKit.
 - The WAL needs a size limit (it grew to 4.9 MB in the audit).
-- The schema is being finalised in the core merge; docs describe it once it lands.
+- The old `catalogue.plist` and `forever-support.json` caches are no longer read or written.
+- The schema is documented in [data-storage.md](../architecture/data-storage.md#schema).
 
 ## See also
 
