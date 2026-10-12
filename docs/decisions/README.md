@@ -28,6 +28,7 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0017](0017-details-without-quota-release-json-by-tag.md) | Details and release notes without API quota; `release.json` stored by tag | Accepted | 2026-10-11 |
 | [0018](0018-adoption-suggestions-from-toc-hints.md) | Adoption suggestions from TOC hints and the catalogue | Accepted | 2026-10-12 |
 | [0019](0019-available-games-and-visible-row-checks.md) | Show available games instead of a support verdict; check visible rows | Accepted | 2026-10-12 |
+| [0020](0020-core-ui-boundary-and-feature-models.md) | Core/UI boundary, feature models and snapshot rendering | Accepted | 2026-10-12 |
 
 ## By area
 
