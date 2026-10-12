@@ -105,8 +105,10 @@ final class InstallationModel {
         didSet { rebuildBrowseRows() }
     }
     private(set) var isSearching = false
-    /// The search stream has emitted its first (local) results.
-    private(set) var hasLocalResults = false
+    /// The core's GitHub fallback (or an explicit live search) is in flight.
+    private(set) var isSearchingGitHub = false
+    /// The search stream sent its last update, so empty results really mean "no results".
+    private(set) var isSearchComplete = false
     /// Popular / recently updated / categories for an empty query; nil until loaded.
     private(set) var browse: BrowseContent? {
         didSet { rebuildBrowseRows() }
@@ -122,10 +124,23 @@ final class InstallationModel {
     private(set) var details: [AddonRef: DetailsState] = [:]
     @ObservationIgnored private var detailLoads: [AddonRef: UUID] = [:]
 
+    // Live metadata
+    /// Reads stored verdicts for rows the database reports as changed. Nil without a real manager.
+    @ObservationIgnored private let supportReader: SupportCache?
+    @ObservationIgnored private var changedRepos: Set<String> = []
+    @ObservationIgnored private var needsBrowseReload = false
+    @ObservationIgnored private var patchTask: Task<Void, Never>?
+    @ObservationIgnored private var lastPatch: ContinuousClock.Instant?
+    /// Database changes are applied at most this often; a refresh writes a verdict per repo.
+    static let livePatchInterval: Duration = .milliseconds(500)
+
     init(installation: Installation, manager: any AddonManaging, reportError: @escaping @MainActor (String) -> Void) {
         self.installation = installation
         self.manager = manager
         self.reportError = reportError
+        let database = (manager as? AddonManager)?.database
+        self.supportReader = database.map { SupportCache(database: $0) }
+        if let database { observeChanges(database) }
     }
 
     // MARK: Derived
@@ -205,14 +220,15 @@ final class InstallationModel {
 
     private func rebuildBrowseRows() {
         let now = Date.now
-        let results: [SearchResult]
+        var results: [SearchResult]
         if browseOptions.query.isEmpty {
             let list = browseOptions.home == .popular ? browse?.popular : browse?.recent
-            // Search applies Forever only in the core; the home lists come back unfiltered.
-            results = (list ?? []).filter { !browseOptions.foreverOnly || !Self.hiddenByForeverOnly($0.support) }
+            results = list ?? []
         } else {
             results = searchResults
         }
+        // The home lists come back unfiltered, and live patches can turn a search result unsupported.
+        results = results.filter { !browseOptions.foreverOnly || !Self.hiddenByForeverOnly($0.support) }
         var rows = results.map { BrowseRow($0, now: now) }
         if let sort = browseOptions.sort { rows.sort(using: sort) }
         guard rows != browseRows else { return }
@@ -261,16 +277,12 @@ final class InstallationModel {
             refresh.progress = nil
         }
         var didWork = false
-        var lastBrowseReload = ContinuousClock.now
+        // Badges change live through `observeChanges`; the reload at the end picks up rows
+        // that newly qualify for Popular or Recently Updated.
         for await progress in manager.refresh(in: installation, force: force) {
             refresh.progress = progress
             guard progress.phase == .finished else {
                 didWork = true
-                // Support checks change Browse badges as they go; pick them up now and then.
-                if progress.phase == .support, browse != nil, ContinuousClock.now - lastBrowseReload > .seconds(2) {
-                    lastBrowseReload = .now
-                    await loadBrowse()
-                }
                 continue
             }
             if let updates = progress.updates { apply(updates) }
@@ -291,13 +303,17 @@ final class InstallationModel {
         await update(refsWithUpdates)
     }
 
-    /// Runs updates and drives per-row progress. A failed row keeps its error; the rest continue.
+    /// Installs the releases the last check found (`.available`), without resolving them
+    /// again, and drives per-row progress. Refs without one are ignored. A failed row keeps
+    /// its error; the rest continue.
     func update(_ refs: [AddonRef]) async {
-        guard !refs.isEmpty else { return }
+        let releases = refs.compactMap(availableRelease(for:))
+        guard !releases.isEmpty else { return }
+        let refs = releases.map(\.ref)
         isUpdatingAll = true
         defer { isUpdatingAll = false }
         for ref in refs { row(ref.description).error = nil }
-        for await event in manager.update(refs, in: installation) {
+        for await event in updates(releases) {
             switch event {
             case .queued(let ref):
                 row(ref.description).activity = .queued
@@ -319,6 +335,11 @@ final class InstallationModel {
         // Clear any rows the stream never finished (e.g. cancelled).
         for ref in refs where row(ref.description).activity != nil { row(ref.description).activity = nil }
         await reload()
+    }
+
+    private func updates(_ releases: [ResolvedRelease]) -> AsyncStream<OperationEvent> {
+        if let manager = manager as? AddonManager { return manager.update(releases: releases, in: installation) }
+        return manager.update(releases.map(\.ref), in: installation)
     }
 
     func uninstall(_ ref: AddonRef) async {
@@ -385,27 +406,30 @@ final class InstallationModel {
     // MARK: Browse
 
     /// Consumes the search stream until it finishes or the calling task is cancelled.
+    /// Passes the add-ons already loaded, so typing doesn't rescan `AddOns/`.
     func search(_ query: SearchQuery) async {
         isSearching = true
-        hasLocalResults = false
-        defer { if !Task.isCancelled { isSearching = false } }
-        for await results in manager.search(query, in: installation) {
+        isSearchingGitHub = false
+        isSearchComplete = false
+        defer {
+            if !Task.isCancelled {
+                isSearching = false
+                isSearchingGitHub = false
+            }
+        }
+        for await update in manager.searchUpdates(query, in: installation, installed: addons) {
             guard !Task.isCancelled else { return }
-            searchResults = results
-            hasLocalResults = true
+            if update.results != searchResults { searchResults = update.results }
+            isSearchingGitHub = update.isSearchingGitHub
+            isSearchComplete = update.isComplete
         }
     }
 
     func clearSearch() {
         if !searchResults.isEmpty { searchResults = [] }
         isSearching = false
-        hasLocalResults = false
-    }
-
-    /// The local results are in but the stream is still open: with few matches for a query
-    /// of 3+ characters, the core is falling back to a live GitHub search.
-    func isSearchingGitHub(query: String) -> Bool {
-        isSearching && hasLocalResults && query.count >= 3 && searchResults.count < 3
+        isSearchingGitHub = false
+        isSearchComplete = false
     }
 
     /// Empty-query Browse content (§7.5): popular, recently updated and category chips.
@@ -494,17 +518,85 @@ final class InstallationModel {
         detailLoads[ref] = nil
         details[ref] = outcome
         // Opening details refreshes that one repo in the core; show its fresh badge in the tables.
-        if let support = outcome?.details?.support { applySupport(support, to: ref) }
+        if let support = outcome?.details?.support { applySupport([ref: support]) }
     }
 
-    private func applySupport(_ support: SupportStatus, to ref: AddonRef) {
-        var results = searchResults
-        for index in results.indices where results[index].id == ref { results[index].support = support }
+    private func applySupport(_ statuses: [AddonRef: SupportStatus]) {
+        let results = searchResults.patchingSupport(statuses)
         if results != searchResults { searchResults = results }
         guard var content = browse else { return }
-        for index in content.popular.indices where content.popular[index].id == ref { content.popular[index].support = support }
-        for index in content.recent.indices where content.recent[index].id == ref { content.recent[index].support = support }
+        content.popular = content.popular.patchingSupport(statuses)
+        content.recent = content.recent.patchingSupport(statuses)
         if content.popular != browse?.popular || content.recent != browse?.recent { browse = content }
+    }
+
+    // MARK: Live metadata
+
+    /// Follows the app's own database writes (refresh, details, live search) and patches the
+    /// affected Browse rows. Writes by other processes are caught by `reloadMetadata`.
+    private func observeChanges(_ database: MetadataDatabase) {
+        Task { [weak self] in
+            for await change in await database.changes() {
+                guard let self else { return }
+                self.receive(change)
+            }
+        }
+    }
+
+    private func receive(_ change: MetadataDatabase.Change) {
+        let tables = change.tables
+        guard !tables.isDisjoint(with: ["support", "repo_meta", "catalogue"]) else { return }
+        if change.repos.isEmpty {
+            needsBrowseReload = true
+        } else {
+            changedRepos.formUnion(change.repos)
+            // Names, summaries and dates come from the catalogue; re-read the home lists if
+            // one of their rows changed. Search results already carry fresh catalogue data.
+            if tables.contains("catalogue"), !change.repos.isDisjoint(with: homeRepos) { needsBrowseReload = true }
+        }
+        schedulePatch()
+    }
+
+    private var homeRepos: Set<String> {
+        Set(((browse?.popular ?? []) + (browse?.recent ?? [])).map { $0.id.identifier.lowercased() })
+    }
+
+    /// Applies pending changes now if the last patch was long enough ago, else when it is.
+    private func schedulePatch() {
+        guard patchTask == nil, needsBrowseReload || !changedRepos.isEmpty else { return }
+        patchTask = Task { [weak self] in
+            if let last = self?.lastPatch {
+                try? await Task.sleep(until: last + Self.livePatchInterval, clock: .continuous)
+            }
+            guard let self else { return }
+            self.lastPatch = .now
+            let repos = self.changedRepos
+            let reload = self.needsBrowseReload
+            self.changedRepos = []
+            self.needsBrowseReload = false
+            if reload, self.browse != nil { await self.loadBrowse() }
+            await self.patchSupport(for: repos)
+            self.patchTask = nil
+            // Changes that arrived while this one ran.
+            self.schedulePatch()
+        }
+    }
+
+    /// Re-reads the stored verdicts of visible rows in `repos` (lower-cased `owner/repo`).
+    private func patchSupport(for repos: Set<String>) async {
+        guard let supportReader, !repos.isEmpty else { return }
+        let visible = Set((searchResults + (browse?.popular ?? []) + (browse?.recent ?? [])).map(\.id))
+        var statuses: [AddonRef: SupportStatus] = [:]
+        for ref in visible where repos.contains(ref.identifier.lowercased()) {
+            statuses[ref] = await supportReader.status(for: ref, flavor: installation.flavor)
+        }
+        if !statuses.isEmpty { applySupport(statuses) }
+    }
+
+    /// Re-reads Browse after another process (`addonctl`) changed the metadata database.
+    func reloadMetadata() async {
+        if browse != nil { await loadBrowse() }
+        await patchSupport(for: Set(searchResults.map { $0.id.identifier.lowercased() }))
     }
 }
 

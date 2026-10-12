@@ -120,9 +120,9 @@ struct BrowseView: View {
     private var statusBar: some View {
         let count = state.browseRows.count
         return HStack(spacing: 8) {
-            if !isHome && state.isSearching {
+            if !isHome && state.isSearching && !state.isSearchComplete {
                 ProgressView().controlSize(.mini)
-                Text(state.isSearchingGitHub(query: trimmedQuery) ? "Searching GitHub…" : "Searching…")
+                Text(state.isSearchingGitHub ? "Searching GitHub…" : "Searching…")
             } else {
                 Text(count == 1 ? "1 add-on" : "\(count) add-ons")
             }
@@ -158,15 +158,12 @@ struct BrowseView: View {
                         "Nothing to Browse Yet", systemImage: "magnifyingglass",
                         description: Text("Search for an add-on by name, or pick a category above."))
                 }
-            } else if state.isSearching {
-                // "No results" waits for the stream to finish: the core may still be asking GitHub.
-                if state.isSearchingGitHub(query: trimmedQuery) {
-                    ProgressView("Searching GitHub…").controlSize(.small).foregroundStyle(.secondary)
-                } else {
-                    ProgressView()
-                }
-            } else {
+            } else if state.isSearchComplete {
                 ContentUnavailableView.search(text: trimmedQuery)
+            } else if state.isSearchingGitHub {
+                ProgressView("Searching GitHub…").controlSize(.small).foregroundStyle(.secondary)
+            } else {
+                ProgressView()
             }
         }
     }

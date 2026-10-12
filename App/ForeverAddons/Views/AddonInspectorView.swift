@@ -60,8 +60,8 @@ private struct AddonInspector: View {
                 about
                 detailsStatus
                 if let loaded {
-                    let screenshots = Array(ScreenshotFilter.screenshots(loaded.screenshots)
-                        .prefix(ScreenshotLoader.maxImagesPerAddon))
+                    // The core already drops badges, SVGs and tiny icons.
+                    let screenshots = Array(loaded.screenshots.prefix(ScreenshotLoader.maxImagesPerAddon))
                     if !screenshots.isEmpty {
                         section("Screenshots") { ScreenshotGallery(urls: screenshots) }
                     }

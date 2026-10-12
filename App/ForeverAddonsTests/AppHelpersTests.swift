@@ -28,16 +28,20 @@ import Testing
     }
 }
 
-@Suite struct ScreenshotFilterTests {
-    @Test func dropsBadgesAndSVGs() {
-        let urls = [
-            "https://img.shields.io/github/v/release/a/b",
-            "https://github.com/a/b/actions/workflows/build.yml/badge.svg",
-            "https://raw.githubusercontent.com/a/b/main/logo.svg",
-            "https://raw.githubusercontent.com/a/b/main/screenshot.png",
-            "https://i.imgur.com/abc.jpg",
-        ].map { URL(string: $0)! }
-        #expect(ScreenshotFilter.screenshots(urls).map(\.lastPathComponent) == ["screenshot.png", "abc.jpg"])
+@Suite struct LivePatchTests {
+    func result(_ name: String, support: SupportStatus = .unknown) -> SearchResult {
+        SearchResult(id: AddonRef(source: .github, identifier: "o/\(name)"), name: name, owner: "o",
+                     support: support, origin: [.catalogue])
+    }
+
+    @Test func patchesOnlyChangedRefs() {
+        let results = [result("A"), result("B", support: .needsDownload), result("C")]
+        let patched = results.patchingSupport([
+            AddonRef(source: .github, identifier: "o/A"): .supported(version: "1.0"),
+            AddonRef(source: .github, identifier: "o/Z"): .unsupported,
+        ])
+        #expect(patched.map(\.support) == [.supported(version: "1.0"), .needsDownload, .unknown])
+        #expect(patched.map(\.id) == results.map(\.id))
     }
 }
 

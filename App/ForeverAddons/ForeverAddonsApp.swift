@@ -18,7 +18,10 @@ struct ForeverAddonsApp: App {
                 .frame(minWidth: 900, minHeight: 480)
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     // Belt and braces next to the store watcher: pick up changes made while inactive.
-                    Task { await model.reload() }
+                    Task {
+                        await model.reload()
+                        await model.reloadMetadataIfChanged()
+                    }
                     model.refreshInBackground()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
