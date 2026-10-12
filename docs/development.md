@@ -35,6 +35,7 @@ docs/                    all documentation (README.md is the index)
 | App tests | the same command with `test` instead of `build` |
 | UI snapshots | `scripts/snapshots.sh` ([below](#snapshots)) |
 | Regenerate Xcode project | `cd App && xcodegen generate` (commit the result) |
+| Release build | `scripts/release.sh <version>` ([app/releases.md](app/releases.md)) |
 
 Or open `App/Reload.xcodeproj` in Xcode, choose the **Reload** scheme and **My Mac**, and press ⌘R. Targets and the embedded CLI: [app/project.md](app/project.md).
 

@@ -67,6 +67,7 @@ flowchart LR
 | Doc | Read this when… |
 |---|---|
 | [project.md](app/project.md) | you're changing the Xcode project, targets, the embedded CLI or `RELOAD_DATA_DIR` |
+| [releases.md](app/releases.md) | you're cutting a release, or setting up signing and notarization |
 | [layout.md](app/layout.md) | you're working on the window, toolbar, inspector placement, tables, sorting or the add-on window |
 | [navigation.md](app/navigation.md) | you're working on the game picker, the sidebar's sections, counts and categories, or what search applies to |
 | [first-launch.md](app/first-launch.md) | you're touching the seeding sheet, refresh progress or the 2-hour auto refresh |
