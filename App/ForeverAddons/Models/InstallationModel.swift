@@ -338,8 +338,7 @@ final class InstallationModel {
     }
 
     private func updates(_ releases: [ResolvedRelease]) -> AsyncStream<OperationEvent> {
-        if let manager = manager as? AddonManager { return manager.update(releases: releases, in: installation) }
-        return manager.update(releases.map(\.ref), in: installation)
+        manager.update(releases: releases, in: installation)
     }
 
     func uninstall(_ ref: AddonRef) async {

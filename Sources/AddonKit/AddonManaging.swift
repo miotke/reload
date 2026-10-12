@@ -37,6 +37,8 @@ public protocol AddonManaging: Sendable {
 
     func checkForUpdates(in installation: Installation) async throws -> [AddonRef: UpdateState]
     func update(_ refs: [AddonRef], in installation: Installation) -> AsyncStream<OperationEvent>
+    /// Installs releases an earlier check already found, without checking again. Empty does nothing.
+    func update(releases: [ResolvedRelease], in installation: Installation) -> AsyncStream<OperationEvent>
     func uninstall(_ ref: AddonRef, from installation: Installation) async throws
     /// Reinstalls `previousRelease` from the download cache and pins the add-on.
     func rollback(_ ref: AddonRef, in installation: Installation) async throws

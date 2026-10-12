@@ -370,6 +370,8 @@ public actor AddonManager: AddonManaging {
     /// Installs already-resolved releases, such as the app's `.available(release)` states,
     /// without resolving them again. Releases that aren't newer than what's installed are skipped.
     public nonisolated func update(releases: [ResolvedRelease], in installation: Installation) -> AsyncStream<OperationEvent> {
+        // Unlike `update([])`, which means "everything", no releases means nothing to do.
+        guard !releases.isEmpty else { return AsyncStream { $0.finish() } }
         let byRef = Dictionary(releases.map { ($0.ref, $0) }, uniquingKeysWith: { first, _ in first })
         return updateStream { manager, continuation in
             await manager.performUpdates(releases.map(\.ref), releases: byRef, in: installation, continuation: continuation)

@@ -130,3 +130,21 @@ import Testing
         #expect(AddonManager.token(environment: [:], keychain: keychain) == nil)
     }
 }
+
+@Suite struct UpdateReleasesTests {
+    @Test func emptyReleaseListDoesNothing() async throws {
+        let root = try makeTempDirectory()
+        let manager = AddonManager(
+            directories: AppDirectories(root: root.appending(path: "AppData")),
+            http: StubHTTPClient(),
+            downloadTransport: StubDownloadTransport(),
+            locator: InstallationLocator(baseFolders: [], findApps: { [] }),
+            keychain: KeychainStore(service: "AddonKitTests-\(UUID().uuidString)"),
+            environment: [:]
+        )
+        let installation = Installation(id: "test", root: root.appending(path: "wow/_classic_beta_"), flavor: .forever)
+        var events: [OperationEvent] = []
+        for await event in manager.update(releases: [], in: installation) { events.append(event) }
+        #expect(events.isEmpty)
+    }
+}
