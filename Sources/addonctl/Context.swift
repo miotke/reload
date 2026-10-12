@@ -2,7 +2,7 @@ import AddonKit
 import ArgumentParser
 import Foundation
 
-/// Options every command accepts (DESIGN.md §9.3).
+/// Options every command accepts (docs/cli/commands.md).
 struct GlobalOptions: ParsableArguments {
     @Option(name: [.customShort("I"), .customLong("install")], help: ArgumentHelp("Installation to use: an id from `addonctl installs`, or a path.", valueName: "id|path"))
     var install: String?

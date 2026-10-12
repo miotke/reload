@@ -16,7 +16,7 @@ public enum InstallStoreError: Error, Sendable, Equatable, LocalizedError {
     }
 }
 
-/// Persists installations and their managed add-ons (docs/design.md §6.9).
+/// Persists installations and their managed add-ons (docs/architecture/data-storage.md).
 ///
 /// One JSON file per installation at `<appSupport>/installations/<id>.json`. The app and
 /// `addonctl` may run at once, so every write holds an exclusive `flock` on
@@ -163,7 +163,7 @@ public actor InstallStore {
 
     // MARK: - Reconcile
 
-    /// Compares the store with `AddOns/` on disk (docs/design.md §6.9). Managed add-ons come
+    /// Compares the store with `AddOns/` on disk (docs/architecture/data-storage.md). Managed add-ons come
     /// first (sorted by name), then unmanaged folders (sorted by folder name).
     /// `Blizzard_*` and hidden entries are never listed.
     public func reconcile(_ installation: Installation) throws -> [AddonStatus] {

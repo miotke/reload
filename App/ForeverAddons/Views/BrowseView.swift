@@ -14,7 +14,7 @@ enum BrowseHome: String, CaseIterable, Identifiable {
     }
 }
 
-/// Search and browse add-ons (docs/design.md §7, §8).
+/// Search and browse add-ons (docs/app/layout.md).
 ///
 /// One sortable table. With an empty query it lists Popular or Recently Updated (a switch in
 /// the filter bar); with a query, or a category chip, it lists search results. Without a

@@ -3,7 +3,7 @@ import Security
 
 /// Stores the user's GitHub token as a generic password in the login Keychain.
 ///
-/// Shared by the app and `addonctl` (docs/design.md §9.1).
+/// Shared by the app and `addonctl` (docs/architecture/core.md).
 public struct KeychainStore: Sendable {
     public struct KeychainError: Error, LocalizedError, Sendable {
         public var status: OSStatus

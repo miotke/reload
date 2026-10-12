@@ -1,7 +1,7 @@
 import Foundation
 import Synchronization
 
-/// Background refresh (docs/search.md#refresh): catalogue, installed add-ons' update
+/// Background refresh (docs/features/refresh.md): catalogue, installed add-ons' update
 /// states, and support verdicts for the repos that need them.
 extension AddonManager {
     /// Without `force`, a refresh this soon after the last one finishes at once with the

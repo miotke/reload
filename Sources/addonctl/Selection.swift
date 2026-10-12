@@ -1,7 +1,7 @@
 import AddonKit
 import Foundation
 
-/// Picks the installation a command acts on (DESIGN.md §9.3):
+/// Picks the installation a command acts on (docs/cli/commands.md):
 /// `--install` flag → config `default-install` → the only install, of any flavor → ask.
 enum InstallationSelection {
     enum Outcome: Equatable {

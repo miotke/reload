@@ -27,7 +27,7 @@ public enum ReleaseSelection: Sendable, Hashable {
     }
 }
 
-/// Picks the newest release that supports a flavor (docs/design.md §6.5). Pure; no I/O.
+/// Picks the newest release that supports a flavor (docs/features/release-selection.md). Pure; no I/O.
 ///
 /// Callers loop: fetch release.json / inspect zips as asked, then call `select` again
 /// with the new knowledge, until `.selected` or `.none`.

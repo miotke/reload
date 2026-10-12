@@ -7,7 +7,7 @@ public struct SupportCheck: Sendable, Hashable {
     public var tag: String?
 }
 
-/// Resolves add-ons published as GitHub Releases (docs/github-source.md).
+/// Resolves add-ons published as GitHub Releases (docs/features/release-selection.md).
 ///
 /// - API calls go to `api.github.com` and count against the rate limit. release.json and zip
 ///   downloads, the `releases/latest` redirect and raw.githubusercontent.com don't.
@@ -272,7 +272,7 @@ public actor GitHubSource: Source, SupportChecking {
         public var build: ReleaseJSON.Release?
     }
 
-    /// Whether `ref` supports `flavor`, by its latest stable release (docs/github-source.md).
+    /// Whether `ref` supports `flavor`, by its latest stable release (docs/features/release-selection.md).
     /// This is the only way support is decided: it reads and writes the stored verdicts and
     /// latest tags itself, so callers never judge freshness.
     public func check(_ ref: AddonRef, flavor: Flavor, policy: CachePolicy = .revalidateIfStale, background: Bool = false) async -> SupportCheck {

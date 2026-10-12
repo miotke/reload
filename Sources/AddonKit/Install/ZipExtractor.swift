@@ -1,7 +1,7 @@
 import Foundation
 import ZIPFoundation
 
-/// Validates and extracts add-on zips (docs/design.md §6.8 step 1).
+/// Validates and extracts add-on zips (docs/features/installing.md step 1).
 ///
 /// A valid archive has only top-level folders (plus ignored `__MACOSX/` and `.DS_Store`
 /// noise), at least one of which contains a `.toc`, and no entry that could escape the

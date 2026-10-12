@@ -1,7 +1,7 @@
 import Foundation
 import ZIPFoundation
 
-/// Outcome of checking a zip or add-on folder for flavor support (docs/design.md §6.6).
+/// Outcome of checking a zip or add-on folder for flavor support (docs/features/release-selection.md).
 public struct FlavorSupport: Sendable, Hashable {
     public var flavor: Flavor
     public var isSupported: Bool

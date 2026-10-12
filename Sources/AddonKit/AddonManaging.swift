@@ -1,7 +1,7 @@
 import Foundation
 
-/// The façade the app and CLI talk to (docs/design.md §6.10).
-/// `AddonManager` is the real implementation; the app's previews use a mock.
+/// The façade the app and CLI talk to (docs/architecture/core.md).
+/// `AddonManager` is the only implementation; the protocol keeps the app and CLI decoupled from it.
 public protocol AddonManaging: Sendable {
     func installations() async throws -> [Installation]
     /// Scans for WoW installs (Spotlight and `/Applications/World of Warcraft`), stores new ones,

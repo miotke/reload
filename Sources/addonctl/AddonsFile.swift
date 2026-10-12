@@ -1,7 +1,7 @@
 import AddonKit
 import Foundation
 
-/// The `addons.json` written by `export` and read by `import` (DESIGN.md §9.2).
+/// The `addons.json` written by `export` and read by `import` (docs/cli/commands.md).
 struct AddonsFile: Codable, Equatable, Sendable {
     static let currentSchemaVersion = 1
 

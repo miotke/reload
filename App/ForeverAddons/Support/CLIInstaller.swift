@@ -1,6 +1,6 @@
 import Foundation
 
-/// Installs the bundled `addonctl` (docs/design.md §9.5) as a symlink, by default
+/// Installs the bundled `addonctl` (docs/app/cli-install.md) as a symlink, by default
 /// `/usr/local/bin/addonctl` → `ForeverAddons.app/Contents/Helpers/addonctl`. A symlink rather
 /// than a copy, so updating the app updates the tool.
 ///

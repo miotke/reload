@@ -1,6 +1,6 @@
 import Foundation
 
-/// Which catalogue rows a fetch inserted or changed (docs/search.md).
+/// Which catalogue rows a fetch inserted or changed (docs/features/search.md).
 public struct CatalogueDiff: Sendable, Hashable {
     /// `owner/repo` of rows that are new or whose data changed.
     public var changed: Set<String> = []
@@ -16,7 +16,7 @@ public struct CatalogueDiff: Sendable, Hashable {
     }
 }
 
-/// `github-wow-addon-catalogue/addons.csv`, kept in the metadata database (docs/design.md §7.2).
+/// `github-wow-addon-catalogue/addons.csv`, kept in the metadata database (docs/features/search.md).
 ///
 /// - Rows live in the `catalogue` table, upserted once per download in one transaction.
 ///   Unchanged rows aren't rewritten, so the diff says which repos changed.

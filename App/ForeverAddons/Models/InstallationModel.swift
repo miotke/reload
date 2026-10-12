@@ -431,7 +431,7 @@ final class InstallationModel {
         isSearchComplete = false
     }
 
-    /// Empty-query Browse content (§7.5): popular, recently updated and category chips.
+    /// Empty-query Browse content (docs/features/search.md): popular, recently updated and category chips.
     func loadBrowse() async {
         var content = await manager.browse(in: installation)
         guard !Task.isCancelled else { return }

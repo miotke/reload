@@ -1,6 +1,6 @@
 import Foundation
 
-/// An add-on host that can resolve a ref to its newest compatible release (docs/design.md §6.4).
+/// An add-on host that can resolve a ref to its newest compatible release (docs/features/release-selection.md).
 public protocol Source: Sendable {
     var id: SourceID { get }
 

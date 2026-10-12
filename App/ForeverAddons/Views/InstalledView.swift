@@ -2,7 +2,7 @@ import AddonKit
 import AppKit
 import SwiftUI
 
-/// Managed add-ons with update status, plus unmanaged folders that can be adopted (docs/design.md §8).
+/// Managed add-ons with update status, plus unmanaged folders that can be adopted (docs/app/layout.md).
 /// A sortable table; managed and unmanaged rows are sorted within their own sections.
 struct InstalledView: View {
     var model: AppModel

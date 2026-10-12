@@ -17,7 +17,7 @@ public struct SupportRecord: Sendable, Hashable {
 }
 
 /// Per-repo knowledge kept in the metadata database: Forever-support verdicts (`support`
-/// table) and repo metadata such as the latest tag and stars (`repo_meta`). See docs/search.md.
+/// table) and repo metadata such as the latest tag and stars (`repo_meta`). See docs/features/search.md.
 ///
 /// - A verdict is shown for as long as it's stored; `isFresh` decides when to re-check.
 /// - A failed check is stored as an error for 15 minutes so it isn't retried on every view.

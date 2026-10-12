@@ -2,7 +2,7 @@ import AddonKit
 import Foundation
 
 /// `--json` output: one document per command with a top-level `"schemaVersion": 1`
-/// and ISO-8601 dates (DESIGN.md §9.4).
+/// and ISO-8601 dates (docs/cli/commands.md).
 enum JSONOutput {
     static let schemaVersion = 1
 

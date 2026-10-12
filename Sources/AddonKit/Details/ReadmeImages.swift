@@ -1,6 +1,6 @@
 import Foundation
 
-/// Finds screenshot-worthy images in a README (docs/search.md#details). Pure; no I/O.
+/// Finds screenshot-worthy images in a README (docs/features/details-and-screenshots.md). Pure; no I/O.
 ///
 /// - Markdown inline images `![alt](url "title")`, reference images `![alt][id]` /
 ///   `![id][]` / `![id]` with their `[id]: url` definitions, and HTML `<img src>`.

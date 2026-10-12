@@ -1,6 +1,6 @@
 import Foundation
 
-/// A parsed `.toc` file header (docs/design.md §6.3). Only `## Key: Value` lines are read.
+/// A parsed `.toc` file header (docs/architecture/flavors.md). Only `## Key: Value` lines are read.
 public struct Toc: Sendable, Hashable {
     /// Header fields keyed by lowercased name. Later duplicates win.
     public var fields: [String: String]

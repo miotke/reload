@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// Finds WoW installations and works out their flavor (docs/design.md §6.2).
+/// Finds WoW installations and works out their flavor (docs/features/finding-wow.md).
 /// Only reads the file system; never writes.
 public struct InstallationLocator: Sendable {
     /// Returns paths of WoW `.app` bundles (each lives inside a flavor folder).

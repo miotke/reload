@@ -23,7 +23,7 @@ struct AddonCtl: AsyncParsableCommand {
         ]
     )
 
-    /// Replaces ArgumentParser's `main` so errors map to DESIGN.md §9.4 exit codes and
+    /// Replaces ArgumentParser's `main` so errors map to docs/cli/commands.md exit codes and
     /// `--json` errors are printed as JSON.
     static func main() async {
         await run(arguments: Array(CommandLine.arguments.dropFirst()))

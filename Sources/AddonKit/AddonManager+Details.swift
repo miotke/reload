@@ -1,6 +1,6 @@
 import Foundation
 
-/// The inspector's data (docs/search.md#details). Opening an add-on is one of the few times
+/// The inspector's data (docs/features/details-and-screenshots.md). Opening an add-on is one of the few times
 /// the core goes to the network on its own: it refreshes that repo's support verdict, latest
 /// tag and README when they're older than a day, stores the result, and returns it.
 extension AddonManager {

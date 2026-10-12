@@ -48,7 +48,7 @@ enum CLIError: Error, Equatable, LocalizedError {
     }
 }
 
-/// DESIGN.md §9.4 exit codes.
+/// docs/cli/commands.md exit codes.
 enum ExitStatus {
     static let success: Int32 = 0
     static let general: Int32 = 1

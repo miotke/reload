@@ -1,6 +1,6 @@
 import Foundation
 
-/// The real `AddonManaging` implementation, shared by the app and `addonctl` (docs/design.md §6.10).
+/// The real `AddonManaging` implementation, shared by the app and `addonctl` (docs/architecture/core.md).
 public actor AddonManager: AddonManaging {
     public nonisolated let directories: AppDirectories
     public nonisolated let store: InstallStore
@@ -11,7 +11,7 @@ public actor AddonManager: AddonManaging {
     let downloader: Downloader
     let keychain: KeychainStore
     let environment: [String: String]
-    /// Catalogue, support verdicts, details and refresh state (docs/search.md).
+    /// Catalogue, support verdicts, details and refresh state (docs/architecture/core.md).
     public nonisolated let database: MetadataDatabase
     let catalogue: CatalogueSource
     let supportCache: SupportCache
@@ -65,7 +65,7 @@ public actor AddonManager: AddonManaging {
         self.searchCoordinator = SearchCoordinator(catalogue: catalogue, github: githubSearch, supportCache: supportCache)
     }
 
-    /// `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (docs/design.md §9.1).
+    /// `ADDONS_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (docs/architecture/core.md).
     static func token(environment: [String: String], keychain: KeychainStore) -> String? {
         for key in ["ADDONS_GITHUB_TOKEN", "GITHUB_TOKEN"] {
             if let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {

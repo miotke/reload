@@ -1,6 +1,6 @@
 import Foundation
 
-/// Runs every search layer and merges them into one result list (docs/search.md).
+/// Runs every search layer and merges them into one result list (docs/features/search.md).
 ///
 /// Search reads the local database; if it finds nothing, it asks GitHub once and remembers
 /// the answer. It never checks Forever support itself: results carry the stored verdict, or
@@ -201,7 +201,7 @@ public actor SearchCoordinator {
 
     // MARK: Browse
 
-    /// The Browse tab's content for an empty search box (docs/design.md §7.5). Local only.
+    /// The Browse tab's content for an empty search box (docs/features/search.md). Local only.
     public func browse(flavor: Flavor) async -> (popular: [SearchResult], recent: [SearchResult], categories: [SearchCategory]) {
         let statuses = await supportCache.statuses(flavor: flavor)
         let keyedStatuses = keyed(statuses)
