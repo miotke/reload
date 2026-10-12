@@ -65,11 +65,38 @@ struct CommandLineToolOfferSheet: View {
     }
 }
 
+/// Settings ▸ Command Line: the install section and a few example commands.
+struct CommandLineSettingsTab: View {
+    var tool: CommandLineToolModel
+
+    private static let examples = ["addonctl list", "addonctl search bags", "addonctl update"]
+
+    var body: some View {
+        Form {
+            CommandLineToolSection(tool: tool)
+
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Self.examples, id: \.self) { Text("$ \($0)") }
+                }
+                .font(.body.monospaced())
+                .textSelection(.enabled)
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+            } header: {
+                Text("Examples")
+            } footer: {
+                SettingsFootnote("Run addonctl --help for every command.")
+            }
+        }
+        .settingsTab()
+    }
+}
+
 /// Settings section: status of the `addonctl` link with Install / Repair / Uninstall.
 struct CommandLineToolSection: View {
-    var model: AppModel
-
-    private var tool: CommandLineToolModel { model.commandLineTool }
+    var tool: CommandLineToolModel
 
     var body: some View {
         Section {

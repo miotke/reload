@@ -11,6 +11,7 @@ struct ForeverAddonsApp: App {
 
     @AppStorage(SettingsKey.showMenuBarExtra) private var showMenuBarExtra = false
     @AppStorage(SettingsKey.appearance) private var appearance: AppAppearance = .system
+    @AppStorage(SettingsKey.appIcon) private var appIcon: AppIconChoice = .classic
 
     var body: some Scene {
         WindowGroup {
@@ -29,6 +30,7 @@ struct ForeverAddonsApp: App {
                     model.stopAutoRefresh()
                 }
                 .onChange(of: appearance, initial: true) { appearance.apply() }
+                .onChange(of: appIcon, initial: true) { appIcon.apply() }
         }
         .defaultSize(width: 1300, height: 880)
         .commands {

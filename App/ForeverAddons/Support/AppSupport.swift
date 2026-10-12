@@ -7,6 +7,8 @@ enum SettingsKey {
     static let checkForUpdatesOnLaunch = "checkForUpdatesOnLaunch"
     static let showMenuBarExtra = "showMenuBarExtra"
     static let appearance = "appearance"
+    static let appIcon = "appIcon"
+    static let settingsTab = "settingsTab"
 }
 
 /// Light, dark or the system's choice, set in Settings or View ▸ Appearance.

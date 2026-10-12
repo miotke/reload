@@ -198,6 +198,58 @@ import UniformTypeIdentifiers
         }
     }
 
+    // MARK: Settings
+
+    @Test func settingsGeneral() throws {
+        let classic = Installation(id: "snapshot-era", root: URL(filePath: "/tmp/ForeverAddonsSnapshots/World of Warcraft/_classic_era_"),
+                                   flavor: .vanilla, gameVersion: "1.15.7.61582")
+        try Snapshot.render("settings-general", width: SettingsLayout.width) {
+            GeneralSettingsTab(installations: [Fixtures.installation, classic], selectedInstallationID: .constant(Fixtures.installation.id))
+        }
+    }
+
+    @Test func settingsAppearance() throws {
+        try Snapshot.render("settings-appearance", width: SettingsLayout.width) {
+            AppearanceSettingsTab()
+        }
+    }
+
+    @Test func settingsGitHub() throws {
+        let keychain = GitHubTokenModel(keychain: nil, environment: [:])
+        keychain.token = "ghp_snapshotexample"
+        keychain.show(hasToken: true, message: "Token saved in Keychain.")
+        try Snapshot.render("settings-github", width: SettingsLayout.width) {
+            GitHubSettingsTab(token: keychain, tokenDidChange: {})
+        }
+        let environment = GitHubTokenModel(keychain: nil, environment: ["GITHUB_TOKEN": "ghp_fromenvironment"])
+        environment.show(hasToken: false, message: "No token saved.")
+        try Snapshot.render("settings-github-environment", width: SettingsLayout.width) {
+            GitHubSettingsTab(token: environment, tokenDidChange: {})
+        }
+    }
+
+    @Test func settingsCommandLine() throws {
+        // Short, stable paths, as the footer prints both; the link is only read, never created.
+        let folder = URL(filePath: "/tmp/ForeverAddonsSnapshots/ForeverAddons.app/Contents/Helpers", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let helper = folder.appending(path: "addonctl").path(percentEncoded: false)
+        if !FileManager.default.fileExists(atPath: helper) {
+            FileManager.default.createFile(atPath: helper, contents: Data(), attributes: [.posixPermissions: 0o755])
+        }
+        let installer = CLIInstaller(linkPath: "/tmp/ForeverAddonsSnapshots/bin/addonctl", helperPath: helper, runPrivileged: { _ in })
+        let tool = CommandLineToolModel(installer: installer, mayOffer: false)
+        try Snapshot.render("settings-command-line", width: SettingsLayout.width) {
+            CommandLineSettingsTab(tool: tool)
+        }
+    }
+
+    @Test func settingsAdvanced() throws {
+        try Snapshot.render("settings-advanced", width: SettingsLayout.width) {
+            AdvancedSettingsTab(directories: AppDirectories(root: URL(filePath: "/tmp/ForeverAddonsSnapshots/Data")),
+                                canResetFirstLaunch: true, resetFirstLaunch: {})
+        }
+    }
+
     private func load(_ result: SearchResult, latest: String?) {
         let details = Fixtures.details(for: result, latest: latest)
         let blocks = MarkdownParser.renderedBlocks(from: details.readme ?? "", baseURL: details.repositoryURL)
