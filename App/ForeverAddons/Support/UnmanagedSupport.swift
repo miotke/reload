@@ -64,6 +64,15 @@ enum RemovalRequest: Identifiable, Equatable {
     }
 }
 
+/// The Adopt sheet's check of the chosen repository (`UpdateQueue.adoptionPreview`).
+enum AdoptionPreviewState: Equatable {
+    case loading
+    case ready(AdoptionPreview)
+    /// No release has a build for the installation's flavor.
+    case noBuild
+    case failed(String)
+}
+
 /// The Adopt sheet's decisions, given what's typed and what the preview found.
 enum AdoptForm {
     /// Accepts `owner/repo`, `github:owner/repo` or a `github.com/owner/repo` URL.

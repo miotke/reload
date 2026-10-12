@@ -8,7 +8,9 @@ import SwiftUI
 /// chosen sort, rows keep the core's order: relevance for searches, stars or date for home.
 struct BrowseView: View {
     var model: AppModel
-    var state: InstallationModel
+    var browse: BrowseModel
+    var queue: UpdateQueue
+    var inspector: InspectorModel
 
     /// "Hide Classic-only" and its per-family siblings; the key predates them.
     @AppStorage("browseForeverOnly") private var hideIncompatible = true
@@ -40,32 +42,35 @@ struct BrowseView: View {
     }
 
     var body: some View {
-        @Bindable var model = model
+        @Bindable var inspector = inspector
         VStack(spacing: 0) {
             filterBar
             Divider()
-            BrowseTable(model: model, state: state, selection: $model.selectedBrowseID, sortOrder: sortOrder, columns: $columns)
+            BrowseTable(model: model, browse: browse, queue: queue, selection: $inspector.selectedBrowseID,
+                        sortOrder: sortOrder, columns: $columns)
                 .overlay { emptyState }
             Divider()
-            statusBar
+            BrowseStatusBar(browse: browse, queue: queue, isHome: isHome, hasSort: sort != nil,
+                            includeLiveGitHub: $includeLiveGitHub,
+                            refresh: model.checkForUpdates, resetSort: { sortStorage = "" })
         }
-        .onChange(of: options, initial: true) { state.browseOptions = options }
+        .onChange(of: options, initial: true) { browse.options = options }
         // `.task(id:)` cancels the previous search whenever the query changes; the sleep is the debounce.
         .task(id: QueryKey(text: trimmedQuery, hideIncompatible: hideIncompatible, includeLiveGitHub: includeLiveGitHub,
-                           installationID: state.installation.id)) {
+                           installationID: browse.installation.id)) {
             let text = trimmedQuery
             guard !text.isEmpty else {
-                state.clearSearch()
+                browse.clearSearch()
                 return
             }
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            await state.search(SearchQuery(text: text, flavor: state.installation.flavor,
-                                           hideIncompatible: hideIncompatible, includeLiveGitHub: includeLiveGitHub))
+            await browse.search(SearchQuery(text: text, flavor: browse.installation.flavor,
+                                            hideIncompatible: hideIncompatible, includeLiveGitHub: includeLiveGitHub))
         }
-        .task(id: state.installation.id) {
-            await state.loadLastRefresh()
-            await state.loadBrowse()
+        .task(id: browse.installation.id) {
+            await queue.loadLastRefresh()
+            await browse.loadBrowse()
         }
         .onChange(of: model.searchText) { includeLiveGitHub = false }
     }
@@ -83,7 +88,7 @@ struct BrowseView: View {
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(state.browse?.categories ?? SearchAliases.categories) { category in
+                    ForEach(browse.content?.categories ?? SearchAliases.categories) { category in
                         let selected = trimmedQuery.caseInsensitiveCompare(category.query) == .orderedSame
                         Button {
                             model.searchText = selected ? "" : category.query
@@ -97,44 +102,74 @@ struct BrowseView: View {
                     }
                 }
             }
-            Toggle(IncompatibleFilterLabel.title(for: state.installation.flavor), isOn: $hideIncompatible)
+            Toggle(IncompatibleFilterLabel.title(for: browse.installation.flavor), isOn: $hideIncompatible)
                 .toggleStyle(.checkbox)
-                .help(IncompatibleFilterLabel.help(for: state.installation.flavor))
+                .help(IncompatibleFilterLabel.help(for: browse.installation.flavor))
                 .fixedSize()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
 
-    private var statusBar: some View {
-        let count = state.browseRows.count
-        return HStack(spacing: 8) {
-            if !isHome && state.isSearching && !state.isSearchComplete {
+    @ViewBuilder private var emptyState: some View {
+        if browse.rows.isEmpty {
+            if isHome {
+                if browse.content == nil {
+                    ProgressView()
+                } else {
+                    ContentUnavailableView(
+                        "Nothing to Browse Yet", systemImage: "magnifyingglass",
+                        description: Text("Search for an add-on by name, or pick a category above."))
+                }
+            } else if browse.isSearchComplete {
+                ContentUnavailableView.search(text: trimmedQuery)
+            } else if browse.isSearchingGitHub {
+                ProgressView("Searching GitHub…").controlSize(.small).foregroundStyle(.secondary)
+            } else {
+                ProgressView()
+            }
+        }
+    }
+}
+
+/// The count or search progress, "Last fetched" with its refresh button, the games legend,
+/// and the deeper GitHub search (docs/app/layout.md#browse-table).
+struct BrowseStatusBar: View {
+    var browse: BrowseModel
+    var queue: UpdateQueue
+    var isHome: Bool
+    var hasSort: Bool
+    @Binding var includeLiveGitHub: Bool
+    var refresh: () -> Void
+    var resetSort: () -> Void
+
+    var body: some View {
+        let count = browse.rows.count
+        HStack(spacing: 8) {
+            if !isHome && browse.isSearching && !browse.isSearchComplete {
                 ProgressView().controlSize(.mini)
-                Text(state.isSearchingGitHub ? "Searching GitHub…" : "Searching…")
+                Text(browse.isSearchingGitHub ? "Searching GitHub…" : "Searching…")
             } else {
                 Text(count == 1 ? "1 add-on" : "\(count) add-ons")
             }
             Text("·")
-            Text(FetchLabel.string(for: state.lastChecked))
+            Text(FetchLabel.string(for: queue.lastChecked))
                 .help("When this installation's add-on details were last refreshed")
-            Button {
-                model.checkForUpdates()
-            } label: {
-                if state.isRefreshing {
+            Button(action: refresh) {
+                if queue.isRefreshing {
                     ProgressView().controlSize(.mini)
                 } else {
                     Image(systemName: "arrow.clockwise")
                 }
             }
             .buttonStyle(.borderless)
-            .disabled(state.isRefreshing)
+            .disabled(queue.isRefreshing)
             .help("Refresh now (⌘R)")
             .accessibilityLabel("Refresh")
             Text("·")
-            GameLegend(flavor: state.installation.flavor)
-            if sort != nil {
-                Button(isHome ? "Default Order" : "Sort by Relevance") { sortStorage = "" }
+            GameLegend(flavor: browse.installation.flavor)
+            if hasSort {
+                Button(isHome ? "Default Order" : "Sort by Relevance", action: resetSort)
                     .buttonStyle(.link)
                     .help("Go back to the order ForeverAddons suggests")
             }
@@ -154,40 +189,21 @@ struct BrowseView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
     }
-
-    @ViewBuilder private var emptyState: some View {
-        if state.browseRows.isEmpty {
-            if isHome {
-                if state.browse == nil {
-                    ProgressView()
-                } else {
-                    ContentUnavailableView(
-                        "Nothing to Browse Yet", systemImage: "magnifyingglass",
-                        description: Text("Search for an add-on by name, or pick a category above."))
-                }
-            } else if state.isSearchComplete {
-                ContentUnavailableView.search(text: trimmedQuery)
-            } else if state.isSearchingGitHub {
-                ProgressView("Searching GitHub…").controlSize(.small).foregroundStyle(.secondary)
-            } else {
-                ProgressView()
-            }
-        }
-    }
 }
 
 private struct BrowseTable: View {
     var model: AppModel
     @Environment(\.openWindow) private var openWindow
-    var state: InstallationModel
+    var browse: BrowseModel
+    var queue: UpdateQueue
     @Binding var selection: BrowseRow.ID?
     @Binding var sortOrder: [ColumnSort<BrowseColumn>]
     @Binding var columns: TableColumnCustomization<BrowseRow>
 
     var body: some View {
-        Table(state.browseRows, selection: $selection, sortOrder: $sortOrder, columnCustomization: $columns) {
+        Table(browse.rows, selection: $selection, sortOrder: $sortOrder, columnCustomization: $columns) {
             TableColumn("Name", sortUsing: ColumnSort(BrowseColumn.name)) { row in
-                BrowseNameCell(state: state, row: row)
+                BrowseNameCell(browse: browse, row: row)
             }
             .width(min: 180, ideal: 320)
             .customizationID("name")
@@ -200,10 +216,7 @@ private struct BrowseTable: View {
             .customizationID("forever")
 
             TableColumn("Stars", sortUsing: ColumnSort(BrowseColumn.stars, order: .reverse)) { row in
-                Text(row.starsText)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                BrowseStarsCell(row: row)
             }
             .width(min: 50, ideal: 64, max: 90)
             .customizationID("stars")
@@ -211,15 +224,13 @@ private struct BrowseTable: View {
             .defaultVisibility(.hidden)
 
             TableColumn("Last updated", sortUsing: ColumnSort(BrowseColumn.updated, order: .reverse)) { row in
-                Text(row.updatedText)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                BrowseUpdatedCell(row: row)
             }
             .width(min: 80, ideal: 100, max: 140)
             .customizationID("updated")
 
             TableColumn("") { row in
-                BrowseActionCell(model: model, state: state, row: row, rowState: state.row(row.id))
+                BrowseActionCell(queue: queue, row: row, rowState: queue.row(row.id))
             }
             .width(min: 96, ideal: 110, max: 160)
             .customizationID("action")
@@ -232,7 +243,7 @@ private struct BrowseTable: View {
                     model.showInspector = true
                 }
                 Button("Open in New Window") { openWindow(id: AddonWindowID.sceneID, value: windowID(ref)) }
-                if let installed = state.installAction(for: ref).installedRef {
+                if let installed = browse.row(id: id)?.action.installedRef {
                     Button("Show in Installed") { model.reveal(installed) }
                 }
                 if let url = ref.webURL {
@@ -248,12 +259,14 @@ private struct BrowseTable: View {
     }
 
     private func windowID(_ ref: AddonRef) -> AddonWindowID {
-        AddonWindowID(ref: ref, installationID: state.installation.id)
+        AddonWindowID(ref: ref, installationID: browse.installation.id)
     }
 }
 
-private struct BrowseNameCell: View {
-    var state: InstallationModel
+// MARK: - Cells
+
+struct BrowseNameCell: View {
+    var browse: BrowseModel
     var row: BrowseRow
 
     var body: some View {
@@ -276,15 +289,35 @@ private struct BrowseNameCell: View {
         // The table only hosts cells for rows on screen (plus a few around them), so these
         // track what the user is looking at for the visible-row checks. The Name column can't
         // be hidden, so every visible row reports.
-        .onAppear { state.browseRowAppeared(row.id) }
-        .onDisappear { state.browseRowDisappeared(row.id) }
+        .onAppear { browse.rowAppeared(row.id) }
+        .onDisappear { browse.rowDisappeared(row.id) }
     }
 }
 
-private struct BrowseActionCell: View {
-    var model: AppModel
+struct BrowseStarsCell: View {
+    var row: BrowseRow
+
+    var body: some View {
+        Text(row.starsText)
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+}
+
+struct BrowseUpdatedCell: View {
+    var row: BrowseRow
+
+    var body: some View {
+        Text(row.updatedText)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+    }
+}
+
+struct BrowseActionCell: View {
     @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
-    var state: InstallationModel
+    var queue: UpdateQueue
     var row: BrowseRow
     var rowState: RowState
 
@@ -293,12 +326,12 @@ private struct BrowseActionCell: View {
             if let error = rowState.error {
                 RowErrorIcon(message: error)
             }
-            if let activity = rowState.activity ?? row.action.installedRef.flatMap({ state.row($0.description).activity }) {
+            if let activity = rowState.activity ?? row.action.installedRef.flatMap({ queue.row($0.description).activity }) {
                 ActivityIndicator(activity: activity, showsLabel: false)
             } else if case .update(let ref, let version, let available) = row.action {
-                Button("Update") { Task { await state.update([ref]) } }
+                Button("Update") { Task { await queue.update([ref]) } }
                     .help("Update \(version) to \(available)")
-                    .disabled(state.isUpdatingAll)
+                    .disabled(queue.isUpdatingAll)
             } else if case .installed(_, let version) = row.action {
                 Label("Installed", systemImage: "checkmark")
                     .labelStyle(.titleAndIcon)
@@ -306,12 +339,12 @@ private struct BrowseActionCell: View {
                     .help("\(version) is installed. Double-click to open it.")
             } else if rowState.needsOverwrite {
                 Button("Overwrite", role: .destructive) {
-                    Task { await state.install(row.ref, channel: defaultChannel, force: true) }
+                    Task { await queue.install(row.ref, channel: defaultChannel, force: true) }
                 }
                 .help("Replace the existing unmanaged folder")
             } else {
                 Button("Install") {
-                    Task { await state.install(row.ref, channel: defaultChannel) }
+                    Task { await queue.install(row.ref, channel: defaultChannel) }
                 }
             }
         }
@@ -321,4 +354,3 @@ private struct BrowseActionCell: View {
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
-

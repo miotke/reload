@@ -2,7 +2,7 @@ import Foundation
 
 /// Calls `onChange` (debounced) when entries in a directory are added, removed or replaced.
 ///
-/// Used to watch `InstallStore.storeDirectory`, so add-ons changed by `addonctl` show up
+/// Used to watch `AddonManaging.storeDirectory`, so add-ons changed by `addonctl` show up
 /// live (docs/app/live-data.md). The store writes atomically (write to a temp file, then rename),
 /// which shows up as a write to the directory itself. Creates the directory if it's missing
 /// and re-opens it if it's deleted or moved.

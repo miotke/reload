@@ -20,7 +20,7 @@ struct ContentView: View {
         }
         .sheet(item: $model.adoptTarget) { target in
             if let state = model.current {
-                AdoptSheet(target: target, state: state)
+                AdoptSheet(target: target, queue: state.queue, browse: state.browse)
             }
         }
         .confirmationDialog(
@@ -34,7 +34,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $model.isSeedingPresented, onDismiss: model.seedingSheetDidClose) {
             if let state = model.seeding {
-                SeedingSheet(model: model, state: state)
+                SeedingSheet(refresh: state.queue.refresh, flavor: state.installation.flavor) {
+                    model.isSeedingPresented = false
+                }
             }
         }
         .sheet(isPresented: Bindable(model.commandLineTool).isOfferPresented) {
@@ -89,7 +91,7 @@ private struct SidebarView: View {
         List(selection: $model.selectedInstallationID) {
             Section("Installations") {
                 ForEach(model.installations) { installation in
-                    InstallationRow(installation: installation, state: model.model(for: installation))
+                    InstallationRow(installation: installation, installed: model.model(for: installation).installed)
                         .tag(installation.id)
                 }
             }
@@ -113,7 +115,7 @@ private struct SidebarView: View {
 
 private struct InstallationRow: View {
     var installation: Installation
-    var state: InstallationModel
+    var installed: InstalledModel
 
     var body: some View {
         Label {
@@ -126,7 +128,7 @@ private struct InstallationRow: View {
         } icon: {
             Image(systemName: "gamecontroller")
         }
-        .badge(state.updateCount)
+        .badge(installed.updateCount)
         .help(installation.root.path(percentEncoded: false))
     }
 }
@@ -146,8 +148,8 @@ private struct DetailView: View {
         InspectorSplit(isPresented: model.showInspector, width: $inspectorWidth) {
             Group {
                 switch model.tab {
-                case .installed: InstalledView(model: model, state: state)
-                case .browse: BrowseView(model: model, state: state)
+                case .installed: InstalledView(model: model, installed: state.installed, queue: state.queue, inspector: state.inspector)
+                case .browse: BrowseView(model: model, browse: state.browse, queue: state.queue, inspector: state.inspector)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -186,17 +188,17 @@ private struct DetailView: View {
                         Label("Check for Updates", systemImage: "arrow.clockwise")
                     }
                     .help("Check for Updates (⌘R)")
-                    .disabled(state.isRefreshing)
+                    .disabled(state.queue.isRefreshing)
 
                     Button {
                         model.updateAll()
                     } label: {
-                        Label(state.updateCount > 0 ? "Update All (\(state.updateCount))" : "Update All",
+                        Label(state.installed.updateCount > 0 ? "Update All (\(state.installed.updateCount))" : "Update All",
                               systemImage: "square.and.arrow.down.on.square")
                             .labelStyle(.titleAndIcon)
                     }
                     .help("Update every add-on that has an update and isn't pinned")
-                    .disabled(state.updateCount == 0 || state.isUpdatingAll)
+                    .disabled(state.installed.updateCount == 0 || state.queue.isUpdatingAll)
                 }
                 Button("Inspector", systemImage: "sidebar.right") {
                     withAnimation { model.showInspector.toggle() }
@@ -206,15 +208,15 @@ private struct DetailView: View {
         }
         .task(id: state.installation.id) {
             // Local only: refreshes run on launch, activation and ⌘R, never on a switch.
-            if !state.hasLoaded { await state.reload() }
+            if !state.installed.hasLoaded { await state.installed.reload() }
         }
     }
 
     private var subtitle: String {
         guard model.tab == .installed else { return "" }
-        if state.isRefreshing { return "Checking for updates…" }
-        guard let checked = state.lastChecked else { return "\(state.managed.count) managed" }
-        let updates = state.updateCount
+        if state.queue.isRefreshing { return "Checking for updates…" }
+        guard let checked = state.queue.lastChecked else { return "\(state.installed.managed.count) managed" }
+        let updates = state.installed.updateCount
         let summary = updates == 0 ? "Up to date" : updates == 1 ? "1 update" : "\(updates) updates"
         return "\(summary) · checked \(checked.formatted(.relative(presentation: .named)))"
     }

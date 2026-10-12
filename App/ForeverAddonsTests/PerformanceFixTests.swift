@@ -165,7 +165,7 @@ func pngData(width: Int, height: Int) throws -> Data {
     }
 }
 
-/// `InstallationModel` over a real `AddonManager` in a temp folder. Nothing here touches
+/// The installation's models over a real `AddonManager` in a temp folder. Nothing here touches
 /// the network.
 @MainActor @Suite struct InstallationModelTests {
     let root: URL
@@ -194,23 +194,23 @@ func pngData(width: Int, height: Int) throws -> Data {
         let v1 = addon("v1")
         try await manager.store.modify(installation) { $0 = [v1] }
         let model = InstallationModel(installation: installation, manager: manager, reportError: { _ in })
-        await model.reload()
-        #expect(model.managedRows.map(\.id) == [v1.id.description])
+        await model.installed.reload()
+        #expect(model.installed.managedRows.map(\.id) == [v1.id.description])
 
-        let before = model.installedRowBuilds
+        let before = model.installed.installedRowBuilds
         var v2 = addon("v2")
         v2.releaseID = 2
-        model.apply(.done(v2))
-        #expect(model.installedRowBuilds == before + 1)
-        #expect(model.addon(for: v2.id)?.version == "v2")
-        #expect(model.updateStates[v2.id] == .upToDate)
+        model.queue.apply(.done(v2))
+        #expect(model.installed.installedRowBuilds == before + 1)
+        #expect(model.installed.addon(for: v2.id)?.version == "v2")
+        #expect(model.installed.updateStates[v2.id] == .upToDate)
     }
 
     @Test func detailsKeepOnlyTheMostRecentlyViewed() {
-        let model = InstallationModel(installation: installation, manager: manager, reportError: { _ in })
-        let refs = (0..<(InstallationModel.detailsLimit + 5)).map { AddonRef(source: .github, identifier: "o/r\($0)") }
+        let model = InstallationModel(installation: installation, manager: manager, reportError: { _ in }).inspector
+        let refs = (0..<(InspectorModel.detailsLimit + 5)).map { AddonRef(source: .github, identifier: "o/r\($0)") }
         for ref in refs { model.setDetails(.loading, for: ref) }
-        #expect(model.details.count == InstallationModel.detailsLimit)
+        #expect(model.details.count == InspectorModel.detailsLimit)
         #expect(model.details[refs[0]] == nil)
         #expect(model.details[refs.last!] != nil)
     }

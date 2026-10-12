@@ -2,7 +2,7 @@
 
 The main window (sidebar, toolbar, inspector placement, the Installed and Browse tables, sorting) and the separate add-on window.
 
-Code: `App/ForeverAddons/Views/` (`ContentView`, `InstalledView`, `BrowseView`), `Support/TableRows.swift`, `Support/TableSorting.swift`. Why the inspector and tables work this way: [decision 0012](../decisions/0012-inspector-and-tables.md).
+Code: `App/ForeverAddons/Views/` (`ContentView`, `InstalledView`, `BrowseView`), `Models/`, `Support/TableRows.swift`, `Support/TableSorting.swift`. Why the inspector and tables work this way: [decision 0012](../decisions/0012-inspector-and-tables.md).
 
 ## Window
 
@@ -26,6 +26,21 @@ Code: `App/ForeverAddons/Views/` (`ContentView`, `InstalledView`, `BrowseView`),
 Labels follow the selected installation's game, `installation.flavor.displayName` (Forever, Retail, Classic Era, TBC Anniversary, Wrath Classic, Titan, Cata Classic, Mists Classic; see [flavors.md](../architecture/flavors.md#flavors)): the Games tooltips, the filter toggle's help, Installed status, the inspector, the adopt sheet and the seeding sheet. The Games column and the filter toggle's label follow the installation's game family.
 
 Forever-specific on purpose: the app name, help text and the empty state that suggests adding `World of Warcraft/_classic_beta_`.
+
+## Models
+
+Each installation has one `InstallationModel`, which only owns and wires four feature models:
+
+| Model | Owns |
+|---|---|
+| `InstalledModel` | add-ons, stored update states, the Installed rows (sort, filter, sections), `installAction(for:)` |
+| `BrowseModel` | search stream, home lists, Browse rows (sort, family filter), visible-row checks; `LiveMetadata` patches its rows |
+| `InspectorModel` | the selection in each tab, loaded details (the 20 most recent), release notes |
+| `UpdateQueue` | refresh and its `RefreshStatus`, update, Update All, install, pin, adopt, and each row's `RowState` |
+
+- Views take the model they need as a property: cells take `UpdateQueue`, `BrowseModel` or a pre-built row; tables take their tab's models. `AddonDetailView`, `InspectorPane` and `AddonWindow` combine all four, so they take `InstallationModel` and read its parts directly. There are no forwarding methods.
+- The app reaches the core only through `AddonManaging`; `ArchitectureTests` fails on any app file but `AppEnvironment.swift` that names `AddonManager` or a core internal.
+- Decisions the core will take over are isolated in helpers marked `TODO(core-ui)`.
 
 ## Inspector placement
 
@@ -64,7 +79,7 @@ Forever-specific on purpose: the app name, help text and the empty state that su
 
 ## Installed state
 
-Browse rows, the inspector and the add-on window all take an add-on's installed state from `InstallationModel.installAction(for:)`: the managed list keyed by lower-cased ref, plus the stored update state. They never read it from a `SearchResult` or `AddonDetails`, so `Cidan/BetterBags` found as `cidan/betterbags` still shows as installed. The inspector shows **Installed v0.5.14**, **Update to …** when an update is stored, and **Uninstall…**.
+Browse rows, the inspector and the add-on window all take an add-on's installed state from `InstalledModel.installAction(for:)`: the managed list keyed by lower-cased ref, plus the stored update state. They never read it from a `SearchResult` or `AddonDetails`, so `Cidan/BetterBags` found as `cidan/betterbags` still shows as installed. The inspector shows **Installed v0.5.14**, **Update to …** when an update is stored, and **Uninstall…**.
 
 ## Browse table
 
@@ -104,7 +119,7 @@ Which games an add-on's latest release ships builds for, replacing the old singl
 - Dates and stars sort by value, versions numerically, Status by what needs attention. Missing values sort last both ways.
 - The sort is remembered per table (`installedSort`, `browseSort` in user defaults, e.g. `updated.desc`). Column widths and visibility are remembered per window (`@SceneStorage`).
 - Browse can return to the core's order (relevance, or stars/date for the home lists) with **Sort by Relevance** / **Default Order**.
-- Rows are pre-formatted and sorted in `InstallationModel`, never in `body` ([performance/guidelines.md](../performance/guidelines.md#tables-and-lists)).
+- Rows are pre-formatted and sorted in `InstalledModel` and `BrowseModel`, never in `body` ([performance/guidelines.md](../performance/guidelines.md#tables-and-lists)).
 - **Only scene roots read `@Environment(AppModel.self)`** (`ContentView`, `SettingsView`, `MenuBarContent`; `AddonWindow` gets it from the `App` as a property). Cells, context menus, `primaryAction` handlers, toolbars, sheets and the inspector get the model, row state or closures as plain properties. `EnvironmentUsageTests` enforces it. Why: [decision 0015](../decisions/0015-environment-only-at-scene-roots.md).
 
 ## Dates

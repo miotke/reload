@@ -9,7 +9,9 @@ import SwiftUI
 struct AdoptSheet: View {
     @Environment(\.dismiss) private var dismiss
     var target: AdoptTarget
-    var state: InstallationModel
+    var queue: UpdateQueue
+    /// For the explicit GitHub search.
+    var browse: BrowseModel
 
     @State private var repository = ""
     @State private var isAdopting = false
@@ -21,7 +23,7 @@ struct AdoptSheet: View {
     @State private var confirmTrash = false
 
     private var unmanaged: UnmanagedFolder { target.unmanaged }
-    private var flavor: Flavor { state.installation.flavor }
+    private var flavor: Flavor { queue.installation.flavor }
     private var rowID: String { AddonStatus.unmanagedID(target.folder) }
     private var typedRef: AddonRef? { AdoptForm.parse(repository) }
 
@@ -42,7 +44,7 @@ struct AdoptSheet: View {
 
             if let searchResults { searchList(searchResults) }
 
-            if let error = state.row(rowID).error {
+            if let error = queue.row(rowID).error {
                 RowErrorText(message: error)
             }
 
@@ -67,13 +69,13 @@ struct AdoptSheet: View {
         .task(id: previewRef) {
             guard let ref = previewRef else { return }
             preview = .loading
-            let result = await state.adoptionPreview(for: ref, folders: unmanaged.folders)
+            let result = await queue.adoptionPreview(for: ref, folders: unmanaged.folders)
             if !Task.isCancelled, previewRef == ref { preview = result }
         }
         .confirmationDialog("Move \(unmanaged.title) to the Trash?", isPresented: $confirmTrash) {
             Button("Move to Trash", role: .destructive) {
                 Task {
-                    if await state.removeUnmanaged(unmanaged.folders, id: rowID) { dismiss() }
+                    if await queue.removeUnmanaged(unmanaged.folders, id: rowID) { dismiss() }
                 }
             }
         } message: {
@@ -122,7 +124,7 @@ struct AdoptSheet: View {
     private func search() async {
         isSearching = true
         defer { isSearching = false }
-        searchResults = Array(await state.searchGitHub(AdoptForm.searchText(field: repository, title: unmanaged.title)).prefix(8))
+        searchResults = Array(await browse.searchGitHub(AdoptForm.searchText(field: repository, title: unmanaged.title)).prefix(8))
     }
 
     private func searchList(_ results: [SearchResult]) -> some View {
@@ -192,7 +194,7 @@ struct AdoptSheet: View {
         if case .ready(let found)? = preview, let previewRef, AdoptForm.same(previewRef, ref) { release = found.release }
         isAdopting = true
         Task {
-            let succeeded = await state.adopt(folder: target.folder, as: release?.ref ?? ref, release: release)
+            let succeeded = await queue.adopt(folder: target.folder, as: release?.ref ?? ref, release: release)
             isAdopting = false
             if succeeded { dismiss() }
         }

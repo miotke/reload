@@ -156,10 +156,10 @@ import Testing
         let bugSack = addon("funkydude/BugSack", version: "v1")
         try await manager.store.modify(installation) { $0 = [bags, bugSack] }
         let model = InstallationModel(installation: installation, manager: manager, reportError: { _ in })
-        await model.reload()
+        await model.installed.reload()
         let release = ResolvedRelease(ref: bugSack.id, name: "BugSack", version: "v2", releaseID: 2, publishedAt: .now,
                                       downloadURL: URL(string: "https://x")!, assetName: "b.zip")
-        model.apply([bugSack.id: .available(release), bags.id: .upToDate])
+        model.queue.apply([bugSack.id: .available(release), bags.id: .upToDate])
 
         let cases: [(String, InstallAction)] = [
             ("cidan/betterbags", .installed(ref: bags.id, version: "v0.5.14")),
@@ -168,8 +168,8 @@ import Testing
         ]
         for (identifier, expected) in cases {
             let ref = AddonRef(source: .github, identifier: identifier)
-            let inspector = model.installAction(for: ref)
-            let row = model.browseRow(for: result(identifier))
+            let inspector = model.installed.installAction(for: ref)
+            let row = model.browse.row(for: result(identifier))
             #expect(inspector == expected, "\(identifier)")
             #expect(row.action == inspector, "\(identifier)")
             #expect(row.isInstalled == (expected != .install))
@@ -179,13 +179,13 @@ import Testing
         retailBuild.installedFlavorBuild = .mainline
         let retail = retailBuild
         try await manager.store.modify(installation) { $0 = [retail, bugSack] }
-        await model.reload()
+        await model.installed.reload()
         let forever = ResolvedRelease(ref: bags.id, name: "BetterBags", version: "v0.5.14", releaseID: -3, publishedAt: .now,
                                       downloadURL: URL(string: "https://x")!, assetName: "b.zip")
-        model.apply([bags.id: .available(forever)])
-        #expect(model.installAction(for: bags.id) == .update(ref: bags.id, version: "v0.5.14", available: "Forever build"))
-        #expect(model.managedRows.first { $0.ref == bags.id }?.availableVersion == "Forever build")
-        #expect(model.managedRows.first { $0.ref == bags.id }?.buildText == "Retail build")
+        model.queue.apply([bags.id: .available(forever)])
+        #expect(model.installed.installAction(for: bags.id) == .update(ref: bags.id, version: "v0.5.14", available: "Forever build"))
+        #expect(model.installed.managedRows.first { $0.ref == bags.id }?.availableVersion == "Forever build")
+        #expect(model.installed.managedRows.first { $0.ref == bags.id }?.buildText == "Retail build")
 
         // A pinned add-on with an update shows as installed, not as an update.
         var pinned = bugSack

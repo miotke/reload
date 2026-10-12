@@ -7,15 +7,16 @@ import SwiftUI
 /// (`details(for:in:)`, no API quota) (docs/app/layout.md).
 struct UnmanagedInspector: View {
     var model: AppModel
-    var state: InstallationModel
+    var queue: UpdateQueue
+    var inspector: InspectorModel
     var unmanaged: UnmanagedFolder
 
-    private var flavor: Flavor { state.installation.flavor }
+    private var flavor: Flavor { inspector.installation.flavor }
     private var toc: Toc? { unmanaged.toc }
     private var suggestion: AdoptionCandidate? { unmanaged.suggestion }
 
     var body: some View {
-        let rowState = state.row(AddonStatus.unmanagedID(unmanaged.folder))
+        let rowState = queue.row(AddonStatus.unmanagedID(unmanaged.folder))
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -54,7 +55,7 @@ struct UnmanagedInspector: View {
                     Text(notes).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Button("Show in Finder", systemImage: "folder") {
-                    let urls = unmanaged.folders.map { state.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
+                    let urls = unmanaged.folders.map { inspector.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
                     NSWorkspace.shared.activateFileViewerSelecting(urls)
                 }
                 .buttonStyle(.link)
@@ -70,7 +71,7 @@ struct UnmanagedInspector: View {
             guard let ref = suggestion?.ref else { return }
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            await state.loadDetails(for: ref)
+            await inspector.loadDetails(for: ref)
         }
     }
 
@@ -98,7 +99,7 @@ struct UnmanagedInspector: View {
     }
 
     @ViewBuilder private func details(for ref: AddonRef) -> some View {
-        switch state.details[ref] {
+        switch inspector.details[ref] {
         case .loaded(let details, let readme)?:
             if let summary = details.summary {
                 Text(summary).font(.callout).fixedSize(horizontal: false, vertical: true)

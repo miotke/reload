@@ -119,9 +119,20 @@ nonisolated enum IncompatibleFilterLabel {
 /// Offering the Retail build on Forever: only with no build for the installation's flavor but
 /// one for its fallback (decision 0019).
 nonisolated enum RetailBuildOffer {
+    // Decision logic: moves to core.
+    // TODO(core-ui): whether to offer the fallback build (and install with
+    // `allowFamilyFallback`) is the core's call; the app should only show the offer.
     static func isOffered(availableFlavors: Set<Flavor>?, flavor: Flavor) -> Bool {
         guard let available = availableFlavors, let fallback = flavor.fallbackFlavor else { return false }
         return !available.contains(flavor) && available.contains(fallback)
+    }
+
+    // Decision logic: moves to core.
+    // TODO(core-ui): the core should say when an update swaps a fallback (Retail) build for
+    // the installation's own, so "Update to Forever build" is only a label here.
+    /// The update installs the installation's own build over a fallback family's.
+    static func replacesFallbackBuild(_ addon: InstalledAddon, with release: ResolvedRelease) -> Bool {
+        addon.installedFlavorBuild != nil && release.flavorBuild == nil
     }
 
     /// "Retail build" for an add-on installed as another game's build, else nil.

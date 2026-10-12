@@ -16,17 +16,10 @@ extension AddonRef {
 
 // MARK: - Browse
 
-/// What the database says about one repo now: its verdict for the flavor, and every flavor
-/// its latest release ships. Nil fields are left alone when patching.
-nonisolated struct StoredAnswer: Hashable, Sendable {
-    var support: SupportStatus?
-    var availableFlavors: Set<Flavor>?
-}
-
 extension [SearchResult] {
     /// The same results with `support` and `availableFlavors` replaced where `answers` has
-    /// them, so a database change touches only its own rows.
-    nonisolated func patching(_ answers: [AddonRef: StoredAnswer]) -> [SearchResult] {
+    /// them, so a database change touches only its own rows. Nil fields are left alone.
+    nonisolated func patching(_ answers: [AddonRef: StoredAvailability]) -> [SearchResult] {
         map { result in
             guard let answer = answers[result.id] else { return result }
             var patched = result
@@ -38,7 +31,7 @@ extension [SearchResult] {
 }
 
 /// An add-on's primary action, from the installation's managed list and stored update state
-/// (`InstallationModel.installAction(for:)`). Browse rows and the inspector both show it.
+/// (`InstalledModel.installAction(for:)`). Browse rows and the inspector both show it.
 nonisolated enum InstallAction: Hashable, Sendable {
     case install
     /// `ref` is the installed record's, whose case may differ from the result's.
@@ -192,8 +185,7 @@ nonisolated struct InstalledRow: Identifiable, Hashable, Sendable {
             missingFolders = missing
             buildText = RetailBuildOffer.buildLabel(addon)
             if case .available(let release) = update, !addon.pinned {
-                let switchesBuild = addon.installedFlavorBuild != nil && release.flavorBuild == nil
-                availableVersion = switchesBuild ? "\(flavor.displayName) build" : release.version
+                availableVersion = RetailBuildOffer.replacesFallbackBuild(addon, with: release) ? "\(flavor.displayName) build" : release.version
             }
             if !missing.isEmpty {
                 condition = .missingFolders
