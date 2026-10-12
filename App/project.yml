@@ -41,7 +41,7 @@ targets:
         CFBundleVersion: "1"
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
-        NSHumanReadableCopyright: "© 2026 Andrew Miotke"
+        NSHumanReadableCopyright: "© 2026 Andrew Miotke. MIT License. Not affiliated with Blizzard Entertainment."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.Reload
