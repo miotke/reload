@@ -2,7 +2,7 @@
 
 What the inspector and the add-on window show for an add-on, how details are loaded, and how README and screenshot images are rendered.
 
-Code: `AddonManager+Details.swift` (`details(for:in:)` → `AddonDetails`), `Details/ReadmeImages.swift`; app side in `App/ForeverAddons/Views/AddonInspectorView.swift`, `ScreenshotViews.swift`, `MarkdownView.swift`, `Support/ScreenshotLoader.swift`, `Support/MarkdownBlocks.swift`. Where the inspector sits: [app/layout.md](../app/layout.md).
+Code: `AddonManager+Details.swift` (`details(for:in:)` → `AddonDetails`), `GitHub/ReadmeFetcher.swift`, `Details/ReadmeImages.swift`; app side in `App/ForeverAddons/Views/AddonInspectorView.swift`, `ScreenshotViews.swift`, `MarkdownView.swift`, `Support/ScreenshotLoader.swift`, `Support/MarkdownBlocks.swift`. Where the inspector sits: [app/layout.md](../app/layout.md).
 
 ## What the inspector shows
 

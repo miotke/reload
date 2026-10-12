@@ -63,7 +63,12 @@ Sources/addonctl/            the CLI (docs/cli/)
 
 | Responsibility | File |
 |---|---|
-| The façade: init, dependencies, token, installations, add-ons, search, resolve, install, adoption, updates, changes, caches | `Sources/AddonKit/AddonManager.swift` |
+| The façade: init, dependencies, the token, test clocks | `Sources/AddonKit/AddonManager.swift` |
+| Installations, the add-ons in one, `lookup` | `Sources/AddonKit/AddonManager+Installations.swift` |
+| Search, Browse, stored flavors and catalogue rows | `Sources/AddonKit/AddonManager+Search.swift` |
+| Resolve, install, adoption, uninstall, removing unmanaged folders | `Sources/AddonKit/AddonManager+Install.swift` |
+| Update checks and states, updates, rollback, pin, channel | `Sources/AddonKit/AddonManager+Updates.swift` |
+| Rate limit, clearing caches | `Sources/AddonKit/AddonManager+Maintenance.swift` |
 | The façade's protocol, `MetadataChange`, `StoredAvailability` | `Sources/AddonKit/AddonManaging.swift` |
 | Inspector details and their storage, release notes | `Sources/AddonKit/AddonManager+Details.swift` |
 | Background refresh, its targets, progress, stored update states | `Sources/AddonKit/AddonManager+Refresh.swift` |
