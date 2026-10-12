@@ -20,8 +20,11 @@ public struct SupportRecord: Sendable, Hashable {
 /// table) and repo metadata such as the latest tag and stars (`repo_meta`). See docs/features/search.md.
 ///
 /// - A verdict is shown for as long as it's stored; `isFresh` decides when to re-check.
-/// - A failed check is stored as an error for 15 minutes so it isn't retried on every view.
+/// - A failed check is recorded beside the last good verdict (`error_at`, `retry_after`),
+///   never over it, and isn't retried for 15 minutes.
 /// - `.checking` is never stored.
+/// - Decoded release.json files are kept by `repo@tag` (`release_json`), and the last API
+///   call per repo is timed (`repo_meta.api_checked_at`).
 public actor SupportCache {
     /// The JSON file earlier versions wrote to the caches folder. No longer used.
     public static let fileName = "forever-support.json"
@@ -32,13 +35,21 @@ public actor SupportCache {
     public static let negativeTTL: TimeInterval = 24 * 60 * 60
     /// Failed checks aren't retried for this long.
     public static let errorTTL: TimeInterval = 15 * 60
+    /// A repo's latest tag, stored by any flavor's check, is reused this long by the others.
+    public static let sharedTagTTL: TimeInterval = 60 * 60
+    /// Background and bulk update checks call the API for a repo at most this often.
+    public static let apiCheckInterval: TimeInterval = 6 * 60 * 60
 
     /// A stored row as `GitHubSource.latestRelease` sees it.
     struct StoredSupport: Sendable {
-        /// Nil for a failed check.
+        /// Nil when no check has ever succeeded.
         var status: SupportStatus?
         var tag: String?
-        var checkedAt: Date
+        /// When `status` was decided.
+        var checkedAt: Date?
+        /// The last check failed, at this time; cleared by the next success.
+        var errorAt: Date?
+        var retryAfter: Date?
     }
 
     public nonisolated let database: MetadataDatabase
@@ -68,7 +79,7 @@ public actor SupportCache {
     /// The stored verdict, including when it was checked and against which tag.
     public func record(for ref: AddonRef, flavor: Flavor) async -> SupportRecord? {
         let rows = (try? await database.query(
-            "SELECT full_name, status, version, tag, checked_at FROM support WHERE full_name = ? AND flavor = ? AND status != 'error'",
+            "SELECT full_name, status, version, tag, checked_at FROM support WHERE full_name = ? AND flavor = ? AND status IS NOT NULL",
             ref.identifier, flavor.rawValue)) ?? []
         return rows.first.flatMap(Self.record)
     }
@@ -79,27 +90,28 @@ public actor SupportCache {
 
     func storedSupport(for ref: AddonRef, flavor: Flavor) async -> StoredSupport? {
         guard let row = try? await database.query(
-            "SELECT status, version, tag, checked_at FROM support WHERE full_name = ? AND flavor = ?",
-            ref.identifier, flavor.rawValue).first,
-            let kind = row.string(0), let checked = row.date(3) else { return nil }
-        return StoredSupport(status: Self.status(kind: kind, version: row.string(1)), tag: row.string(2), checkedAt: checked)
+            "SELECT status, version, tag, checked_at, error_at, retry_after FROM support WHERE full_name = ? AND flavor = ?",
+            ref.identifier, flavor.rawValue).first else { return nil }
+        return StoredSupport(
+            status: row.string(0).flatMap { Self.status(kind: $0, version: row.string(1)) },
+            tag: row.string(2), checkedAt: row.date(3), errorAt: row.date(4), retryAfter: row.date(5))
     }
 
     /// Whether a stored answer is within its lifetime: verdicts 1 h, negative answers 24 h,
-    /// failures 15 min. Only `GitHubSource.latestRelease` decides with this.
+    /// and nothing is retried within 15 min of a failure. Only `GitHubSource.latestRelease`
+    /// decides with this.
     func isFresh(_ stored: StoredSupport) -> Bool {
-        let age = now().timeIntervalSince(stored.checkedAt)
-        switch stored.status {
-        case nil: return age < Self.errorTTL
-        case .noReleases?: return age < Self.negativeTTL
-        default: return age < ttl
-        }
+        if let retry = stored.retryAfter, retry > now() { return true }
+        guard let status = stored.status, let checked = stored.checkedAt else { return false }
+        let age = now().timeIntervalSince(checked)
+        if case .noReleases = status { return age < Self.negativeTTL }
+        return age < ttl
     }
 
     /// Every stored verdict for `flavor`.
     public func statuses(flavor: Flavor) async -> [AddonRef: SupportStatus] {
         let rows = (try? await database.query(
-            "SELECT full_name, status, version, tag, checked_at FROM support WHERE flavor = ? AND status != 'error'", flavor.rawValue)) ?? []
+            "SELECT full_name, status, version, tag, checked_at FROM support WHERE flavor = ? AND status IS NOT NULL", flavor.rawValue)) ?? []
         var out: [AddonRef: SupportStatus] = [:]
         for record in rows.compactMap(Self.record) { out[record.ref] = record.status }
         return out
@@ -110,36 +122,64 @@ public actor SupportCache {
         await set([SupportRecord(ref: ref, status: status, tag: tag, checkedAt: now())], flavor: flavor)
     }
 
-    /// Stores several verdicts in one transaction.
+    /// Stores several verdicts in one transaction. A `.unknown` record is a failed check: it
+    /// leaves any stored verdict and tag alone and only schedules the retry.
     public func set(_ records: [SupportRecord], flavor: Flavor) async {
-        let rows = records.compactMap { record -> (String, String, String?, String?, Date)? in
-            guard let kind = Self.kind(record.status) else { return nil }
-            return (record.ref.identifier, kind, Self.version(record.status), record.tag, record.checkedAt)
+        let flavorName = SQLValue.text(flavor.rawValue)
+        var verdicts: [[SQLValue]] = []
+        var tags: [[SQLValue]] = []
+        var failures: [[SQLValue]] = []
+        var changed: Set<String> = []
+        for record in records {
+            let name = SQLValue.text(record.ref.identifier)
+            if case .unknown = record.status {
+                failures.append([name, flavorName, record.checkedAt.sqlValue,
+                                 record.checkedAt.addingTimeInterval(Self.errorTTL).sqlValue])
+                continue
+            }
+            guard let kind = Self.kind(record.status) else { continue }
+            changed.insert(record.ref.identifier)
+            verdicts.append([name, flavorName, .text(kind), Self.version(record.status).sqlValue,
+                             record.tag.sqlValue, record.checkedAt.sqlValue])
+            // A verdict with a tag also tells us the latest tag; a negative one, that there's none.
+            if record.tag != nil || kind == "noReleases" {
+                tags.append([name, record.tag.sqlValue, record.checkedAt.sqlValue])
+            }
         }
-        guard !rows.isEmpty else { return }
-        let flavorName = flavor.rawValue
+        guard !verdicts.isEmpty || !failures.isEmpty else { return }
+        let (verdictRows, tagRows, failureRows) = (verdicts, tags, failures)
         _ = try? await database.transaction { db in
-            for row in rows {
-                try db.execute("""
+            if !verdictRows.isEmpty {
+                let upsert = try db.prepare("""
                     INSERT INTO support(full_name, flavor, status, version, tag, checked_at) VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT(full_name, flavor) DO UPDATE SET
                         status = excluded.status, version = excluded.version,
-                        tag = coalesce(excluded.tag, support.tag), checked_at = excluded.checked_at
-                    """, row.0, flavorName, row.1, row.2, row.3, row.4)
-                // A verdict with a tag also tells us the latest tag; a negative one, that
-                // there's none.
-                if row.3 != nil || row.1 == "noReleases" {
-                    try db.execute("""
-                        INSERT INTO repo_meta(full_name, latest_tag, tag_checked_at) VALUES (?, ?, ?)
-                        ON CONFLICT(full_name) DO UPDATE SET
-                            latest_published_at = CASE WHEN repo_meta.latest_tag IS excluded.latest_tag
-                                THEN repo_meta.latest_published_at ELSE NULL END,
-                            latest_tag = excluded.latest_tag, tag_checked_at = excluded.tag_checked_at
-                        """, row.0, row.3, row.4)
-                }
+                        tag = coalesce(excluded.tag, support.tag), checked_at = excluded.checked_at,
+                        error_at = NULL, retry_after = NULL
+                    """)
+                for row in verdictRows { try db.step(upsert, row) }
+            }
+            if !tagRows.isEmpty {
+                let upsert = try db.prepare("""
+                    INSERT INTO repo_meta(full_name, latest_tag, tag_checked_at) VALUES (?, ?, ?)
+                    ON CONFLICT(full_name) DO UPDATE SET
+                        latest_published_at = CASE WHEN repo_meta.latest_tag IS excluded.latest_tag
+                            THEN repo_meta.latest_published_at ELSE NULL END,
+                        latest_tag = excluded.latest_tag, tag_checked_at = excluded.tag_checked_at
+                    """)
+                for row in tagRows { try db.step(upsert, row) }
+            }
+            if !failureRows.isEmpty {
+                let upsert = try db.prepare("""
+                    INSERT INTO support(full_name, flavor, error_at, retry_after) VALUES (?, ?, ?, ?)
+                    ON CONFLICT(full_name, flavor) DO UPDATE SET error_at = excluded.error_at, retry_after = excluded.retry_after
+                    """)
+                for row in failureRows { try db.step(upsert, row) }
             }
         }
-        await database.notify(["support", "repo_meta"], repos: Set(rows.map(\.0)))
+        // A failure changes nothing anyone shows.
+        guard !changed.isEmpty else { return }
+        await database.notify(["support", "repo_meta"], repos: changed)
     }
 
     public func removeAll() async {
@@ -147,6 +187,7 @@ public actor SupportCache {
             try db.execute("DELETE FROM support")
             try db.execute("DELETE FROM repo_meta")
             try db.execute("DELETE FROM details")
+            try db.execute("DELETE FROM release_json")
         }
         await database.notify(["support", "repo_meta", "details"])
     }
@@ -183,6 +224,41 @@ public actor SupportCache {
     /// Publish date of the stored latest tag, when an API call has revealed it.
     public func latestPublishedAt(for ref: AddonRef) async -> Date? {
         try? await database.query("SELECT latest_published_at FROM repo_meta WHERE full_name = ?", ref.identifier).first?.date(0)
+    }
+
+    /// release.json of `ref`'s release `tag` as stored: nil when it was never fetched,
+    /// `.some(nil)` when that release has none. Tags are effectively immutable, so these
+    /// never expire; `removeAll` clears them.
+    func releaseJSON(for ref: AddonRef, tag: String) async -> ReleaseJSON?? {
+        guard let row = try? await database.query(
+            "SELECT json FROM release_json WHERE full_name = ? AND tag = ?", ref.identifier, tag).first else { return nil }
+        guard let text = row.string(0) else { return .some(nil) }
+        // An undecodable row is as good as missing: it's fetched again.
+        return (try? ReleaseJSON(data: Data(text.utf8))).map { .some($0) }
+    }
+
+    func setReleaseJSON(_ json: ReleaseJSON?, for ref: AddonRef, tag: String) async {
+        let text = json.flatMap { try? JSONEncoder().encode($0) }.map { String(decoding: $0, as: UTF8.self) }
+        _ = try? await database.execute("""
+            INSERT INTO release_json(full_name, tag, json, fetched_at) VALUES (?, ?, ?, ?)
+            ON CONFLICT(full_name, tag) DO UPDATE SET json = excluded.json, fetched_at = excluded.fetched_at
+            """, ref.identifier, tag, text, now())
+    }
+
+    /// When the API was last asked about `ref`'s releases, and the latest stable tag known then.
+    func apiCheck(for ref: AddonRef) async -> (at: Date, latestTag: String?)? {
+        guard let row = try? await database.query(
+            "SELECT api_checked_at, api_checked_tag FROM repo_meta WHERE full_name = ?", ref.identifier).first,
+            let at = row.date(0) else { return nil }
+        return (at, row.string(1))
+    }
+
+    /// Records an API call for `ref`, with the latest tag as it's stored now.
+    func setAPIChecked(at date: Date, for ref: AddonRef) async {
+        _ = try? await database.execute("""
+            INSERT INTO repo_meta(full_name, api_checked_at) VALUES (?, ?)
+            ON CONFLICT(full_name) DO UPDATE SET api_checked_at = excluded.api_checked_at, api_checked_tag = repo_meta.latest_tag
+            """, ref.identifier, date)
     }
 
     /// Star counts seen in live GitHub results, keyed by lower-cased `owner/repo`.

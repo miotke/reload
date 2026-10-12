@@ -10,6 +10,9 @@ extension AddonManager {
     /// The first refresh checks this many of the most recently updated catalogue repos
     /// that ship a release.json.
     public static let seedCount = 200
+    /// The first refresh of a later installation seeds fewer: Browse already has verdicts for
+    /// the first one, and latest tags are shared between flavors.
+    public static let laterSeedCount = 100
     /// Each refresh also re-checks this many of the oldest verdicts.
     public static let rotationCount = 20
     /// Verdicts older than this are eligible for the rotation.
@@ -83,7 +86,7 @@ extension AddonManager {
     /// Repos to check, most useful first:
     /// - installed add-ons (`check` skips those with fresh answers);
     /// - on the first refresh, the `seedCount` most recently updated catalogue repos with a
-    ///   release.json;
+    ///   release.json (`laterSeedCount` once another installation has been refreshed);
     /// - repos whose catalogue `last_updated` is newer than their verdict, and repos new to
     ///   the catalogue (with a release.json);
     /// - the `rotationCount` oldest verdicts past `rotationAge`.
@@ -94,12 +97,15 @@ extension AddonManager {
         // Installed add-ons are always targets; `check` decides whether that needs a request.
         names += installed.map(\.identifier)
         if seed {
+            let seededBefore = (try? await database.query(
+                "SELECT count(*) FROM refresh_state WHERE installation_id != ? AND last_refresh_at IS NOT NULL", installation.id
+            ).first?.int(0)).flatMap { $0 } ?? 0
             let rows = (try? await database.query("""
                 SELECT c.full_name FROM catalogue c
                 LEFT JOIN support s ON s.full_name = c.full_name AND s.flavor = ?
                 WHERE c.has_release_json = 1 AND c.source = 'catalogue' AND (s.checked_at IS NULL OR s.checked_at < ?)
                 ORDER BY c.last_updated DESC LIMIT ?
-                """, flavor, now().addingTimeInterval(-SupportCache.defaultTTL), Self.seedCount)) ?? []
+                """, flavor, now().addingTimeInterval(-SupportCache.defaultTTL), seededBefore > 0 ? Self.laterSeedCount : Self.seedCount)) ?? []
             names += rows.compactMap { $0.string(0) }
         }
         let changed = (try? await database.query("""
@@ -155,7 +161,7 @@ extension AddonManager {
 
 
     /// The last refresh's update states, corrected for anything installed since.
-    private func storedUpdates(in installation: Installation) async -> [AddonRef: UpdateState] {
+    func storedUpdates(in installation: Installation) async -> [AddonRef: UpdateState] {
         guard let json = try? await database.query(
             "SELECT updates_json FROM refresh_state WHERE installation_id = ?", installation.id).first?.string(0) else { return [:] }
         let stored = StoredUpdateState.decode(json)
@@ -216,7 +222,8 @@ struct StoredUpdateState: Codable {
     var release: Release?
 
     static func encode(_ states: [AddonRef: UpdateState]) -> String {
-        let rows = states.map { ref, state -> StoredUpdateState in
+        // Sorted, so unchanged states encode identically and the store write is skipped.
+        let rows = states.sorted { $0.key.description < $1.key.description }.map { ref, state -> StoredUpdateState in
             switch state {
             case .upToDate: StoredUpdateState(ref: ref, kind: "upToDate")
             case .pinned: StoredUpdateState(ref: ref, kind: "pinned")

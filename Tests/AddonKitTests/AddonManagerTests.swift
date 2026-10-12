@@ -70,8 +70,10 @@ import Testing
 
         #expect(try await manager.checkForUpdates(in: installation)[Self.ref] == .upToDate)
 
-        // v2 is published.
+        // v2 is published. These stubs have no github.com releases, so only the API can tell,
+        // and a bulk check asks it at most every 6 hours.
         try publish([("v2", 2, 2), ("v1", 1, 1)])
+        await manager.setClock { Date().addingTimeInterval(7 * 3600) }
         guard case .available(let release) = try await manager.checkForUpdates(in: installation)[Self.ref] else {
             Issue.record("expected an update")
             return

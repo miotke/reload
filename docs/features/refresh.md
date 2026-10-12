@@ -28,7 +28,7 @@ flowchart LR
 
 | Refresh | Repos checked |
 |---|---|
-| First ever for this installation | the 200 most recently updated catalogue repos with a `release.json`, plus installed add-ons |
+| First ever for this installation | the 200 most recently updated catalogue repos with a `release.json` (100 once another installation has been refreshed), plus installed add-ons |
 | Later (every 2 h, or forced) | installed add-ons; repos whose catalogue `last_updated` is newer than their verdict; repos new to the catalogue (with `release.json`); the 20 oldest verdicts past 14 days |
 
 - A forced refresh runs the installed checks and a catalogue revalidation at once, but never re-seeds.
@@ -40,11 +40,15 @@ flowchart LR
 - Every target goes through `check(policy: .revalidateIfStale)`, which skips the network for answers still within their lifetime and stores what it learns. The target list is only a pre-filter.
 - A forced refresh checks installed add-ons with `.forceRevalidate`.
 - The support phase reuses what the update phase just stored.
+- **Update checks compare tags first.** An installed add-on whose latest tag equals its version is up to date without its `release.json`; only a new tag needs one, and that's stored by `repo@tag`, so a relaunch fetches none.
+- **Tags are shared between flavors.** A latest tag any installation's check stored under an hour ago is reused, so a second installation's seed needs only the verdicts, from stored `release.json`s: often no requests at all.
+- **Failures don't replace verdicts.** A failed check keeps the last good verdict on screen and is retried after 15 minutes. Refresh checks are background checks, so they never fall back to the API.
+- **The API is throttled.** Add-ons only the API can decide (prerelease channel, no `release.json`, the latest release lacks the flavor) are asked at most every 6 hours per repo unless the latest tag changed; in between, the last stored update state stands ([caching.md](../network/caching.md#owners-and-cachepolicy)).
 - Rules and lifetimes: [decision 0011](../decisions/0011-single-cache-owner.md), [caching.md](../network/caching.md#lifetimes).
 
 ## Politeness
 
-- github.com only, so no API quota for add-ons with `release.json`.
+- github.com only, so no API quota for add-ons with `release.json`; the rest are throttled to one API call per repo every 6 hours.
 - 4 checks at a time, jittered retries, and a global pause on 429/403 ([github-endpoints.md](../network/github-endpoints.md#errors)).
 - Requests stay off Low Data Mode networks (`allowsConstrainedNetworkAccess = false`).
 

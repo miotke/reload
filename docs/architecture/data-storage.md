@@ -40,6 +40,7 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 - It owns the connection, opened without SQLite's mutex, since the actor already serializes access.
 - **Shared with the CLI:** WAL mode, `synchronous=NORMAL`, a 5 s busy timeout, `foreign_keys=ON`, `journal_size_limit` 4 MB, `PRAGMA optimize` on close.
 - Prepared statements are cached by SQL text. Arguments bind as `Int`/`Int64`, `Double`, `String`, `Data`, `Bool`, `Date` (Unix seconds) or nil. Text and blobs are copied (`SQLITE_TRANSIENT`).
+- Batches (the catalogue import, support writes) use `prepare(sql)` once and `step(statement, [SQLValue])` per row inside a `transaction`: no SQL-text hashing or argument boxing per row.
 - `transaction { }` uses `BEGIN IMMEDIATE`. Its body is synchronous, so a write lock is never held across a network wait.
 - Failures throw `SQLiteError` with SQLite's message.
 
@@ -49,14 +50,15 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 |---|---|---|
 | `catalogue` | `full_name` (no case) | catalogue rows; `source` is `catalogue` or `github_search`; `first_seen_at`, `changed_at` |
 | `catalogue_state` | single row | ETag, last fetch, last failure |
-| `support` | `full_name` + `flavor` | verdict (`supported`, `unsupported`, `noReleases`, `needsDownload`, or `error`), version, the tag it was based on, `checked_at` |
-| `repo_meta` | `full_name` | latest tag and when it was seen, publish date if known, stars, README path and ETag |
-| `details` | `full_name` + `flavor` | README, screenshot URLs, latest release notes for the inspector |
-| `refresh_state` | installation ID | last refresh time and the update states it found |
+| `support` | `full_name` + `flavor` | verdict (`supported`, `unsupported`, `noReleases`, `needsDownload`; NULL if no check has succeeded yet), version, the tag it was based on, `checked_at`; the last failure's `error_at` and `retry_after` |
+| `repo_meta` | `full_name` | latest tag and when it was seen, publish date if known, stars, README path and ETag, when the API was last asked (`api_checked_at`) and the latest tag then (`api_checked_tag`) |
+| `release_json` | `full_name` + `tag` | the decoded `release.json` of that release (NULL: it has none), about 600 B each |
+| `details` | `full_name` + `flavor` | README, screenshot URLs, and release notes with the tag they belong to (`latest_version`) |
+| `refresh_state` | installation ID | last refresh time and the update states the last check found (refreshes and bulk checks write them; `last_refresh_at` stays NULL until a refresh finishes) |
 | `search_cache` | normalised query | repos a live search returned, and when |
 | `rate_limit` | `core` / `search` | remaining calls and reset time |
 
-- `catalogue` and `support` are `WITHOUT ROWID` tables. `catalogue(last_updated)` and `support(flavor, checked_at)` are indexed for the refresh queries.
+- `catalogue`, `support` and `release_json` are `WITHOUT ROWID` tables. `catalogue(last_updated)` and `support(flavor, checked_at)` are indexed for the refresh queries.
 - How long each kind of row is trusted: [network/caching.md](../network/caching.md#lifetimes). Only `GitHubSource` writes `support` and `repo_meta` tags ([decision 0011](../decisions/0011-single-cache-owner.md)).
 
 ### Migrations
@@ -69,6 +71,7 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 |---|---|
 | 1 | The schema above |
 | 2 | `classic` was split into `vanilla`, `tbc`, `wrath`, `titan`, `cata` and `mists` ([decision 0016](../decisions/0016-one-flavor-per-game.md)). Deletes `support` and `details` rows with `flavor = 'classic'`; they're re-checked under the new flavors. `forever` and `mainline` rows stay. `refresh_state` is keyed by installation, so it's left alone |
+| 3 | Failures no longer replace verdicts ([decision 0017](../decisions/0017-details-without-quota-release-json-by-tag.md)). Rebuilds `support` with nullable `status` and `checked_at` plus `error_at` and `retry_after`; old `error` rows become NULL-status rows with `error_at`. Adds `release_json` and `repo_meta.api_checked_at` / `api_checked_tag` |
 
 ### Change stream
 

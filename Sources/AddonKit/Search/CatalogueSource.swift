@@ -253,9 +253,7 @@ extension MetadataDatabase {
         let diff = try transaction { db in
             var diff = CatalogueDiff(fetched: true)
             var listed = Set<String>()
-            for entry in entries {
-                listed.insert(entry.fullName.lowercased())
-                let changes = try db.execute("""
+            let upsert = try db.prepare("""
                     INSERT INTO catalogue(\(Self.catalogueColumns), first_seen_at, seen_at, changed_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'catalogue', ?, ?, ?)
                     ON CONFLICT(full_name) DO UPDATE SET
@@ -269,10 +267,16 @@ extension MetadataDatabase {
                        IS NOT (excluded.id, excluded.name, excluded.description, excluded.url, excluded.last_updated,
                                excluded.flavors, excluded.curse_id, excluded.wago_id, excluded.wowi_id,
                                excluded.has_release_json, 'catalogue')
-                    """,
-                    entry.fullName, entry.id, entry.name, entry.description, entry.url.absoluteString,
-                    entry.lastUpdated, entry.flavors.joined(separator: ","), entry.curseID, entry.wagoID, entry.wowiID,
-                    entry.hasReleaseJSON, date, date, date)
+                    """)
+            let seen = date.sqlValue
+            for entry in entries {
+                listed.insert(entry.fullName.lowercased())
+                let changes = try db.step(upsert, [
+                    .text(entry.fullName), .text(entry.id), .text(entry.name), entry.description.sqlValue,
+                    .text(entry.url.absoluteString), entry.lastUpdated.sqlValue, .text(entry.flavors.joined(separator: ",")),
+                    entry.curseID.sqlValue, entry.wagoID.sqlValue, entry.wowiID.sqlValue, entry.hasReleaseJSON.sqlValue,
+                    seen, seen, seen,
+                ])
                 if changes > 0 { diff.changed.insert(entry.fullName) }
             }
             for row in try db.query("SELECT full_name FROM catalogue WHERE source = 'catalogue'") {

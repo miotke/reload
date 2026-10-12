@@ -283,11 +283,15 @@ public actor AddonManager: AddonManaging {
 
     /// `progress` is called once per add-on as its check lands, with the number done so far.
     /// The background refresh passes `.revalidateIfStale`; explicit checks `.forceRevalidate`.
+    /// Either way this is a bulk check: add-ons only the API can decide reuse their last
+    /// state while their API check isn't due (`GitHubSource.apiCheckIsDue`). The states
+    /// are stored for that.
     func checkForUpdates(
         in installation: Installation, policy: GitHubSource.CachePolicy, background: Bool = false,
         progress: @Sendable (InstalledAddon, Int) -> Void
     ) async throws -> [AddonRef: UpdateState] {
         let addons = try await store.addons(in: installation)
+        let previous = await storedUpdates(in: installation)
         var states: [AddonRef: UpdateState] = [:]
         var etags: [AddonRef: String] = [:]
 
@@ -295,8 +299,9 @@ public actor AddonManager: AddonManaging {
             var pending = addons[...]
             func addNext() {
                 guard let addon = pending.popFirst() else { return }
+                let last = previous[addon.id]
                 group.addTask {
-                    let (state, etag) = await self.updateState(of: addon, in: installation, policy: policy, background: background)
+                    let (state, etag) = await self.updateState(of: addon, in: installation, policy: policy, background: background, previous: last)
                     return (addon, state, etag)
                 }
             }
@@ -320,29 +325,47 @@ public actor AddonManager: AddonManaging {
                 }
             }
         }
+        await storeUpdates(states, in: installation)
         return states
     }
 
+    /// Records the states a check found, for the next bulk check and the refresh's skip path.
+    /// Writes nothing when they're unchanged.
+    func storeUpdates(_ states: [AddonRef: UpdateState], in installation: Installation) async {
+        _ = try? await database.execute("""
+            INSERT INTO refresh_state(installation_id, updates_json) VALUES (?, ?)
+            ON CONFLICT(installation_id) DO UPDATE SET updates_json = excluded.updates_json
+            WHERE refresh_state.updates_json IS NOT excluded.updates_json
+            """, installation.id, StoredUpdateState.encode(states))
+    }
+
+    /// - Parameter previous: the last stored state, from a bulk check. When only the API can
+    ///   decide and the repo's API check isn't due, it's returned instead of a request. Nil
+    ///   (an explicit single-add-on action) always asks.
     func updateState(
-        of addon: InstalledAddon, in installation: Installation, policy: GitHubSource.CachePolicy, background: Bool = false
+        of addon: InstalledAddon, in installation: Installation, policy: GitHubSource.CachePolicy, background: Bool = false,
+        previous: UpdateState? = nil
     ) async -> (UpdateState, String?) {
         if addon.pinned { return (.pinned, nil) }
         do {
             guard addon.id.source == .github else { return (.failed("Unsupported source"), nil) }
             // Stable channel: the latest release (the same lookup support checks use) settles
-            // most add-ons. An unchanged tag is up to date; a new tag whose release.json has
-            // the flavor is the update. Only when neither decides (no release.json, the new
-            // release lacks the flavor, or the lookup failed) is the API asked. Prereleases
-            // always need the API.
+            // most add-ons. An unchanged tag is up to date, with no release.json needed; a new
+            // tag whose release.json has the flavor is the update. Only when neither decides
+            // (no release.json, the new release lacks the flavor, or the lookup failed) is the
+            // API asked. Prereleases always need the API.
             if addon.channel == .stable {
-                let latest = await github.latestRelease(
-                    for: addon.id, flavor: installation.flavor, policy: policy, needBuild: true, background: background)
-                if latest.status != .unknown, let tag = latest.tag {
+                var latest = await github.latestRelease(for: addon.id, flavor: installation.flavor, policy: policy, background: background)
+                if !latest.failed, latest.status != .unknown, let tag = latest.tag {
                     if tag == addon.version { return (.upToDate, addon.etag) }
+                    latest = await github.withBuild(latest, ref: addon.id, flavor: installation.flavor, fetch: true, background: background)
                     if let release = await github.resolvedRelease(addon.id, from: latest, flavor: installation.flavor) {
                         return addon.isUpdate(release) ? (.available(release), nil) : (.upToDate, addon.etag)
                     }
                 }
+            }
+            if let previous, let reused = Self.reusable(previous, for: addon), !(await github.apiCheckIsDue(for: addon.id)) {
+                return reused
             }
             switch try await github.resolve(addon.id, flavor: installation.flavor, channel: addon.channel, etag: addon.etag) {
             case .notModified:
@@ -354,6 +377,17 @@ public actor AddonManager: AddonManaging {
             return (.noCompatibleRelease, nil)
         } catch {
             return (.failed(error.localizedDescription), nil)
+        }
+    }
+
+    /// A previous answer still worth showing without asking the API again. Failures are
+    /// retried; an available release that's since been installed is up to date.
+    private static func reusable(_ state: UpdateState, for addon: InstalledAddon) -> (UpdateState, String?)? {
+        switch state {
+        case .upToDate: (.upToDate, addon.etag)
+        case .noCompatibleRelease: (.noCompatibleRelease, nil)
+        case .available(let release): addon.isUpdate(release) ? (.available(release), nil) : (.upToDate, addon.etag)
+        case .pinned, .failed: nil
         }
     }
 
@@ -406,6 +440,8 @@ public actor AddonManager: AddonManaging {
 
         let targets: [AddonRef] = refs.isEmpty ? installed.map(\.id) : refs
         for ref in targets { continuation.yield(.queued(ref)) }
+        // Updating one add-on always asks; updating many is a bulk check (API throttle).
+        let previous = targets.count > 1 ? await storedUpdates(in: installation) : [:]
 
         await withTaskGroup(of: Void.self) { group in
             var pending = targets[...]
@@ -413,7 +449,10 @@ public actor AddonManager: AddonManaging {
                 guard let ref = pending.popFirst() else { return }
                 let addon = installed.first { $0.id == ref }
                 let release = releases[ref]
-                group.addTask { await self.updateOne(ref, addon: addon, release: release, in: installation, continuation: continuation) }
+                let last = previous[ref]
+                group.addTask {
+                    await self.updateOne(ref, addon: addon, release: release, previous: last, in: installation, continuation: continuation)
+                }
             }
             for _ in 0..<Self.maxConcurrentOperations { addNext() }
             while await group.next() != nil { addNext() }
@@ -421,8 +460,8 @@ public actor AddonManager: AddonManaging {
     }
 
     private func updateOne(
-        _ ref: AddonRef, addon: InstalledAddon?, release given: ResolvedRelease?, in installation: Installation,
-        continuation: AsyncStream<OperationEvent>.Continuation
+        _ ref: AddonRef, addon: InstalledAddon?, release given: ResolvedRelease?, previous: UpdateState?,
+        in installation: Installation, continuation: AsyncStream<OperationEvent>.Continuation
     ) async {
         guard let addon else {
             continuation.yield(.failed(ref, AddonError.notInstalled(ref).localizedDescription))
@@ -440,7 +479,7 @@ public actor AddonManager: AddonManaging {
             }
             release = given
         } else {
-            switch await updateState(of: addon, in: installation, policy: .forceRevalidate).0 {
+            switch await updateState(of: addon, in: installation, policy: .forceRevalidate, previous: previous).0 {
             case .available(let found):
                 release = found
             case .upToDate, .pinned:

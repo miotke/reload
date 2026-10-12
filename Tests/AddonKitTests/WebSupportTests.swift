@@ -232,6 +232,75 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
         #expect(http.apiRequests.count == 1)
     }
 
+    // MARK: Failures
+
+    @Test func aBackgroundFailureKeepsTheVerdictAndNeverAsksTheAPI() async throws {
+        let http = RedirectingHTTPClient()
+        http.publishLatest("o/r", tag: "v1")
+        http.stub("https://api.github.com/repos/o/r/releases?per_page=10", headers: ["x-ratelimit-remaining": "55"],
+                  body: try GitHubRelease.encoder.encode([ghRelease(1, tag: "v1", assets: [ghAsset(10, "A.zip")])]))
+        let source = await source(http)
+        let clock = MutableClock()
+        await source.setClock(clock.now)
+        _ = await source.check(ref, flavor: .forever)
+        let checkedAt = clock.date
+
+        clock.date += 2 * 3600
+        http.stub("https://github.com/o/r/releases/latest", status: 500)
+        http.reset()
+        let answer = await source.latestRelease(for: ref, flavor: .forever, policy: .revalidateIfStale, background: true)
+        #expect(answer.status == .supported(version: "v1"), "the last good verdict is still shown")
+        #expect(answer.tag == "v1")
+        #expect(answer.failed)
+        #expect(http.apiRequests.isEmpty)
+        let record = try #require(await source.store.record(for: ref, flavor: .forever))
+        #expect(record.status == .supported(version: "v1") && record.checkedAt == checkedAt, "the verdict isn't overwritten")
+
+        // Not retried for 15 minutes, then retried; a success clears the failure.
+        clock.date += 10 * 60
+        http.reset()
+        _ = await source.check(ref, flavor: .forever, background: true)
+        #expect(http.requests.isEmpty)
+        clock.date += 6 * 60
+        http.publishLatest("o/r", tag: "v2")
+        let retried = await source.latestRelease(for: ref, flavor: .forever, policy: .revalidateIfStale, background: true)
+        #expect(retried.status == .supported(version: "v2") && !retried.failed)
+        #expect(await source.store.storedSupport(for: ref, flavor: .forever)?.errorAt == nil)
+    }
+
+    @Test func aFailureWithNothingStoredIsUnknownAndNotAStatus() async throws {
+        let http = RedirectingHTTPClient()
+        http.stub("https://github.com/o/r/releases/latest", status: 500)
+        let database = try MetadataDatabase.inMemory()
+        let source = GitHubSource(http: http, database: database)
+        await source.setRetryDelay { _, _ in .zero }
+        #expect(await source.check(ref, flavor: .forever, background: true).status == .unknown)
+        #expect(await source.store.status(for: ref, flavor: .forever) == nil)
+        #expect(await source.store.statuses(flavor: .forever).isEmpty)
+        let row = try #require(try await database.query("SELECT status, error_at, retry_after FROM support").first)
+        #expect(row.string(0) == nil && row.date(1) != nil && row.date(2) != nil)
+    }
+
+    @Test func theForegroundAPIFallbackIsAskedAtMostEverySixHours() async throws {
+        let http = RedirectingHTTPClient()
+        http.stub("https://github.com/o/r/releases/latest", status: 500)
+        http.stub("https://api.github.com/repos/o/r/releases?per_page=10", headers: ["x-ratelimit-remaining": "55"],
+                  body: try GitHubRelease.encoder.encode([ghRelease(1, tag: "v1", assets: [ghAsset(10, "A.zip")])]))
+        let source = await source(http)
+        let clock = MutableClock()
+        await source.setClock(clock.now)
+        #expect(await source.support(for: ref, flavor: .forever) == .needsDownload)
+        #expect(http.apiRequests.count == 1)
+
+        clock.date += 20 * 60
+        #expect(await source.check(ref, flavor: .forever, policy: .forceRevalidate).status == .needsDownload, "kept")
+        #expect(http.apiRequests.count == 1)
+
+        clock.date += 6 * 3600
+        _ = await source.check(ref, flavor: .forever, policy: .forceRevalidate)
+        #expect(http.apiRequests.count == 2)
+    }
+
     /// Callers can't bypass `check`: the raw github.com lookups are private to the source.
     @Test func noCallerReachesTheRawLookups() throws {
         let sources = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

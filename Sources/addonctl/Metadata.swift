@@ -20,7 +20,7 @@ enum MetadataInfo {
 
     static func counts(_ database: MetadataDatabase) async throws -> Counts {
         let catalogue = try await database.query("SELECT COUNT(*) FROM catalogue").first?.int(0) ?? 0
-        let support = try await database.query("SELECT COUNT(*) FROM support WHERE status != 'error'").first?.int(0) ?? 0
+        let support = try await database.query("SELECT COUNT(*) FROM support WHERE status IS NOT NULL").first?.int(0) ?? 0
         return Counts(catalogue: catalogue, support: support)
     }
 
@@ -45,7 +45,7 @@ enum MetadataInfo {
     /// Tables `cache clear --metadata` empties. `rate_limit` is kept on purpose: forgetting
     /// an exhausted quota would let the app and CLI spend requests GitHub will refuse.
     static let clearedTables = [
-        "catalogue", "catalogue_state", "repo_meta", "support", "details", "refresh_state", "search_cache",
+        "catalogue", "catalogue_state", "repo_meta", "support", "details", "release_json", "refresh_state", "search_cache",
     ]
 
     /// Empties the metadata tables in one transaction, then gives the space back. The file
