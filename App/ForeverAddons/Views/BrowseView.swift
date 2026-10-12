@@ -1,19 +1,6 @@
 import AddonKit
 import SwiftUI
 
-/// Which list the Browse tab shows with an empty query.
-enum BrowseHome: String, CaseIterable, Identifiable {
-    case popular, recent
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .popular: "Popular"
-        case .recent: "Recently Updated"
-        }
-    }
-}
-
 /// Search and browse add-ons (docs/app/layout.md).
 ///
 /// One sortable table. With an empty query it lists Popular or Recently Updated (a switch in

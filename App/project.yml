@@ -93,6 +93,10 @@ targets:
       - path: ForeverAddons/Support/TableSorting.swift
       - path: ForeverAddons/Support/TableRows.swift
       - path: ForeverAddons/Support/MarkdownBlocks.swift
+      - path: ForeverAddons/Support/AppSupport.swift
+      - path: ForeverAddons/Support/AppEnvironment.swift
+      - path: ForeverAddons/Support/ScreenshotLoader.swift
+      - path: ForeverAddons/Models/InstallationModel.swift
     dependencies:
       - package: AddonKit
         product: AddonKit

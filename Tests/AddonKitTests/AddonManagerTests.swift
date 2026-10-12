@@ -125,6 +125,16 @@ import Testing
         }
     }
 
+    @Test func clearingCachesIncludesScreenshotsAndStoredReleaseJSON() async throws {
+        let directories = AppDirectories(root: root.appending(path: "AppData"))
+        try FileManager.default.createDirectory(at: directories.screenshotsDirectory, withIntermediateDirectories: true)
+        try Data(count: 10).write(to: directories.screenshotsDirectory.appending(path: "Cache.db"))
+        _ = try await manager.database.execute("INSERT INTO release_json(full_name, tag, json, fetched_at) VALUES ('o/r', 'v1', NULL, 0)")
+        try await manager.clearCaches()
+        #expect(!FileManager.default.fileExists(atPath: directories.screenshotsDirectory.path(percentEncoded: false)))
+        #expect(try await manager.database.query("SELECT count(*) FROM release_json").first?.int(0) == 0)
+    }
+
     @Test func environmentTokenWinsOverKeychain() {
         let keychain = KeychainStore(service: "AddonKitTests-\(UUID().uuidString)")
         #expect(AddonManager.token(environment: ["GITHUB_TOKEN": "b", "ADDONS_GITHUB_TOKEN": "a"], keychain: keychain) == "a")

@@ -149,6 +149,10 @@ struct CLIHarness {
         let database = h.context.manager.database
         try FileManager.default.createDirectory(at: directories.downloadsDirectory, withIntermediateDirectories: true)
         try Data(count: 10).write(to: directories.downloadsDirectory.appending(path: "a.zip"))
+        // The app's screenshot cache lives in Caches too, so it goes with the downloads.
+        try FileManager.default.createDirectory(at: directories.screenshotsDirectory, withIntermediateDirectories: true)
+        try Data(count: 10).write(to: directories.screenshotsDirectory.appending(path: "Cache.db"))
+        #expect(CacheCommand.cacheUsage(of: directories).map(\.name).contains("Screenshot images"))
         await h.context.manager.database.setRateLimit("core", RateLimitState(remaining: 0, resetAt: .now.addingTimeInterval(600)), at: .now)
         _ = try await database.execute("""
             INSERT INTO support(full_name, flavor, status, version, tag, checked_at) VALUES ('o/r', 'forever', 'supported', 'v1', 'v1', 0)
@@ -158,6 +162,7 @@ struct CLIHarness {
         context.yes = true
         try await CacheCommand.Clear.parse([]).run(context)
         #expect(CacheCommand.cacheUsage(of: directories).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: directories.screenshotsDirectory.path(percentEncoded: false)))
         #expect(try await MetadataInfo.counts(database).support == 1)
 
         try await CacheCommand.Clear.parse(["--metadata"]).run(context)

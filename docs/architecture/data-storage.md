@@ -15,6 +15,7 @@ Code: `Sources/AddonKit/Store/` (`AppDirectories`, `InstallStore`, `MetadataData
 | GitHub token | Keychain, service `com.andrewmiotke.ForeverAddons`, account `github-token` |
 | Downloaded zips | `~/Library/Caches/com.andrewmiotke.ForeverAddons/downloads/<source>/<owner+repo>/<releaseID>-<asset>` |
 | Downloaded `release.json` files | `~/Library/Caches/com.andrewmiotke.ForeverAddons/github/release-json/` |
+| Screenshot cache (app) | `~/Library/Caches/com.andrewmiotke.ForeverAddons/screenshots/` (`AppDirectories.screenshotsDirectory`) |
 | Add-ons | `<WoW>/_classic_beta_/Interface/AddOns/` |
 
 `AppDirectories` resolves these. `AppDirectories(root:)` puts everything under one folder (`<root>/Application Support`, `<root>/Caches`), which is what tests and `ADDONS_DATA_DIR` use.

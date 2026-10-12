@@ -21,12 +21,12 @@ addonctl refresh --force    # refresh now, re-checking every installed add-on
 
 | Command | What it does |
 |---|---|
-| `cache info` | Lists what's in Caches (downloads, `release.json` files, stale cache files) and `metadata.sqlite` plus its write-ahead log in Application Support, with file counts and sizes. JSON gains `metadataDatabase` (the path) |
-| `cache clear` | Empties the Caches folder only. Asks first, because rollback needs the cached zips |
+| `cache info` | Lists what's in Caches (downloads, `release.json` files, the app's screenshot images, stale cache files) and `metadata.sqlite` plus its write-ahead log in Application Support, with file counts and sizes. JSON gains `metadataDatabase` (the path) |
+| `cache clear` | Empties the Caches folder only: downloads, `release.json` files and the app's screenshot cache (`screenshots/`). Asks first, because rollback needs the cached zips |
 | `cache clear --metadata` | Also empties the metadata database. Asks a second time, because search finds nothing until the catalogue is downloaded again |
 
 `--metadata` details:
-- Empties `catalogue`, `catalogue_state`, `repo_meta`, `support`, `details`, `refresh_state` and `search_cache` in one transaction, then runs `wal_checkpoint(TRUNCATE)` and `VACUUM`.
+- Empties `catalogue`, `catalogue_state`, `repo_meta`, `support`, `details`, `release_json`, `refresh_state` and `search_cache` in one transaction, then runs `wal_checkpoint(TRUNCATE)` and `VACUUM`.
 - **Keeps the database file**, because the app may have it open, and deleting an open WAL database corrupts it.
 - **Keeps `rate_limit`**: forgetting an exhausted quota would let the app and CLI spend requests GitHub will refuse.
 - Afterwards, run `addonctl refresh` to rebuild it. The app picks up the change on activation ([app/live-data.md](../app/live-data.md)).

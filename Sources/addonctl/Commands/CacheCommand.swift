@@ -7,7 +7,7 @@ struct CacheCommand: AsyncParsableCommand {
         commandName: "cache",
         abstract: "Show or clear cached downloads and the metadata database.",
         discussion: """
-            Downloads live in Caches. The catalogue, Forever verdicts, details and refresh state \
+            Downloads and the app's screenshot cache live in Caches. The catalogue, Forever verdicts, details and refresh state \
             live in metadata.sqlite in Application Support, shared with the app.
             """,
         subcommands: [Info.self, Clear.self],
@@ -29,8 +29,8 @@ struct CacheCommand: AsyncParsableCommand {
         var totalBytes: Int64
     }
 
-    /// Sizes of the Caches folder's parts: downloads, release.json files, files older
-    /// versions left behind, everything else.
+    /// Sizes of the Caches folder's parts: downloads, release.json files, the app's
+    /// screenshot cache, files older versions left behind, everything else.
     static func cacheUsage(of directories: AppDirectories) -> [Entry] {
         let fm = FileManager.default
         let root = directories.caches
@@ -38,6 +38,7 @@ struct CacheCommand: AsyncParsableCommand {
         let labels: [String: String] = [
             "downloads": "Downloaded archives",
             "github": "GitHub release.json files",
+            "screenshots": "Screenshot images",
             CatalogueSource.cacheFileName: "Old catalogue cache (unused)",
             SupportCache.fileName: "Old support cache (unused)",
         ]

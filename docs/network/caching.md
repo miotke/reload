@@ -23,7 +23,7 @@ Why: [decision 0011](../decisions/0011-single-cache-owner.md).
 | Live search answers | `SearchCoordinator` | `search_cache` |
 | Rate-limit state | `GitHubSource` (`core`), `GitHubSearchProvider` (`search`) | `rate_limit` |
 | Downloaded zips | `Downloader` | `<caches>/downloads/` |
-| Screenshot bytes | `ScreenshotLoader` (app) | its own `URLCache` |
+| Screenshot bytes | `ScreenshotLoader` (app) | its own `URLCache` in `<caches>/screenshots/` |
 
 For support and tags, callers state intent; the owner decides whether to hit the network:
 
@@ -58,7 +58,7 @@ A stored verdict is **shown** as long as it's stored. These lifetimes only decid
 | API checks per repo | 6 h for bulk and background checks, unless the latest tag changed |
 | API release lists | in memory for the last 64 repos, revalidated with ETags |
 | Downloaded zips | newest 2 per add-on (rollback) |
-| Screenshots | `URLCache` 32 MB memory / 200 MB disk; decoded images in an `NSCache` |
+| Screenshots | `URLCache` 32 MB memory / 200 MB disk in `<caches>/screenshots/`, written and read by the loader itself, so headers don't decide; decoded images in an `NSCache` |
 
 The refresh also re-checks repos whose catalogue entry changed after `checked_at`, and a slice older than 14 days.
 

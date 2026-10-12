@@ -24,8 +24,7 @@ struct AppEnvironment {
     static func current(
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> AppEnvironment {
-        if let path = environment["ADDONS_DATA_DIR"]?.trimmingCharacters(in: .whitespaces), !path.isEmpty {
-            let root = URL(filePath: (path as NSString).expandingTildeInPath, directoryHint: .isDirectory)
+        if let root = dataDirectory(environment) {
             let manager = AddonManager(
                 directories: AppDirectories(root: root),
                 locator: InstallationLocator(baseFolders: [], findApps: { [] })
@@ -33,5 +32,17 @@ struct AppEnvironment {
             return AppEnvironment(mode: .dataDirectory(root), manager: manager)
         }
         return AppEnvironment(mode: .standard, manager: AddonManager())
+    }
+
+    /// The folders this launch's manager uses, for app-side caches such as screenshots.
+    nonisolated static func directories(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> AppDirectories {
+        dataDirectory(environment).map(AppDirectories.init(root:)) ?? .standard()
+    }
+
+    private nonisolated static func dataDirectory(_ environment: [String: String]) -> URL? {
+        guard let path = environment["ADDONS_DATA_DIR"]?.trimmingCharacters(in: .whitespaces), !path.isEmpty else { return nil }
+        return URL(filePath: (path as NSString).expandingTildeInPath, directoryHint: .isDirectory)
     }
 }

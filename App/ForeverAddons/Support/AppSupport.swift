@@ -64,3 +64,29 @@ extension Installation {
         }
     }
 }
+
+/// Least-recently-used order for a cache whose values live elsewhere (an observed
+/// dictionary), so reordering on use doesn't count as a change to observe.
+nonisolated struct RecentKeys<Key: Hashable> {
+    let limit: Int
+    /// Least recently used first.
+    private(set) var keys: [Key] = []
+
+    init(limit: Int) {
+        self.limit = limit
+    }
+
+    /// Marks `key` as just used; returns the keys that fell out and should be dropped.
+    mutating func use(_ key: Key) -> [Key] {
+        if let index = keys.firstIndex(of: key) { keys.remove(at: index) }
+        keys.append(key)
+        guard keys.count > limit else { return [] }
+        let evicted = Array(keys.prefix(keys.count - limit))
+        keys.removeFirst(evicted.count)
+        return evicted
+    }
+
+    mutating func remove(_ key: Key) {
+        keys.removeAll { $0 == key }
+    }
+}
