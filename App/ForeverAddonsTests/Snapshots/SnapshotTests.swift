@@ -66,13 +66,80 @@ import UniformTypeIdentifiers
     // MARK: Installed
 
     @Test func installedRows() throws {
-        try Snapshot.render("installed-rows", width: 900) {
-            TableSnapshot(columns: InstalledRowSnapshot.columns) {
-                SectionHeader(title: "Managed")
-                ForEach(state.installed.managedRows) { row in InstalledRowSnapshot(state: state, row: row) }
-                SectionHeader(title: "Unmanaged")
-                ForEach(state.installed.unmanagedRows) { row in InstalledRowSnapshot(state: state, row: row) }
+        try renderSection(.installed, name: "installed-rows")
+    }
+
+    @Test func updatesSection() throws {
+        try renderSection(.updates, name: "updates-section")
+    }
+
+    @Test func unmanagedSection() throws {
+        try renderSection(.unmanaged, name: "unmanaged-section")
+    }
+
+    @Test func pinnedSection() throws {
+        try renderSection(.pinned, name: "pinned-section")
+    }
+
+    /// A library section as `InstalledView` lays it out: the Updates header, then its rows.
+    private func renderSection(_ section: LibrarySection, name: String) throws {
+        state.installed.options.section = section
+        try Snapshot.render(name, width: 900) {
+            VStack(alignment: .leading, spacing: 0) {
+                if section == .updates {
+                    UpdatesHeader(count: state.installed.counts.updates, isUpdating: false, updateAll: {})
+                    Divider()
+                }
+                TableSnapshot(columns: InstalledRowSnapshot.columns) {
+                    ForEach(state.installed.rows) { row in InstalledRowSnapshot(state: state, row: row) }
+                }
             }
+        }
+    }
+
+    // MARK: Navigation
+
+    @Test func sidebar() throws {
+        try Snapshot.render("sidebar", width: 220, height: 480) {
+            SidebarView(selection: .constant(.library(.updates)), counts: state.installed.counts,
+                        categories: SearchAliases.categories, refresh: nil, showsInstallation: false)
+        }
+    }
+
+    @Test func sidebarRefreshing() throws {
+        let progress = RefreshProgress(phase: .updates, completed: 3, total: 8, message: "Checking for updates…")
+        try Snapshot.render("sidebar-refreshing", width: 220, height: 540) {
+            SidebarView(selection: .constant(.library(.installed)), counts: state.installed.counts,
+                        categories: SearchAliases.categories, refresh: (Fixtures.installation, progress), showsInstallation: false)
+        }
+    }
+
+    @Test func categorySelected() throws {
+        let bags = try #require(SearchAliases.categories.first { $0.id == "bags" })
+        let rows = [Fixtures.browseInstalled, Fixtures.browseUnchecked].map { state.browse.row(for: $0, now: Fixtures.date(10, 12)) }
+        try Snapshot.render("category-selected", width: 1000, height: 480) {
+            HStack(alignment: .top, spacing: 0) {
+                SidebarView(selection: .constant(.category(bags.id)), counts: state.installed.counts,
+                            categories: SearchAliases.categories, refresh: nil, showsInstallation: false)
+                    .frame(width: 220)
+                Divider()
+                VStack(alignment: .leading, spacing: 0) {
+                    BrowseFilterBar(flavor: .forever, isHome: false, category: bags,
+                                    home: .constant(.popular), hideIncompatible: .constant(true))
+                    Divider()
+                    TableSnapshot(columns: BrowseRowSnapshot.columns) {
+                        ForEach(rows) { row in BrowseRowSnapshot(state: state, row: row) }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func installationMenu() throws {
+        let classic = Installation(id: "snapshot-era", root: URL(filePath: "/tmp/ForeverAddonsSnapshots/World of Warcraft/_classic_era_"),
+                                   flavor: .vanilla, gameVersion: "1.15.7.61582")
+        try Snapshot.render("installation-menu", width: 260) {
+            InstallationMenuSnapshot(installations: [Fixtures.installation, classic], selectedID: Fixtures.installation.id)
         }
     }
 
@@ -176,10 +243,31 @@ enum Snapshot {
         host.layoutSubtreeIfNeeded()
         // One run-loop turn lets SwiftUI finish its first update before drawing.
         RunLoop.main.run(until: .now.addingTimeInterval(0.05))
+        appearance.performAsCurrentDrawingAppearance { drawSelections(in: host) }
         guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return nil }
         appearance.performAsCurrentDrawingAppearance { host.cacheDisplay(in: host.bounds, to: rep) }
         return rep.cgImage
     }
+}
+
+/// A selected sidebar row draws its highlight with an `NSVisualEffectView`, which the window
+/// server composites and `cacheDisplay` paints black. Swap it for a plain view in the
+/// selection colour, so the snapshot shows roughly what the user sees.
+@MainActor
+private func drawSelections(in view: NSView) {
+    if let row = view as? NSTableRowView, row.isSelected {
+        for effect in row.subviews.compactMap({ $0 as? NSVisualEffectView }) {
+            effect.isHidden = true
+            let highlight = NSView(frame: effect.frame)
+            highlight.wantsLayer = true
+            // Unemphasized (grey) unless the list is first responder, matching the row's text colour.
+            let color: NSColor = row.isEmphasized ? .selectedContentBackgroundColor : .unemphasizedSelectedContentBackgroundColor
+            highlight.layer?.backgroundColor = color.cgColor
+            highlight.layer?.cornerRadius = 5
+            row.addSubview(highlight, positioned: .below, relativeTo: nil)
+        }
+    }
+    for subview in view.subviews { drawSelections(in: subview) }
 }
 
 /// Never shown, but reports itself key so controls draw as in the focused app window
@@ -215,11 +303,31 @@ private struct TableSnapshot<Rows: View>: View {
     }
 }
 
-private struct SectionHeader: View {
-    var title: String
+/// The title menu drawn as a menu panel: menus don't render offscreen, so this lays out the
+/// same `InstallationMenuLabel`s with a checkmark column, a divider and the two commands.
+private struct InstallationMenuSnapshot: View {
+    var installations: [Installation]
+    var selectedID: Installation.ID
 
     var body: some View {
-        Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(installations) { installation in
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "checkmark").font(.caption.weight(.semibold))
+                        .opacity(installation.id == selectedID ? 1 : 0)
+                    VStack(alignment: .leading, spacing: 1) {
+                        InstallationMenuLabel(installation: installation)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            Divider().padding(.vertical, 4)
+            Text("Add Installation…").padding(.leading, 18)
+            Text("Scan Again").padding(.leading, 18)
+        }
+        .padding(10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .padding(10)
     }
 }
 

@@ -21,7 +21,7 @@ New files under `App/ForeverAddons/` (and `Sources/addonctl/`) are picked up on 
 |---|---|
 | `ForeverAddons` | The app. Depends on the `AddonKit` package product and embeds `addonctl`. Default actor isolation `MainActor` |
 | `addonctl` | The CLI, compiled from `../Sources/addonctl` (the whole folder) against `AddonKit` and `ArgumentParser` (swift-argument-parser, pinned to 1.5.0 like `Package.swift`). Built with `-parse-as-library` because the entry point is an `@main` type. Default isolation `nonisolated`, matching the package |
-| `ForeverAddonsTests` | Unit tests for app helpers (`CLIInstaller`, `DirectoryWatcher`, `DayLabel`, table rows and sorting, `MarkdownParser`, `ScreenshotLoader` over a stub `URLProtocol`, the installation's models over a temp-folder `AddonManager`), `EnvironmentUsageTests` for [decision 0015](../decisions/0015-environment-only-at-scene-roots.md), `ArchitectureTests` for the core/UI boundary, and `SnapshotTests` ([development.md](../development.md#snapshots)). Links `AddonKit`. Not hosted: every app source but `ForeverAddonsApp.swift` is compiled into the test bundle, so tests never launch the app |
+| `ForeverAddonsTests` | Unit tests for app helpers (`CLIInstaller`, `DirectoryWatcher`, `DayLabel`, table rows and sorting, `MarkdownParser`, `ScreenshotLoader` over a stub `URLProtocol`, the installation's models over a temp-folder `AddonManager`, sidebar sections and search scope), `EnvironmentUsageTests` for [decision 0015](../decisions/0015-environment-only-at-scene-roots.md), `ArchitectureTests` for the core/UI boundary, and `SnapshotTests` ([development.md](../development.md#snapshots)). Links `AddonKit`. Not hosted: every app source but `ForeverAddonsApp.swift` is compiled into the test bundle, so tests never launch the app |
 
 The app is signed "Sign to Run Locally", so no Apple developer account is needed.
 
@@ -62,17 +62,18 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 |---|---|
 | App entry point, scenes, menu commands, menu bar extra | `App/ForeverAddons/ForeverAddonsApp.swift` |
 | Wiring the manager: standard or `ADDONS_DATA_DIR` (the only file that names `AddonManager`) | `App/ForeverAddons/Support/AppEnvironment.swift` |
-| Root model: installations, tab, search text, banner, store watcher, seeding, auto refresh | `App/ForeverAddons/Models/AppModel.swift` |
+| Root model: installations (and the remembered one), sidebar section, search text, banner, store watcher, seeding, auto refresh | `App/ForeverAddons/Models/AppModel.swift` |
 | One installation's models, wired together | `App/ForeverAddons/Models/InstallationModel.swift` |
-| Add-ons, update states, Installed rows (sort, filter, sections), install action | `App/ForeverAddons/Models/InstalledModel.swift` |
+| Add-ons, update states, library rows (sort, filter, section) and section counts, install action | `App/ForeverAddons/Models/InstalledModel.swift` |
 | Search stream, home lists, Browse rows (sort, family filter), visible-row checks | `App/ForeverAddons/Models/BrowseModel.swift` |
 | Live Browse patches from `metadataChanges()` | `App/ForeverAddons/Models/LiveMetadata.swift` |
 | Inspector selection, details cache (LRU), release notes | `App/ForeverAddons/Models/InspectorModel.swift` |
 | Refresh, update, Update All, install, pin, adopt, Move to Trash | `App/ForeverAddons/Models/UpdateQueue.swift` |
 | Per-row progress and errors (`RowState`), refresh progress (`RefreshStatus`) | `App/ForeverAddons/Models/RowState.swift` |
 | CLI install state (first-launch offer, Settings) | `App/ForeverAddons/Models/CommandLineToolModel.swift` |
-| Window: split view, sidebar, toolbar, `InspectorSplit` | `App/ForeverAddons/Views/ContentView.swift` |
-| Installed table and its cells and context menu | `App/ForeverAddons/Views/InstalledView.swift` |
+| Window: split view, detail per section, toolbar, search field and its scope, title menu wiring, `InspectorSplit` | `App/ForeverAddons/Views/ContentView.swift` |
+| Sidebar (library sections with counts, Browse, categories, refresh bar) and the title menu's game picker | `App/ForeverAddons/Views/SidebarView.swift` |
+| Library table (Installed, Updates, Unmanaged, Pinned), its cells, context menu, empty states and the Updates header | `App/ForeverAddons/Views/InstalledView.swift` |
 | Browse table, filter bar, status bar and cells | `App/ForeverAddons/Views/BrowseView.swift` |
 | Inspector pane, `AddonDetailView`, install actions, Retail build sheet | `App/ForeverAddons/Views/AddonInspectorView.swift` |
 | Unmanaged folder inspector | `App/ForeverAddons/Views/UnmanagedInspector.swift` |
@@ -86,6 +87,7 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | Screenshot strip and viewer | `App/ForeverAddons/Views/ScreenshotViews.swift` |
 | Pre-formatted Browse and Installed rows, live `patching` | `App/ForeverAddons/Support/TableRows.swift` |
 | Sortable columns and the stored sort | `App/ForeverAddons/Support/TableSorting.swift` |
+| Sidebar sections (`LibrarySection`, `SidebarItem`), section filters, `LibraryCounts`, search prompt and Browse query per section | `App/ForeverAddons/Support/SidebarSections.swift` |
 | `DayLabel`, `FetchLabel`, `GameBubblesModel`, filter labels, `UpdateOffer.label`, Retail build wording | `App/ForeverAddons/Support/AddonFormatting.swift` |
 | Adopt targets, removal requests, `AdoptForm`, adoption preview state | `App/ForeverAddons/Support/UnmanagedSupport.swift` |
 | Settings keys, ⌘F search focus, small extensions, `RecentKeys` | `App/ForeverAddons/Support/AppSupport.swift` |

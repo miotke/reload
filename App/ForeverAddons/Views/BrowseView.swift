@@ -4,13 +4,17 @@ import SwiftUI
 /// Search and browse add-ons (docs/app/layout.md).
 ///
 /// One sortable table. With an empty query it lists Popular or Recently Updated (a switch in
-/// the filter bar); with a query, or a category chip, it lists search results. Without a
-/// chosen sort, rows keep the core's order: relevance for searches, stars or date for home.
+/// the filter bar); with a query, or a category from the sidebar, it lists search results.
+/// Without a chosen sort, rows keep the core's order: relevance for searches, stars or date
+/// for home.
 struct BrowseView: View {
     var model: AppModel
     var browse: BrowseModel
     var queue: UpdateQueue
     var inspector: InspectorModel
+    /// The catalogue query: the toolbar search, within the category's own query when one is selected.
+    var query: String
+    var category: SearchCategory?
 
     /// "Hide Classic-only" and its per-family siblings; the key predates them.
     @AppStorage("browseForeverOnly") private var hideIncompatible = true
@@ -26,7 +30,7 @@ struct BrowseView: View {
         var installationID: String
     }
 
-    private var trimmedQuery: String { model.searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var isHome: Bool { trimmedQuery.isEmpty }
     private var sort: ColumnSort<BrowseColumn>? { ColumnSort(storageValue: sortStorage) }
 
@@ -44,7 +48,8 @@ struct BrowseView: View {
     var body: some View {
         @Bindable var inspector = inspector
         VStack(spacing: 0) {
-            filterBar
+            BrowseFilterBar(flavor: browse.installation.flavor, isHome: isHome, category: category,
+                            home: $home, hideIncompatible: $hideIncompatible)
             Divider()
             BrowseTable(model: model, browse: browse, queue: queue, selection: $inspector.selectedBrowseID,
                         sortOrder: sortOrder, columns: $columns)
@@ -72,43 +77,7 @@ struct BrowseView: View {
             await queue.loadLastRefresh()
             await browse.loadBrowse()
         }
-        .onChange(of: model.searchText) { includeLiveGitHub = false }
-    }
-
-    private var filterBar: some View {
-        HStack(spacing: 12) {
-            if isHome {
-                Picker("Show", selection: $home) {
-                    ForEach(BrowseHome.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-                .controlSize(.small)
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(browse.content?.categories ?? SearchAliases.categories) { category in
-                        let selected = trimmedQuery.caseInsensitiveCompare(category.query) == .orderedSame
-                        Button {
-                            model.searchText = selected ? "" : category.query
-                        } label: {
-                            Label(category.title, systemImage: category.symbol)
-                        }
-                        .buttonStyle(.bordered)
-                        .buttonBorderShape(.capsule)
-                        .tint(selected ? Color.accentColor : nil)
-                        .controlSize(.small)
-                    }
-                }
-            }
-            Toggle(IncompatibleFilterLabel.title(for: browse.installation.flavor), isOn: $hideIncompatible)
-                .toggleStyle(.checkbox)
-                .help(IncompatibleFilterLabel.help(for: browse.installation.flavor))
-                .fixedSize()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .onChange(of: trimmedQuery) { includeLiveGitHub = false }
     }
 
     @ViewBuilder private var emptyState: some View {
@@ -119,7 +88,7 @@ struct BrowseView: View {
                 } else {
                     ContentUnavailableView(
                         "Nothing to Browse Yet", systemImage: "magnifyingglass",
-                        description: Text("Search for an add-on by name, or pick a category above."))
+                        description: Text("Search for an add-on by name, or pick a category in the sidebar."))
                 }
             } else if browse.isSearchComplete {
                 ContentUnavailableView.search(text: trimmedQuery)
@@ -129,6 +98,40 @@ struct BrowseView: View {
                 ProgressView()
             }
         }
+    }
+}
+
+/// Popular / Recently Updated with an empty query, the selected category, and the
+/// "Hide Classic-only" toggle.
+struct BrowseFilterBar: View {
+    var flavor: Flavor
+    var isHome: Bool
+    var category: SearchCategory?
+    @Binding var home: BrowseHome
+    @Binding var hideIncompatible: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if isHome {
+                Picker("Show", selection: $home) {
+                    ForEach(BrowseHome.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .controlSize(.small)
+            } else if let category {
+                Label(category.title, systemImage: category.symbol)
+                    .font(.headline)
+            }
+            Spacer()
+            Toggle(IncompatibleFilterLabel.title(for: flavor), isOn: $hideIncompatible)
+                .toggleStyle(.checkbox)
+                .help(IncompatibleFilterLabel.help(for: flavor))
+                .fixedSize()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 }
 

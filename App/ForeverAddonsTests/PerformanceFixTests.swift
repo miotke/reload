@@ -195,7 +195,7 @@ func pngData(width: Int, height: Int) throws -> Data {
         try await manager.store.modify(installation) { $0 = [v1] }
         let model = InstallationModel(installation: installation, manager: manager, reportError: { _ in })
         await model.installed.reload()
-        #expect(model.installed.managedRows.map(\.id) == [v1.id.description])
+        #expect(model.installed.rows.map(\.id) == [v1.id.description])
 
         let before = model.installed.installedRowBuilds
         var v2 = addon("v2")

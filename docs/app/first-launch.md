@@ -37,7 +37,7 @@ flowchart TD
 
 ### Sidebar progress
 
-While a refresh reports progress, a small bar and message sit under **Add Installation…**. Throttled refreshes that finish at once never show it.
+While a refresh reports progress, a small bar and message sit at the bottom of the sidebar. Throttled refreshes that finish at once never show it.
 
 ## When refreshes run
 

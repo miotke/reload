@@ -5,11 +5,12 @@ import Observation
 /// What the Installed table shows. Set by the view; rows are rebuilt when it changes.
 struct InstalledOptions: Equatable {
     var query = ""
+    var section = LibrarySection.installed
     var sort = ColumnSort(InstalledColumn.name)
 }
 
-/// One installation's add-ons and their stored update states, and the Installed table's rows:
-/// managed and unmanaged sections, each filtered and sorted. The one source of "is it
+/// One installation's add-ons and their stored update states, and the Installed table's rows
+/// for the selected library section, filtered and sorted, with each section's count. The one source of "is it
 /// installed" for Browse rows, the inspector and add-on windows.
 @Observable @MainActor
 final class InstalledModel {
@@ -54,9 +55,10 @@ final class InstalledModel {
     var options = InstalledOptions() {
         didSet { if options != oldValue { rebuildRows() } }
     }
-    /// Filtered and sorted; managed and unmanaged rows are separate table sections.
-    private(set) var managedRows: [InstalledRow] = []
-    private(set) var unmanagedRows: [InstalledRow] = []
+    /// The selected section's rows, filtered by the query and sorted.
+    private(set) var rows: [InstalledRow] = []
+    /// Rows per section before the query filter: the sidebar badges.
+    private(set) var counts = LibraryCounts()
 
     init(installation: Installation, manager: any AddonManaging, reportError: @escaping @MainActor (String) -> Void) {
         self.installation = installation
@@ -155,16 +157,15 @@ final class InstalledModel {
         installedRowBuilds += 1
         let now = Date.now
         let query = options.query
-        var rows = addons.compactMap { status -> InstalledRow? in
-            guard Self.matches(status, query: query) else { return nil }
+        let all = addons.map { status in
             let update: UpdateState? = if case .managed(let addon, _) = status { updateStates[addon.id] } else { nil }
-            return InstalledRow(status: status, update: update, flavor: installation.flavor, now: now)
+            return (status, InstalledRow(status: status, update: update, flavor: installation.flavor, now: now))
         }
+        let counts = LibraryCounts(rows: all.map(\.1))
+        var rows = all.filter { options.section.includes($0.1) && Self.matches($0.0, query: query) }.map(\.1)
         rows.sort(using: options.sort)
-        let managed = rows.filter(\.isManaged)
-        let unmanaged = rows.filter { !$0.isManaged }
-        if managed != managedRows { managedRows = managed }
-        if unmanaged != unmanagedRows { unmanagedRows = unmanaged }
+        if rows != self.rows { self.rows = rows }
+        if counts != self.counts { self.counts = counts }
     }
 
     private static func matches(_ status: AddonStatus, query: String) -> Bool {

@@ -2,12 +2,6 @@ import AddonKit
 import AppKit
 import Observation
 
-enum DetailTab: String, CaseIterable, Identifiable {
-    case installed = "Installed"
-    case browse = "Browse"
-    var id: Self { self }
-}
-
 /// A non-blocking message shown at the top of the detail area.
 struct Banner: Identifiable, Equatable {
     let id = UUID()
@@ -28,6 +22,7 @@ final class AppModel {
         didSet {
             for model in models.values { model.inspector.clearSelection() }
             if oldValue != selectedInstallationID { scheduleAutoRefresh() }
+            if let id = selectedInstallationID { defaults?.set(id, forKey: Self.selectedInstallationKey) }
         }
     }
     private(set) var isLoadingInstallations = false
@@ -35,10 +30,19 @@ final class AppModel {
     /// Created lazily from view bodies, so not observed itself; each model is observable.
     @ObservationIgnored private var models: [Installation.ID: InstallationModel] = [:]
 
-    var tab: DetailTab = .installed
-    /// Shared by both tabs: filters Installed, queries Browse.
+    /// The sidebar's selection; `ContentView` remembers it per window.
+    var section: SidebarItem = .library(.installed) {
+        didSet {
+            guard section != oldValue else { return }
+            // Each section starts unfiltered; `searchAllAddons` carries the text over itself.
+            searchText = ""
+            // Library sections share one table, so a row selected in one may not be in the next.
+            if section.isLibrary, oldValue.isLibrary { current?.inspector.selectedAddonID = nil }
+        }
+    }
+    /// The toolbar search: filters a library section, queries the catalogue in Browse and categories.
     var searchText = ""
-    /// Selecting a row in either tab (`InspectorModel`'s selection) opens the inspector.
+    /// Selecting a row in either table (`InspectorModel`'s selection) opens the inspector.
     var showInspector = true
     var banner: Banner?
     /// Unmanaged folder being adopted (drives the Adopt sheet).
@@ -64,17 +68,19 @@ final class AppModel {
 
     private var didInitialLoad = false
     @ObservationIgnored private var storeWatcher: DirectoryWatcher?
-    /// Remembers that the first refresh completed. Nil on sandboxed data, so a temporary data
-    /// folder never marks the real app as seeded; there `lastRefresh` alone decides.
-    @ObservationIgnored private let seedDefaults: UserDefaults?
+    /// Remembers that the first refresh completed, and the selected installation. Nil on
+    /// sandboxed data, so a temporary data folder never marks the real app as seeded or
+    /// replaces its remembered installation; there `lastRefresh` alone decides seeding.
+    @ObservationIgnored private let defaults: UserDefaults?
     static let didSeedKey = "didSeedAddonDetails"
+    static let selectedInstallationKey = "selectedInstallation"
 
     /// `offersCommandLineTool`: whether to show the one-time offer to install `addonctl`.
     /// `usesStandardDefaults`: whether first-launch state may be remembered in user defaults.
     init(manager: any AddonManaging, offersCommandLineTool: Bool = false, usesStandardDefaults: Bool = false) {
         self.manager = manager
         self.commandLineTool = CommandLineToolModel(mayOffer: offersCommandLineTool)
-        self.seedDefaults = usesStandardDefaults ? .standard : nil
+        self.defaults = usesStandardDefaults ? .standard : nil
     }
 
     var selectedInstallation: Installation? {
@@ -95,6 +101,12 @@ final class AppModel {
         model.inspector.didSelect = { [weak self] in self?.showInspector = true }
         models[installation.id] = model
         return model
+    }
+
+    /// The sidebar's categories: the core's Browse content once loaded, its static list before.
+    var categories: [SearchCategory] {
+        if let loaded = current?.browse.content?.categories, !loaded.isEmpty { return loaded }
+        return SearchAliases.categories
     }
 
     /// Total updates across all known installations (menu bar extra).
@@ -126,7 +138,7 @@ final class AppModel {
 
     /// No refresh has ever completed: the catalogue, update states and support badges are all empty.
     private func needsSeeding(_ state: InstallationModel) async -> Bool {
-        if seedDefaults?.bool(forKey: Self.didSeedKey) == true { return false }
+        if defaults?.bool(forKey: Self.didSeedKey) == true { return false }
         return await manager.lastRefresh(in: state.installation) == nil
     }
 
@@ -135,7 +147,7 @@ final class AppModel {
         isSeedingPresented = true
         Task {
             await state.queue.startRefresh(force: true).value
-            seedDefaults?.set(true, forKey: Self.didSeedKey)
+            defaults?.set(true, forKey: Self.didSeedKey)
             isSeedingPresented = false
         }
     }
@@ -249,7 +261,8 @@ final class AppModel {
             let loaded = try await manager.installations()
             if loaded != installations { installations = loaded }
             if selectedInstallationID == nil || selectedInstallation == nil {
-                selectedInstallationID = installations.first?.id
+                let remembered = defaults?.string(forKey: Self.selectedInstallationKey)
+                selectedInstallationID = (installations.first { $0.id == remembered } ?? installations.first)?.id
             }
         } catch {
             showError(error.localizedDescription)
@@ -333,9 +346,16 @@ final class AppModel {
         banner = Banner(message: message)
     }
 
-    /// Jump from a Browse row to the add-on in the Installed tab.
+    /// "Search all add-ons" (or Return) in a library section: the same text, in Browse.
+    func searchAllAddons() {
+        let text = searchText
+        section = .browse
+        searchText = text
+    }
+
+    /// Jump from a Browse row to the add-on in Installed.
     func reveal(_ ref: AddonRef) {
-        tab = .installed
+        section = .library(.installed)
         current?.inspector.selectedAddonID = ref.description
         showInspector = true
     }

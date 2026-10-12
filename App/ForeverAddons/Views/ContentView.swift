@@ -3,11 +3,14 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @SceneStorage("sidebarSelection") private var storedSection: SidebarItem = .library(.installed)
 
     var body: some View {
         @Bindable var model = model
         NavigationSplitView {
-            SidebarView(model: model)
+            SidebarView(selection: $model.section, counts: model.current?.installed.counts ?? LibraryCounts(),
+                        categories: model.categories, refresh: model.visibleRefresh,
+                        showsInstallation: model.installations.count > 1)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 300)
         } detail: {
             if let state = model.current {
@@ -42,7 +45,9 @@ struct ContentView: View {
         .sheet(isPresented: Bindable(model.commandLineTool).isOfferPresented) {
             CommandLineToolOfferSheet(model: model)
         }
+        .onChange(of: model.section) { storedSection = model.section }
         .task {
+            model.section = storedSection
             await model.initialLoad()
         }
     }
@@ -83,73 +88,30 @@ private struct NoInstallationView: View {
     }
 }
 
-private struct SidebarView: View {
-    var model: AppModel
-
-    var body: some View {
-        @Bindable var model = model
-        List(selection: $model.selectedInstallationID) {
-            Section("Installations") {
-                ForEach(model.installations) { installation in
-                    InstallationRow(installation: installation, installed: model.model(for: installation).installed)
-                        .tag(installation.id)
-                }
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            VStack(alignment: .leading, spacing: 8) {
-                Button("Add Installation…", systemImage: "plus") { model.addInstallationWithPanel() }
-                    .buttonStyle(.borderless)
-                if let refresh = model.visibleRefresh {
-                    RefreshStatusView(progress: refresh.progress, installation: refresh.installation,
-                                      showsInstallation: model.installations.count > 1)
-                        .transition(.opacity)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(10)
-            .animation(.default, value: model.visibleRefresh == nil)
-        }
-    }
-}
-
-private struct InstallationRow: View {
-    var installation: Installation
-    var installed: InstalledModel
-
-    var body: some View {
-        Label {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(installation.displayName)
-                Text(installation.gameVersion ?? installation.root.lastPathComponent)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        } icon: {
-            Image(systemName: "gamecontroller")
-        }
-        .badge(installed.updateCount)
-        .help(installation.root.path(percentEncoded: false))
-    }
-}
-
-/// Installed / Browse tabs with the shared search field, and the inspector beside them.
+/// The selected section's table with the shared search field, and the inspector beside them.
 ///
 /// The inspector is part of the detail column's content rather than an `.inspector`, so the
-/// window toolbar (tabs, search, buttons) spans the whole detail area and the inspector
+/// window toolbar (title menu, search, buttons) spans the whole detail area and the inspector
 /// starts below it instead of growing its own toolbar section.
 private struct DetailView: View {
     var model: AppModel
     @AppStorage("inspectorWidth") private var inspectorWidth = 340.0
     var state: InstallationModel
 
+    private var query: String { model.searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     var body: some View {
         @Bindable var model = model
+        let section = model.section
         InspectorSplit(isPresented: model.showInspector, width: $inspectorWidth) {
             Group {
-                switch model.tab {
-                case .installed: InstalledView(model: model, installed: state.installed, queue: state.queue, inspector: state.inspector)
-                case .browse: BrowseView(model: model, browse: state.browse, queue: state.queue, inspector: state.inspector)
+                if let library = section.librarySection {
+                    InstalledView(model: model, installed: state.installed, queue: state.queue, inspector: state.inspector,
+                                  section: library, query: query)
+                } else {
+                    BrowseView(model: model, browse: state.browse, queue: state.queue, inspector: state.inspector,
+                               query: section.browseQuery(typed: query, categories: model.categories) ?? "",
+                               category: section.category(in: model.categories))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -166,22 +128,32 @@ private struct DetailView: View {
         } inspector: {
             InspectorPane(model: model, state: state)
         }
-        .searchable(
-            text: $model.searchText, placement: .toolbar,
-            prompt: model.tab == .installed ? "Filter installed add-ons" : "Search add-ons")
+        .searchable(text: $model.searchText, placement: .toolbar, prompt: section.searchPrompt(categories: model.categories))
+        .searchSuggestions {
+            // A library section filters as you type; this, or Return, searches the catalogue.
+            if section.isLibrary && !query.isEmpty {
+                Button {
+                    model.searchAllAddons()
+                } label: {
+                    Label("Search All Add-ons for “\(query)”", systemImage: "magnifyingglass")
+                }
+            }
+        }
+        .onSubmit(of: .search) {
+            if section.isLibrary && !query.isEmpty { model.searchAllAddons() }
+        }
         .navigationTitle(state.installation.displayName)
         .navigationSubtitle(subtitle)
+        .toolbarTitleMenu {
+            InstallationMenu(installations: model.installations, selectedID: model.selectedInstallationID,
+                             isScanning: model.isScanning,
+                             select: { model.selectedInstallationID = $0 },
+                             add: model.addInstallationWithPanel,
+                             scan: { Task { await model.scanAgain() } })
+        }
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("View", selection: $model.tab) {
-                    ForEach(DetailTab.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-            }
             ToolbarItemGroup(placement: .primaryAction) {
-                if model.tab == .installed {
+                if section.isLibrary {
                     Button {
                         model.checkForUpdates()
                     } label: {
@@ -190,15 +162,18 @@ private struct DetailView: View {
                     .help("Check for Updates (⌘R)")
                     .disabled(state.queue.isRefreshing)
 
-                    Button {
-                        model.updateAll()
-                    } label: {
-                        Label(state.installed.updateCount > 0 ? "Update All (\(state.installed.updateCount))" : "Update All",
-                              systemImage: "square.and.arrow.down.on.square")
-                            .labelStyle(.titleAndIcon)
+                    // The Updates section has its own Update All above the table.
+                    if section != .library(.updates) {
+                        Button {
+                            model.updateAll()
+                        } label: {
+                            Label(state.installed.updateCount > 0 ? "Update All (\(state.installed.updateCount))" : "Update All",
+                                  systemImage: "square.and.arrow.down.on.square")
+                                .labelStyle(.titleAndIcon)
+                        }
+                        .help("Update every add-on that has an update and isn't pinned")
+                        .disabled(state.installed.updateCount == 0 || state.queue.isUpdatingAll)
                     }
-                    .help("Update every add-on that has an update and isn't pinned")
-                    .disabled(state.installed.updateCount == 0 || state.queue.isUpdatingAll)
                 }
                 Button("Inspector", systemImage: "sidebar.right") {
                     withAnimation { model.showInspector.toggle() }
@@ -213,7 +188,7 @@ private struct DetailView: View {
     }
 
     private var subtitle: String {
-        guard model.tab == .installed else { return "" }
+        guard model.section.isLibrary else { return "" }
         if state.queue.isRefreshing { return "Checking for updates…" }
         guard let checked = state.queue.lastChecked else { return "\(state.installed.managed.count) managed" }
         let updates = state.installed.updateCount
