@@ -109,6 +109,18 @@ Everything throws `AddonError`, which has user-facing `errorDescription`s:
 - `noRollbackAvailable`
 - and others.
 
+## Metadata database
+
+Everything AddonKit knows about add-ons it hasn't installed lives in one SQLite file, `<applicationSupport>/metadata.sqlite`: the catalogue, support verdicts, repo metadata, inspector details, refresh state and rate limits. The schema is in [search.md](search.md#metadata-database). Installed add-on records stay in the `InstallStore` JSON files.
+
+`MetadataDatabase` is a small actor over the system SQLite (`import SQLite3`, no packages):
+- It owns the connection, opened without SQLite's mutex, since the actor already serializes access.
+- **Shared with the CLI:** WAL mode, a 5 s busy timeout, `foreign_keys=ON`.
+- Prepared statements are cached by SQL text. Arguments bind as `Int`/`Int64`, `Double`, `String`, `Data`, `Bool`, `Date` (Unix seconds) or nil. Text and blobs are copied (`SQLITE_TRANSIENT`).
+- `transaction { }` uses `BEGIN IMMEDIATE`. Its body is synchronous, so a write lock is never held across a network wait.
+- Failures throw `SQLiteError` with SQLite's message.
+- **Migrations:** an ordered list of SQL scripts. `PRAGMA user_version` records how many have run. Each new one runs in its own transaction when the database opens, and shipped steps are never edited.
+
 ## Concurrency
 
 - Swift 6 language mode with strict concurrency, plus `NonisolatedNonsendingByDefault` and `InferIsolatedConformances`.
