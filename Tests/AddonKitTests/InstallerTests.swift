@@ -205,6 +205,39 @@ struct InstallerFixture {
         #expect(try f.lua("Addon") == "-- Addon v1\n")
     }
 
+    /// Extraction happens before the store lock, so the ownership check runs after it; a
+    /// failed check must still leave nothing behind.
+    @Test func aFailedOwnershipCheckAfterExtractionDeletesTheStaging() throws {
+        let f = try InstallerFixture()
+        defer { f.cleanUp() }
+        var installer = Installer()
+        installer.forceSiblingStaging = true
+        let other = try installer.install(archive: f.zip(["Shared"], marker: "o1"), into: f.installation,
+                                          release: f.release(1, ref: f.otherRef), current: [], force: false)
+        let before = try snapshot(f.addons)
+
+        let prepared = try installer.prepare(archive: f.zip(["Addon", "Shared"], marker: "v1"), into: f.installation)
+        #expect(prepared.folders == ["Addon", "Shared"])
+        #expect(try f.interfaceListing().count == 2, "staged next to AddOns, nothing moved in yet")
+        #expect(try snapshot(f.addons) == before)
+        #expect(throws: AddonError.folderConflict(folder: "Shared", owner: f.otherRef)) {
+            try installer.commit(prepared, release: f.release(2), current: [other], force: false)
+        }
+        #expect(try f.interfaceListing() == ["AddOns"])
+        #expect(try snapshot(f.addons) == before)
+    }
+
+    @Test func aPreparedInstallThatIsNeverCommittedCanBeDiscarded() throws {
+        let f = try InstallerFixture()
+        defer { f.cleanUp() }
+        var installer = Installer()
+        installer.forceSiblingStaging = true
+        let prepared = try installer.prepare(archive: f.zip(["Addon"], marker: "v1"), into: f.installation)
+        prepared.discard()
+        #expect(try f.interfaceListing() == ["AddOns"])
+        #expect(!f.exists("Addon"))
+    }
+
     @Test func uninstallTrashesOwnedFoldersOnly() throws {
         let f = try InstallerFixture()
         defer { f.cleanUp() }

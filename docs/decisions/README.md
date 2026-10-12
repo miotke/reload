@@ -25,6 +25,7 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0014](0014-docs-layout.md) | Docs as small topic files, an index and decision records | Accepted | 2026-10-11 |
 | [0015](0015-environment-only-at-scene-roots.md) | Read `AppModel` from the environment only at scene roots | Accepted | 2026-10-11 |
 | [0016](0016-one-flavor-per-game.md) | One flavor per game, rules as data | Accepted | 2026-10-11 |
+| [0017](0017-details-without-quota-release-json-by-tag.md) | Details and release notes without API quota; `release.json` stored by tag | Accepted | 2026-10-11 |
 
 ## By area
 
@@ -32,7 +33,7 @@ Each record explains one decision: its context, what was decided, the alternativ
 |---|---|
 | Architecture | 0001, 0004, 0005, 0008 |
 | Sources and flavor support | 0002, 0003, 0016 |
-| Network | 0009, 0010, 0011 |
+| Network | 0009, 0010, 0011, 0017 |
 | App | 0006, 0007, 0012, 0013, 0015 |
 | Docs | 0014 |
 

@@ -21,7 +21,7 @@ New files under `App/ForeverAddons/` (and `Sources/addonctl/`) are picked up on 
 |---|---|
 | `ForeverAddons` | The app. Depends on the `AddonKit` package product and embeds `addonctl`. Default actor isolation `MainActor` |
 | `addonctl` | The CLI, compiled from `../Sources/addonctl` (the whole folder) against `AddonKit` and `ArgumentParser` (swift-argument-parser, pinned to 1.5.0 like `Package.swift`). Built with `-parse-as-library` because the entry point is an `@main` type. Default isolation `nonisolated`, matching the package |
-| `ForeverAddonsTests` | Unit tests for app helpers (`CLIInstaller`, `DirectoryWatcher`, `DayLabel`, table rows and sorting, `MarkdownParser`, and `EnvironmentUsageTests` for [decision 0015](../decisions/0015-environment-only-at-scene-roots.md)). Links `AddonKit`. Not hosted: the sources under test are compiled into the test bundle, so tests never launch the app |
+| `ForeverAddonsTests` | Unit tests for app helpers (`CLIInstaller`, `DirectoryWatcher`, `DayLabel`, table rows and sorting, `MarkdownParser`, `ScreenshotLoader` over a stub `URLProtocol`, `InstallationModel` over a temp-folder `AddonManager`, and `EnvironmentUsageTests` for [decision 0015](../decisions/0015-environment-only-at-scene-roots.md)). Links `AddonKit`. Not hosted: the sources under test are compiled into the test bundle, so tests never launch the app |
 
 The app is signed "Sign to Run Locally", so no Apple developer account is needed.
 
@@ -42,7 +42,7 @@ By default the app uses the real `AddonManager`: your WoW installations and the 
 
 ### `ADDONS_DATA_DIR`
 
-Set `ADDONS_DATA_DIR=<dir>`, as for `addonctl`. The store and caches live under `<dir>` and installation auto-detection is off, so only folders you add are touched.
+Set `ADDONS_DATA_DIR=<dir>`, as for `addonctl`. The store and caches (the screenshot cache included) live under `<dir>` and installation auto-detection is off, so only folders you add are touched.
 
 `open` doesn't pass environment variables, so run the binary directly:
 

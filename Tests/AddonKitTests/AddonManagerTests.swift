@@ -70,8 +70,10 @@ import Testing
 
         #expect(try await manager.checkForUpdates(in: installation)[Self.ref] == .upToDate)
 
-        // v2 is published.
+        // v2 is published. These stubs have no github.com releases, so only the API can tell,
+        // and a bulk check asks it at most every 6 hours.
         try publish([("v2", 2, 2), ("v1", 1, 1)])
+        await manager.setClock { Date().addingTimeInterval(7 * 3600) }
         guard case .available(let release) = try await manager.checkForUpdates(in: installation)[Self.ref] else {
             Issue.record("expected an update")
             return
@@ -121,6 +123,16 @@ import Testing
         await #expect(throws: AddonError.noRollbackAvailable(Self.ref)) {
             try await manager.rollback(Self.ref, in: installation)
         }
+    }
+
+    @Test func clearingCachesIncludesScreenshotsAndStoredReleaseJSON() async throws {
+        let directories = AppDirectories(root: root.appending(path: "AppData"))
+        try FileManager.default.createDirectory(at: directories.screenshotsDirectory, withIntermediateDirectories: true)
+        try Data(count: 10).write(to: directories.screenshotsDirectory.appending(path: "Cache.db"))
+        _ = try await manager.database.execute("INSERT INTO release_json(full_name, tag, json, fetched_at) VALUES ('o/r', 'v1', NULL, 0)")
+        try await manager.clearCaches()
+        #expect(!FileManager.default.fileExists(atPath: directories.screenshotsDirectory.path(percentEncoded: false)))
+        #expect(try await manager.database.query("SELECT count(*) FROM release_json").first?.int(0) == 0)
     }
 
     @Test func environmentTokenWinsOverKeychain() {

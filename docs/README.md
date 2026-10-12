@@ -53,13 +53,13 @@ flowchart LR
 | [overview.md](network/overview.md) | **before any change that makes requests**: when the network is used and the rules |
 | [github-endpoints.md](network/github-endpoints.md) | you need a URL, its quota cost, the headers or the error mapping |
 | [caching.md](network/caching.md) | you're adding a cache, a TTL, or deciding freshness (`CachePolicy`) |
-| [budget.md](network/budget.md) | you want requests per user action, baseline vs target |
+| [budget.md](network/budget.md) | you want requests per user action: baseline, measured now, and after the latest fixes |
 
 ## performance/
 
 | Doc | Read this when… |
 |---|---|
-| [measurements.md](performance/measurements.md) | you want baseline numbers for launch, memory, search, SQLite, zips |
+| [measurements.md](performance/measurements.md) | you want measured numbers (baseline and latest) for launch, memory, search, SQLite, zips |
 | [guidelines.md](performance/guidelines.md) | **before changing hot paths, tables or database code** |
 
 ## app/

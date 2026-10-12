@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 import Testing
 @testable import AddonKit
 
@@ -17,24 +18,71 @@ import Testing
         #expect(try await reopened.query("PRAGMA journal_mode").first?.string(0) == "wal")
     }
 
+    /// A database file at `version`, built with the shipped steps up to it, as that release left it.
+    func database(atVersion version: Int, _ setup: (OpaquePointer) -> Void = { _ in }) throws -> URL {
+        let url = try makeTempDirectory().appending(path: "metadata.sqlite")
+        var db: OpaquePointer?
+        try #require(sqlite3_open(url.path(percentEncoded: false), &db) == SQLITE_OK)
+        defer { sqlite3_close(db) }
+        for step in MetadataDatabase.migrations.prefix(version) {
+            try #require(sqlite3_exec(db, step, nil, nil, nil) == SQLITE_OK)
+        }
+        try #require(sqlite3_exec(db, "PRAGMA user_version = \(version)", nil, nil, nil) == SQLITE_OK)
+        setup(db!)
+        return url
+    }
+
     @Test func migrationTwoDropsLumpedClassicRows() async throws {
-        let dir = try makeTempDirectory()
-        let url = dir.appending(path: "metadata.sqlite")
-        do {
-            // Rewind to schema 1 and store rows as that version wrote them.
-            let db = try MetadataDatabase(url: url)
-            try await db.executeScript("PRAGMA user_version = 1")
+        let url = try database(atVersion: 1) { db in
             for flavor in ["forever", "mainline", "classic"] {
-                try await db.execute("INSERT INTO support(full_name, flavor, status, checked_at) VALUES (?, ?, 'supported', ?)", "o/r", flavor, Date())
-                try await db.execute("INSERT INTO details(full_name, flavor, fetched_at) VALUES (?, ?, ?)", "o/r", flavor, Date())
+                sqlite3_exec(db, "INSERT INTO support(full_name, flavor, status, checked_at) VALUES ('o/r', '\(flavor)', 'supported', 1)", nil, nil, nil)
+                sqlite3_exec(db, "INSERT INTO details(full_name, flavor, fetched_at) VALUES ('o/r', '\(flavor)', 1)", nil, nil, nil)
             }
-            try await db.execute("INSERT INTO refresh_state(installation_id, last_refresh_at) VALUES (?, ?)", "abc", Date())
+            sqlite3_exec(db, "INSERT INTO refresh_state(installation_id, last_refresh_at) VALUES ('abc', 1)", nil, nil, nil)
         }
         let migrated = try MetadataDatabase(url: url)
-        #expect(try await migrated.schemaVersion() == 2)
+        #expect(try await migrated.schemaVersion() == MetadataDatabase.migrations.count)
         #expect(try await migrated.query("SELECT flavor FROM support ORDER BY flavor").map { $0.string(0) } == ["forever", "mainline"])
         #expect(try await migrated.query("SELECT flavor FROM details ORDER BY flavor").map { $0.string(0) } == ["forever", "mainline"])
         #expect(try await migrated.query("SELECT count(*) FROM refresh_state").first?.int(0) == 1)
+    }
+
+    @Test func migrationThreeMovesFailuresBesideTheVerdict() async throws {
+        let url = try database(atVersion: 2) { db in
+            sqlite3_exec(db, """
+                INSERT INTO support(full_name, flavor, status, version, tag, checked_at) VALUES
+                    ('o/good', 'forever', 'supported', 'v1', 'v1', 100),
+                    ('o/bad', 'forever', 'error', NULL, 'v0', 200);
+                INSERT INTO repo_meta(full_name, latest_tag, tag_checked_at) VALUES ('o/good', 'v1', 100);
+                """, nil, nil, nil)
+        }
+        let db = try MetadataDatabase(url: url)
+        #expect(try await db.schemaVersion() == 3)
+        let rows = try await db.query("SELECT full_name, status, checked_at, error_at, retry_after FROM support ORDER BY full_name")
+        #expect(rows.map { $0.string(0) } == ["o/bad", "o/good"])
+        #expect(rows[0].string(1) == nil && rows[0].double(2) == nil, "a failure is no longer a status")
+        #expect(rows[0].double(3) == 200 && rows[0].double(4) == 1100)
+        #expect(rows[1].string(1) == "supported" && rows[1].double(3) == nil)
+        #expect(try await db.query("SELECT api_checked_at FROM repo_meta").first?.double(0) == nil)
+        try await db.execute("INSERT INTO release_json(full_name, tag, json, fetched_at) VALUES ('o/good', 'v1', NULL, 1)")
+    }
+
+    @Test func preparedStatementsStepInABatch() async throws {
+        let db = try MetadataDatabase.inMemory()
+        try await db.executeScript("CREATE TABLE t (k TEXT PRIMARY KEY, v INTEGER)")
+        let changed = try await db.transaction { db in
+            let insert = try db.prepare("INSERT INTO t VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v WHERE t.v IS NOT excluded.v")
+            var changed = 0
+            for (k, v) in [("a", 1), ("b", 2), ("a", 1), ("a", 3)] {
+                changed += try db.step(insert, [.text(k), .integer(Int64(v))])
+            }
+            return changed
+        }
+        #expect(changed == 3, "the unchanged re-upsert changes nothing")
+        #expect(try await db.query("SELECT v FROM t ORDER BY k").map { $0.int(0) } == [3, 2])
+        await #expect(throws: SQLiteError.self) {
+            try await db.transaction { db in _ = try db.step(try db.prepare("SELECT ?"), []) }
+        }
     }
 
     @Test func bindsAndReadsEveryType() async throws {

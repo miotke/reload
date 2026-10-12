@@ -79,10 +79,8 @@ struct AddonDetailView: View {
                     installedSection(installed)
                     folders(installed)
                     installedChangelog(installed)
-                } else if let loaded, let notes = loaded.latestChangelog, !notes.isEmpty {
-                    section("What's New\(loaded.latestVersion.map { " in \($0)" } ?? "")") {
-                        MarkdownText(markdown: notes).font(.callout)
-                    }
+                } else if let loaded, let version = loaded.latestVersion {
+                    notes(title: "What's New in \(version)", markdown: loaded.latestChangelog, version: version, loadable: true)
                 }
                 readme
             }
@@ -180,10 +178,9 @@ struct AddonDetailView: View {
     }
 
     @ViewBuilder private var readme: some View {
-        if case .loaded(let details, let blocks)? = state.details[ref], !blocks.isEmpty {
+        if case .loaded(_, let blocks)? = state.details[ref], !blocks.isEmpty {
             section("Read Me") {
-                MarkdownView(blocks: blocks, baseURL: details.repositoryURL.appending(path: "blob/HEAD/"))
-                    .font(.callout)
+                MarkdownView(blocks: blocks).font(.callout)
             }
         }
     }
@@ -241,19 +238,26 @@ struct AddonDetailView: View {
     }
 
     /// Release notes from the store (installed release) and, when there's an update, the
-    /// update check's release. No network request is needed.
+    /// update check's release. A quota-free check has no notes; when the update is the
+    /// latest release, they can be loaded on demand.
     @ViewBuilder private func installedChangelog(_ addon: InstalledAddon) -> some View {
         if let release = state.availableRelease(for: ref) {
-            notes(title: "What's New in \(release.version)", markdown: release.changelog, version: release.version)
+            let isLatest = loaded?.latestVersion == release.version
+            notes(title: "What's New in \(release.version)",
+                  markdown: release.changelog ?? (isLatest ? loaded?.latestChangelog : nil),
+                  version: release.version, loadable: isLatest)
         }
         notes(title: state.availableRelease(for: ref) == nil ? "Changelog" : "Installed (\(addon.version))",
               markdown: addon.changelog, version: addon.version)
     }
 
-    private func notes(title: String, markdown: String?, version: String) -> some View {
+    /// `loadable`: missing notes can be fetched (`releaseNotes`, one API call).
+    private func notes(title: String, markdown: String?, version: String, loadable: Bool = false) -> some View {
         section(title) {
             if let markdown, !markdown.isEmpty {
                 MarkdownText(markdown: markdown).font(.callout)
+            } else if markdown == nil, loadable {
+                ReleaseNotesButton(state: state, ref: ref)
             } else {
                 Text("No release notes for \(version).").foregroundStyle(.secondary).font(.callout)
             }
@@ -274,6 +278,41 @@ struct AddonDetailView: View {
         GridRow {
             Text(label).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
             value()
+        }
+    }
+}
+
+/// Loads the latest release's notes on request: they cost a GitHub API call, so opening an
+/// add-on doesn't fetch them.
+private struct ReleaseNotesButton: View {
+    var state: InstallationModel
+    var ref: AddonRef
+
+    @State private var isLoading = false
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Button("Show Release Notes") { Task { await load() } }
+                    .controlSize(.small)
+                    .disabled(isLoading)
+                    .help("Uses one GitHub API call")
+                if isLoading { ProgressView().controlSize(.small) }
+            }
+            if let error { RowErrorText(message: error) }
+        }
+        .font(.callout)
+    }
+
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            try await state.loadReleaseNotes(for: ref)
+            error = nil
+        } catch {
+            self.error = "Couldn't load release notes: \(error.localizedDescription)"
         }
     }
 }

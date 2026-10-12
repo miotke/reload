@@ -46,7 +46,8 @@ Each rule comes from `.claude/CLAUDE.md` or a number in [measurements.md](measur
 
 - **Decode thumbnails at display size** with ImageIO (`kCGImageSourceThumbnailMaxPixelSize`). Full resolution only in the viewer.
 - Keep decoded images in an `NSCache`.
-- Use a **dedicated `URLCache`** for image bytes (32 MB memory, 200 MB disk).
+- Use a **dedicated `URLCache`** for image bytes (32 MB memory, 200 MB disk) under the app's Caches folder, never a shared `~/Library/Caches` folder.
+- Read bodies in the chunks the session delivers, never byte by byte; decode off the loader's actor, a few at a time.
 - **Cancel loads when the selection changes** (`.task(id:)`).
 
 Details: [details-and-screenshots.md](../features/details-and-screenshots.md#screenshots).

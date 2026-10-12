@@ -21,7 +21,7 @@ flowchart LR
 | First launch (no completed refresh) | Catalogue, a seed of the top ~200 recently updated repos that have `release.json`, plus installed add-ons. About 1,000 requests, ~25 s at concurrency 4, 0 API calls. Shown behind the [seeding sheet](../app/first-launch.md) |
 | Every 2 hours, launch, app activation | Installed add-ons, repos whose catalogue `last_updated` changed, repos new to the catalogue, and the 20 oldest verdicts past 14 days. Answers still within their lifetime are skipped. About 5 + N quota-free requests. Skipped entirely if the last refresh finished under 2 h ago |
 | ⌘R, toolbar, menu bar extra | The same refresh, forced: installed add-ons re-checked with `.forceRevalidate`, catalogue revalidated; never re-seeds |
-| Opening an add-on's details | 2–4 quota-free requests for that repo, only if stale |
+| Opening an add-on's details | 2–4 quota-free requests for that repo, only if stale; no API calls, no zips. Release notes are one API call, on demand ([details](../features/details-and-screenshots.md#release-notes)) |
 | Install, update, adopt | That add-on's latest tag, `release.json` and zip (quota-free on the stable channel); the API release list otherwise |
 | Rollback | Nothing: it reinstalls from the download cache and pins, no re-check |
 | Search, browse, sort, categories | Nothing, except the automatic [GitHub fallback](../features/search.md#github-fallback) |
@@ -44,4 +44,4 @@ Automatic refreshes can be turned off in Settings (**Check for updates automatic
 
 - [github-endpoints.md](github-endpoints.md): every URL, headers and error mapping
 - [caching.md](caching.md): TTLs, ETags, negative caching
-- [budget.md](budget.md): requests per user action, baseline vs target
+- [budget.md](budget.md): requests per user action, measured

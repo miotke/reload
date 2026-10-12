@@ -159,6 +159,38 @@ public actor MetadataDatabase {
         try execute(sql, arguments)
     }
 
+    /// A statement prepared once for a loop of `step` calls, typically inside a `transaction`
+    /// body. Valid for the connection's lifetime; it never leaves the actor.
+    public struct Statement {
+        fileprivate let pointer: OpaquePointer
+        fileprivate let parameterCount: Int
+    }
+
+    /// Prepares `sql` (or reuses its cached statement) for batched `step` calls, so a loop
+    /// hashes the SQL text once rather than per row.
+    public func prepare(_ sql: String) throws -> Statement {
+        let statement = try cachedStatement(sql)
+        return Statement(pointer: statement, parameterCount: Int(sqlite3_bind_parameter_count(statement)))
+    }
+
+    /// Binds `values` to `statement`, runs it to completion and returns the rows changed.
+    /// `SQLValue`s bind without the per-argument boxing of `execute`.
+    @discardableResult
+    public func step(_ statement: Statement, _ values: [SQLValue]) throws -> Int {
+        let pointer = statement.pointer
+        sqlite3_reset(pointer)
+        sqlite3_clear_bindings(pointer)
+        defer { sqlite3_reset(pointer) }
+        guard values.count == statement.parameterCount else {
+            throw SQLiteError(code: SQLITE_RANGE, message: "\(values.count) values for \(statement.parameterCount) parameters")
+        }
+        for (offset, value) in values.enumerated() { try bind(value, at: Int32(offset + 1), in: pointer) }
+        var code = sqlite3_step(pointer)
+        while code == SQLITE_ROW { code = sqlite3_step(pointer) }
+        guard code == SQLITE_DONE else { throw error(code) }
+        return Int(sqlite3_changes(handle))
+    }
+
     /// Every row `sql` returns.
     public func query(_ sql: String, _ arguments: [any SQLBindable] = []) throws -> [SQLRow] {
         let statement = try prepared(sql, arguments)
@@ -248,36 +280,41 @@ public actor MetadataDatabase {
         try query("PRAGMA user_version").first?.int(0) ?? 0
     }
 
-    private func prepared(_ sql: String, _ arguments: [any SQLBindable]) throws -> OpaquePointer {
-        let statement: OpaquePointer
+    private func cachedStatement(_ sql: String) throws -> OpaquePointer {
         if let cached = statements[sql] {
-            statement = cached
             sqlite3_reset(cached)
             sqlite3_clear_bindings(cached)
-        } else {
-            var raw: OpaquePointer?
-            // Persistent: these statements are cached for the connection's lifetime.
-            let code = sqlite3_prepare_v3(handle, sql, -1, UInt32(SQLITE_PREPARE_PERSISTENT), &raw, nil)
-            guard code == SQLITE_OK, let raw else { throw error(code) }
-            statements[sql] = raw
-            statement = raw
+            return cached
         }
+        var raw: OpaquePointer?
+        // Persistent: these statements are cached for the connection's lifetime.
+        let code = sqlite3_prepare_v3(handle, sql, -1, UInt32(SQLITE_PREPARE_PERSISTENT), &raw, nil)
+        guard code == SQLITE_OK, let raw else { throw error(code) }
+        statements[sql] = raw
+        return raw
+    }
+
+    private func prepared(_ sql: String, _ arguments: [any SQLBindable]) throws -> OpaquePointer {
+        let statement = try cachedStatement(sql)
         let expected = Int(sqlite3_bind_parameter_count(statement))
         guard expected == arguments.count else {
             throw SQLiteError(code: SQLITE_RANGE, message: "\(arguments.count) arguments for \(expected) parameters in: \(sql)")
         }
         for (offset, argument) in arguments.enumerated() {
-            let index = Int32(offset + 1)
-            let code: Int32 = switch argument.sqlValue {
-            case .null: sqlite3_bind_null(statement, index)
-            case .integer(let v): sqlite3_bind_int64(statement, index, v)
-            case .real(let v): sqlite3_bind_double(statement, index, v)
-            case .text(let s): sqlite3_bind_text(statement, index, s, -1, Self.transient)
-            case .blob(let d): d.withUnsafeBytes { sqlite3_bind_blob(statement, index, $0.baseAddress, Int32($0.count), Self.transient) }
-            }
-            guard code == SQLITE_OK else { throw error(code) }
+            try bind(argument.sqlValue, at: Int32(offset + 1), in: statement)
         }
         return statement
+    }
+
+    private func bind(_ value: SQLValue, at index: Int32, in statement: OpaquePointer) throws {
+        let code: Int32 = switch value {
+        case .null: sqlite3_bind_null(statement, index)
+        case .integer(let v): sqlite3_bind_int64(statement, index, v)
+        case .real(let v): sqlite3_bind_double(statement, index, v)
+        case .text(let s): sqlite3_bind_text(statement, index, s, -1, Self.transient)
+        case .blob(let d): d.withUnsafeBytes { sqlite3_bind_blob(statement, index, $0.baseAddress, Int32($0.count), Self.transient) }
+        }
+        guard code == SQLITE_OK else { throw error(code) }
     }
 
     private func column(_ statement: OpaquePointer, _ i: Int32) -> SQLValue {
@@ -431,6 +468,45 @@ public actor MetadataDatabase {
         """
         DELETE FROM support WHERE flavor = 'classic';
         DELETE FROM details WHERE flavor = 'classic';
+        """,
+        // 3: failures are recorded next to the last good verdict instead of replacing it,
+        // so `status` and `checked_at` become nullable (a repo that has only ever failed);
+        // decoded release.json files are kept by tag; API checks are timed per repo.
+        """
+        CREATE TABLE support_v3 (
+            full_name TEXT NOT NULL COLLATE NOCASE,
+            flavor TEXT NOT NULL,
+            status TEXT,
+            version TEXT,
+            tag TEXT,
+            checked_at REAL,
+            error_at REAL,
+            retry_after REAL,
+            PRIMARY KEY (full_name, flavor)
+        ) WITHOUT ROWID;
+        INSERT INTO support_v3(full_name, flavor, status, version, tag, checked_at, error_at, retry_after)
+            SELECT full_name, flavor,
+                CASE WHEN status = 'error' THEN NULL ELSE status END,
+                CASE WHEN status = 'error' THEN NULL ELSE version END,
+                tag,
+                CASE WHEN status = 'error' THEN NULL ELSE checked_at END,
+                CASE WHEN status = 'error' THEN checked_at END,
+                CASE WHEN status = 'error' THEN checked_at + 900 END
+            FROM support;
+        DROP TABLE support;
+        ALTER TABLE support_v3 RENAME TO support;
+        CREATE INDEX support_flavor_checked ON support(flavor, checked_at);
+
+        CREATE TABLE release_json (
+            full_name TEXT NOT NULL COLLATE NOCASE,
+            tag TEXT NOT NULL,
+            json TEXT,
+            fetched_at REAL NOT NULL,
+            PRIMARY KEY (full_name, tag)
+        ) WITHOUT ROWID;
+
+        ALTER TABLE repo_meta ADD COLUMN api_checked_at REAL;
+        ALTER TABLE repo_meta ADD COLUMN api_checked_tag TEXT;
         """,
     ]
 }

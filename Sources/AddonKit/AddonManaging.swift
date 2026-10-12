@@ -51,8 +51,13 @@ public protocol AddonManaging: Sendable {
     /// Call after the GitHub token in the Keychain changes.
     func tokenDidChange() async
 
-    /// README, screenshots, stats and latest release for the inspector. Cached on disk.
+    /// README, screenshots, stats and latest version for the inspector. Cached on disk;
+    /// spends no API quota. `latestChangelog` is filled only when the notes are stored.
     func details(for ref: AddonRef, in installation: Installation) async throws -> AddonDetails
+
+    /// The latest stable release's notes, on demand: stored by tag, else one API call (no
+    /// zip downloads). Nil when the repo has no releases.
+    func releaseNotes(for ref: AddonRef, in installation: Installation) async throws -> (version: String, publishedAt: Date?, markdown: String)?
 
     /// Seeds and refreshes metadata: catalogue, update checks for installed add-ons, and
     /// flavor-support checks for catalogue add-ons. Without `force`, finishes immediately

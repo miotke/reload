@@ -27,12 +27,12 @@ sequenceDiagram
     SC->>DB: catalogue rows, stored verdicts, stars
     SC-->>UI: local results
     opt fewer than 3 local results, query ≥ 3 chars, no direct ref (or includeLiveGitHub)
-        SC->>SC: wait 500 ms (cancelled if the user keeps typing)
-        SC-->>UI: isSearchingGitHub = true
         SC->>DB: search_cache for this query
         alt cached (24 h, or 1 h if it was empty)
-            DB-->>SC: repo names
+            DB-->>SC: repo names, at once
         else
+            SC->>SC: wait 500 ms (cancelled if the user keeps typing)
+            SC-->>UI: isSearchingGitHub = true
             SC->>GH: 1 request (3 stages only when includeLiveGitHub)
             SC->>DB: remember repos, stars and the answer
         end

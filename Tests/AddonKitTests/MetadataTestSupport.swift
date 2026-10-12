@@ -149,6 +149,22 @@ struct ManagerHarness {
         await manager.setRetryDelay { _, _ in .zero }
     }
 
+    /// Another process over the same data folder and stubs: same database file and store,
+    /// none of the first manager's memory caches.
+    func reopen() async -> AddonManager {
+        let manager = AddonManager(
+            directories: directories,
+            http: http,
+            downloadTransport: transport,
+            locator: InstallationLocator(baseFolders: [], findApps: { [] }),
+            installer: Installer(trash: { try FileManager.default.removeItem(at: $0) }),
+            keychain: KeychainStore(service: "AddonKitTests-\(UUID().uuidString)"),
+            environment: [:]
+        )
+        await manager.setRetryDelay { _, _ in .zero }
+        return manager
+    }
+
     /// Stubs the API releases list and the free github.com routes for `repo`, with
     /// `versions` newest first, each carrying a Forever release.json and a zip.
     func publish(_ repo: String, _ versions: [(tag: String, id: Int64, day: Int)], etag: String? = nil) throws {

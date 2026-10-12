@@ -86,6 +86,11 @@ final class InstallationModel {
     private(set) var updateStates: [AddonRef: UpdateState] = [:] {
         didSet { rebuildInstalledRows() }
     }
+    /// While set, row rebuilds wait for `batchingRows` to finish and run once.
+    @ObservationIgnored private var rowsBatched = false
+    @ObservationIgnored private var rowsNeedRebuild = false
+    /// Installed-table rebuilds so far, for tests.
+    @ObservationIgnored private(set) var installedRowBuilds = 0
     private(set) var lastChecked: Date?
     let refresh = RefreshStatus()
     private(set) var isRefreshing = false
@@ -120,9 +125,12 @@ final class InstallationModel {
     @ObservationIgnored private var browseRowIndex: [BrowseRow.ID: Int] = [:]
 
     // Inspector
-    /// Fetched once per add-on per session; the core also caches them on disk.
+    /// Fetched once per add-on per session, for the `detailsLimit` most recently viewed
+    /// (each holds a parsed README); the core also caches them on disk.
     private(set) var details: [AddonRef: DetailsState] = [:]
+    @ObservationIgnored private var detailsUse = RecentKeys<AddonRef>(limit: InstallationModel.detailsLimit)
     @ObservationIgnored private var detailLoads: [AddonRef: UUID] = [:]
+    static let detailsLimit = 20
 
     // Live metadata
     /// Reads stored verdicts for rows the database reports as changed. Nil without a real manager.
@@ -190,7 +198,22 @@ final class InstallationModel {
 
     // MARK: Table rows
 
+    /// Runs `body`, which may change several things the Installed rows depend on, with one
+    /// rebuild (and one re-sort) at the end.
+    private func batchingRows(_ body: () -> Void) {
+        rowsBatched = true
+        body()
+        rowsBatched = false
+        if rowsNeedRebuild { rebuildInstalledRows() }
+    }
+
     private func rebuildInstalledRows() {
+        if rowsBatched {
+            rowsNeedRebuild = true
+            return
+        }
+        rowsNeedRebuild = false
+        installedRowBuilds += 1
         let now = Date.now
         let query = installedOptions.query
         var rows = addons.compactMap { status -> InstalledRow? in
@@ -313,28 +336,33 @@ final class InstallationModel {
         isUpdatingAll = true
         defer { isUpdatingAll = false }
         for ref in refs { row(ref.description).error = nil }
-        for await event in updates(releases) {
-            switch event {
-            case .queued(let ref):
-                row(ref.description).activity = .queued
-            case .downloading(let ref, let progress):
-                row(ref.description).activity = .downloading(progress)
-            case .installing(let ref):
-                row(ref.description).activity = .installing
-            case .done(let addon):
-                row(addon.id.description).activity = nil
-                updateStates[addon.id] = .upToDate
-                replace(addon)
-            case .skipped(let ref, _):
-                row(ref.description).activity = nil
-            case .failed(let ref, let message):
-                row(ref.description).activity = nil
-                row(ref.description).error = message
-            }
-        }
+        for await event in updates(releases) { apply(event) }
         // Clear any rows the stream never finished (e.g. cancelled).
         for ref in refs where row(ref.description).activity != nil { row(ref.description).activity = nil }
         await reload()
+    }
+
+    func apply(_ event: OperationEvent) {
+        switch event {
+        case .queued(let ref):
+            row(ref.description).activity = .queued
+        case .downloading(let ref, let progress):
+            row(ref.description).activity = .downloading(progress)
+        case .installing(let ref):
+            row(ref.description).activity = .installing
+        case .done(let addon):
+            row(addon.id.description).activity = nil
+            // Both change the row; rebuild and re-sort the table once.
+            batchingRows {
+                updateStates[addon.id] = .upToDate
+                replace(addon)
+            }
+        case .skipped(let ref, _):
+            row(ref.description).activity = nil
+        case .failed(let ref, let message):
+            row(ref.description).activity = nil
+            row(ref.description).error = message
+        }
     }
 
     private func updates(_ releases: [ResolvedRelease]) -> AsyncStream<OperationEvent> {
@@ -500,24 +528,53 @@ final class InstallationModel {
     /// inspector cancels it when the selection changes; a cancelled load leaves no state
     /// behind, and only the newest load for a ref may write its result.
     func loadDetails(for ref: AddonRef, force: Bool = false) async {
-        if case .loaded? = details[ref], !force { return }
+        if case .loaded? = details[ref], !force {
+            _ = detailsUse.use(ref)
+            return
+        }
         let token = UUID()
         detailLoads[ref] = token
-        details[ref] = .loading
+        setDetails(.loading, for: ref)
         let outcome: DetailsState?
         do {
             let fetched = try await manager.details(for: ref, in: installation)
             let readme = fetched.readme ?? ""
-            let blocks = await Task.detached(priority: .userInitiated) { MarkdownParser.blocks(from: readme) }.value
+            // Relative links in a README resolve against the repository.
+            let base = fetched.repositoryURL.appending(path: "blob/HEAD/")
+            let blocks = await Task.detached(priority: .userInitiated) { MarkdownParser.renderedBlocks(from: readme, baseURL: base) }.value
             outcome = Task.isCancelled ? nil : .loaded(fetched, readme: blocks)
         } catch {
             outcome = Task.isCancelled || error is CancellationError ? nil : .failed(error.localizedDescription)
         }
         guard detailLoads[ref] == token else { return }
         detailLoads[ref] = nil
-        details[ref] = outcome
+        setDetails(outcome, for: ref)
         // Opening details refreshes that one repo in the core; show its fresh badge in the tables.
         if let support = outcome?.details?.support { applySupport([ref: support]) }
+    }
+
+    /// Fetches the latest release's notes (one GitHub API call unless stored) into the
+    /// loaded details. Throws so the button can show what went wrong.
+    func loadReleaseNotes(for ref: AddonRef) async throws {
+        let notes = try await manager.releaseNotes(for: ref, in: installation)
+        guard case .loaded(var loaded, let readme)? = details[ref] else { return }
+        // No releases at all reads as "no notes", not as a failure.
+        loaded.latestChangelog = notes?.markdown ?? ""
+        if let notes {
+            if loaded.latestVersion == nil { loaded.latestVersion = notes.version }
+            loaded.latestPublishedAt = notes.publishedAt ?? loaded.latestPublishedAt
+        }
+        setDetails(.loaded(loaded, readme: readme), for: ref)
+    }
+
+    /// Stores `state` for `ref`, dropping the least recently viewed beyond `detailsLimit`.
+    func setDetails(_ state: DetailsState?, for ref: AddonRef) {
+        details[ref] = state
+        guard state != nil else {
+            detailsUse.remove(ref)
+            return
+        }
+        for evicted in detailsUse.use(ref) { details[evicted] = nil }
     }
 
     private func applySupport(_ statuses: [AddonRef: SupportStatus]) {
