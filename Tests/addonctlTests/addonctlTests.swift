@@ -336,8 +336,14 @@ func jsonObject(_ text: String) throws -> [String: Any] {
 
     @Test func operationFailureRecoversRateLimit() {
         let message = AddonError.rateLimited(resetAt: nil).localizedDescription
-        #expect(ExitStatus.code(for: OperationFailure(message: message).typed) == 4)
-        #expect(ExitStatus.code(for: OperationFailure(message: "HTTP 500").typed) == 1)
+        #expect(ExitStatus.code(for: OperationFailure(message: message).typed()) == 4)
+        #expect(ExitStatus.code(for: OperationFailure(message: "HTTP 500").typed()) == 1)
+        // The stored rate-limit state decides even when the message doesn't say so.
+        let now = Date(timeIntervalSince1970: 1_000)
+        let exhausted = RateLimitState(remaining: 0, resetAt: now.addingTimeInterval(600))
+        #expect(ExitStatus.code(for: OperationFailure(message: "HTTP 403").typed(rateLimit: exhausted, now: now)) == 4)
+        let reset = RateLimitState(remaining: 0, resetAt: now.addingTimeInterval(-1))
+        #expect(ExitStatus.code(for: OperationFailure(message: "HTTP 403").typed(rateLimit: reset, now: now)) == 1)
     }
 
     @Test func tagsMatch() {
@@ -453,6 +459,9 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         #expect(try AddonCtl.parseAsRoot(["ls", "--unmanaged"]) is ListCommand)
         #expect(try AddonCtl.parseAsRoot(["installs"]) is InstallsCommand.List)
         #expect(try AddonCtl.parseAsRoot(["config", "set", "default-channel", "stable"]) is ConfigCommand.SetValue)
+        #expect((try AddonCtl.parseAsRoot(["refresh", "--force"]) as? RefreshCommand)?.force == true)
+        #expect((try AddonCtl.parseAsRoot(["cache", "clear", "--metadata"]) as? CacheCommand.Clear)?.metadata == true)
+        #expect((try AddonCtl.parseAsRoot(["cache", "clear"]) as? CacheCommand.Clear)?.metadata == false)
     }
 
     @Test func usageErrors() {

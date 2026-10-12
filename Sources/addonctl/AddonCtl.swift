@@ -19,7 +19,7 @@ struct AddonCtl: AsyncParsableCommand {
             UpdateCommand.self, OutdatedCommand.self, ListCommand.self, PinCommand.self,
             UnpinCommand.self, ChannelCommand.self, RollbackCommand.self, AdoptCommand.self,
             ResolveCommand.self, InstallsCommand.self, ExportCommand.self, ImportCommand.self,
-            ConfigCommand.self, CacheCommand.self, DoctorCommand.self,
+            RefreshCommand.self, ConfigCommand.self, CacheCommand.self, DoctorCommand.self,
         ]
     )
 
