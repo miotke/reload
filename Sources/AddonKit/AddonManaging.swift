@@ -41,6 +41,17 @@ public protocol AddonManaging: Sendable {
 
     /// Call after the GitHub token in the Keychain changes.
     func tokenDidChange() async
+
+    /// README, screenshots, stats and latest release for the inspector. Cached on disk.
+    func details(for ref: AddonRef, in installation: Installation) async throws -> AddonDetails
+
+    /// Seeds and refreshes metadata: catalogue, update checks for installed add-ons, and
+    /// flavor-support checks for catalogue add-ons. Without `force`, finishes immediately
+    /// (with cached update states) if the last refresh was recent. Emits `.finished` last.
+    func refresh(in installation: Installation, force: Bool) -> AsyncStream<RefreshProgress>
+
+    /// When `refresh` last completed for `installation`, or nil if it never has.
+    func lastRefresh(in installation: Installation) async -> Date?
 }
 
 extension AddonManaging {

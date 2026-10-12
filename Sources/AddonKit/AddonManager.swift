@@ -404,6 +404,28 @@ public actor AddonManager: AddonManaging {
         }
     }
 
+    // MARK: - Details & refresh
+
+    // TODO: Core agent replaces these placeholders (docs/core.md, docs/search.md).
+    public func details(for ref: AddonRef, in installation: Installation) async throws -> AddonDetails {
+        let owner = String(ref.identifier.split(separator: "/").first ?? "")
+        let name = String(ref.identifier.split(separator: "/").last ?? "")
+        return AddonDetails(ref: ref, name: name, owner: owner, repositoryURL: URL(string: "https://github.com/\(ref.identifier)")!)
+    }
+
+    public nonisolated func refresh(in installation: Installation, force: Bool) -> AsyncStream<RefreshProgress> {
+        AsyncStream { continuation in
+            let task = Task {
+                let updates = try? await self.checkForUpdates(in: installation)
+                continuation.yield(RefreshProgress(phase: .finished, updates: updates ?? [:]))
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    public func lastRefresh(in installation: Installation) async -> Date? { nil }
+
     // MARK: - Maintenance
 
     /// Deletes downloaded archives, the catalogue cache and cached support checks.

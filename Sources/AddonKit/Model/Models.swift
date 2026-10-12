@@ -199,3 +199,91 @@ public struct BrowseContent: Sendable {
         self.categories = categories
     }
 }
+
+/// Everything the inspector shows about an add-on, installed or not (docs/search.md).
+public struct AddonDetails: Sendable, Hashable {
+    public var ref: AddonRef
+    public var name: String
+    public var owner: String
+    public var summary: String?
+    public var repositoryURL: URL
+    public var homepage: URL?
+    public var stars: Int?
+    public var lastUpdated: Date?
+    public var topics: [String]
+    public var license: String?
+    /// README as Markdown, if the repository has one.
+    public var readme: String?
+    /// Image URLs found in the README, absolute and de-duplicated, in document order.
+    public var screenshots: [URL]
+    /// Newest release that supports the requested flavor, if known.
+    public var latestVersion: String?
+    public var latestPublishedAt: Date?
+    public var latestChangelog: String?
+    public var support: SupportStatus
+    public var fetchedAt: Date
+
+    public init(
+        ref: AddonRef, name: String, owner: String, summary: String? = nil, repositoryURL: URL,
+        homepage: URL? = nil, stars: Int? = nil, lastUpdated: Date? = nil, topics: [String] = [],
+        license: String? = nil, readme: String? = nil, screenshots: [URL] = [], latestVersion: String? = nil,
+        latestPublishedAt: Date? = nil, latestChangelog: String? = nil, support: SupportStatus = .unknown,
+        fetchedAt: Date = .now
+    ) {
+        self.ref = ref
+        self.name = name
+        self.owner = owner
+        self.summary = summary
+        self.repositoryURL = repositoryURL
+        self.homepage = homepage
+        self.stars = stars
+        self.lastUpdated = lastUpdated
+        self.topics = topics
+        self.license = license
+        self.readme = readme
+        self.screenshots = screenshots
+        self.latestVersion = latestVersion
+        self.latestPublishedAt = latestPublishedAt
+        self.latestChangelog = latestChangelog
+        self.support = support
+        self.fetchedAt = fetchedAt
+    }
+}
+
+/// Progress of `AddonManaging.refresh(in:force:)`.
+public struct RefreshProgress: Sendable, Hashable {
+    public enum Phase: String, Sendable, Hashable {
+        case catalogue      // downloading the add-on catalogue
+        case updates        // checking installed add-ons for updates
+        case support        // checking which add-ons support the flavor
+        case finished
+    }
+
+    public var phase: Phase
+    public var completed: Int
+    public var total: Int
+    /// Short human-readable status, e.g. "Checking BigWigs…".
+    public var message: String
+    /// Set on `.finished`: the update states from this refresh.
+    public var updates: [AddonRef: UpdateState]?
+
+    public init(phase: Phase, completed: Int = 0, total: Int = 0, message: String = "", updates: [AddonRef: UpdateState]? = nil) {
+        self.phase = phase
+        self.completed = completed
+        self.total = total
+        self.message = message
+        self.updates = updates
+    }
+
+    /// Overall progress in `0...1` across all phases.
+    public var fraction: Double {
+        let span: (Double, Double) = switch phase {
+        case .catalogue: (0, 0.1)
+        case .updates: (0.1, 0.3)
+        case .support: (0.3, 1)
+        case .finished: (1, 1)
+        }
+        let within = total > 0 ? Double(completed) / Double(total) : 0
+        return span.0 + (span.1 - span.0) * min(max(within, 0), 1)
+    }
+}
