@@ -13,12 +13,12 @@ Every `addonctl` command, how `<ref>` arguments are resolved, and how the instal
 
 | Command | Aliases | What it does |
 |---|---|---|
-| `search <query…>` | `s` | Same search as the Browse tab ([search.md](../features/search.md)). Waits for the stream to finish (including any GitHub fallback) behind a spinner, then prints NAME / REPO / FOREVER / UPDATED. `--github` adds live GitHub search, `--all` keeps add-ons verified unsupported, `--limit N` (default 20) |
-| `info <ref>` | `show` | Description, website, latest Forever release and the selector's reasoning, installed version, update status, owned folders, rollback target. `--changelog` adds release notes, `--prerelease` looks at prereleases |
+| `search <query…>` | `s` | Same local-first search as the Browse tab; see [search](#search). Prints NAME / REPO / FOREVER / UPDATED. `--github` adds a deeper live GitHub search, `--all` keeps add-ons verified unsupported, `--limit N` (default 20) |
+| `info <ref>` | `show` | Description, website, Forever support, latest version, installed version, update status, owned folders, rollback target; see [info](#info). `--changelog` adds release notes, `--prerelease` looks at prereleases |
 | `install <ref…>` | `i`, `add` | Installs one after another with a progress row each. `--prerelease`, `--force` (overwrite unmanaged folders), `--version <tag>` (pins it; see [limits](config.md#limits)). Re-installing keeps the add-on's channel unless `--prerelease` is given; new installs use `default-channel` |
 | `remove <ref…>` | `rm`, `uninstall` | Moves folders to the Trash after confirmation |
-| `update [<ref…>]` | `upgrade`, `up` | Updates everything, or the named add-ons, driven by `OperationEvent`s. Pinned add-ons are listed as skipped. `--dry-run` shows the `outdated` table and what would be skipped |
-| `outdated` | | NAME / INSTALLED / LATEST / CHANNEL / PUBLISHED for available updates. Exit code 10 if any |
+| `update [<ref…>]` | `upgrade`, `up` | Checks, then installs only what has an update; see [update](#update). Pinned add-ons are listed as skipped. `--dry-run` shows the `outdated` table and what would be skipped |
+| `outdated` | | NAME / INSTALLED / LATEST / CHANNEL / PUBLISHED for available updates. Always revalidates. Exit code 10 if any |
 | `list` | `ls` | Managed add-ons with version, repo, channel and state (pinned, missing folders). `--unmanaged` adds unmanaged folders with their suggested ref; `--missing` shows only add-ons with missing folders |
 | `pin <ref…>` / `unpin <ref…>` | | Pin or unpin, so `update` skips them |
 | `channel <ref> stable\|prerelease` | | Set the release channel (applies on the next `update`) |
@@ -29,10 +29,32 @@ Every `addonctl` command, how `<ref>` arguments are resolved, and how the instal
 | `export [-o file]` | | Writes [`addons.json`](config.md#addonsjson) to stdout or a file |
 | `import <file\|->` | | Installs every entry not already installed; for installed ones it only syncs channel and pin. `--force` |
 | `config get\|set\|unset <key>` | | [Config keys](config.md#config-keys) |
-| `cache info\|clear` | | Sizes of downloads, catalogue, support checks and other cached files; `clear` asks first (it removes rollback archives) |
-| `doctor` | | Installations found, each `AddOns` folder readable, store integrity (missing folders, folders claimed by two add-ons), GitHub reachability and rate limit (`GET /rate_limit`, free), token source, whether WoW is running. Exit 1 if any check fails |
+| `refresh [--force]` | | Refresh the catalogue, update checks and Forever verdicts, like the app's 2-hour refresh ([maintenance.md](maintenance.md#refresh)) |
+| `cache info\|clear` | | Sizes of caches and the metadata database; `clear` empties Caches, `clear --metadata` also empties the database ([maintenance.md](maintenance.md#cache)) |
+| `doctor` | | Installations, `AddOns` folders, store integrity, the metadata database, refresh state, GitHub quota, token source, whether WoW is running. Exit 1 if any check fails ([maintenance.md](maintenance.md#doctor)) |
 
 Destructive commands (`remove`, `adopt`, `rollback`, `cache clear`) need confirmation: a `[y/N]` prompt on a terminal, otherwise `--yes`, or they fail with exit 2.
+
+## search
+
+- **No support checks.** Badges are the stored verdicts: `✓ <version>`, `— not yet`, `— no releases`, `? needs download` (no `release.json`) or `? unknown` (never checked).
+- It asks GitHub only when there are fewer than 3 local matches (3+ character query), or with `--github`. When it does so on its own, it prints `Few local matches, so GitHub was searched too.` on stderr.
+- A spinner shows "Searching GitHub…" while the live search runs (terminal only).
+- `--json` output gains `searchedGitHub`.
+- How search works: [features/search.md](../features/search.md).
+
+## info
+
+- Reads stored details (`catalogueEntry(for:)`, `details(for:in:)`), which refresh after a day. Stale details may spend one API call on release notes when more than 30 calls remain.
+- Shows support, latest version and date, README path, screenshots, when details were fetched and any fetch error, last updated, and the changelog with `--changelog`.
+- "Asset" and "Why this release" (the [reasoning trail](../features/release-selection.md#reasoning-trail)) appear only for prereleases.
+- `updateState` can be `unknown`, or `available` with just a `version`. JSON fields: [output.md](output.md#json---json).
+
+## update
+
+- With no refs, it **checks everything first, always revalidating**, then installs only the `.available` releases (`update(releases:in:)`).
+- A no-change update costs no API quota for add-ons with a `release.json`.
+- Rate limits are recognised from the stored rate-limit state.
 
 ## `<ref>`
 
