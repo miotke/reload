@@ -44,4 +44,4 @@ Automatic refreshes can be turned off in Settings (**Check for updates automatic
 
 - [github-endpoints.md](github-endpoints.md): every URL, headers and error mapping
 - [caching.md](caching.md): TTLs, ETags, negative caching
-- [budget.md](budget.md): requests per user action, baseline vs target
+- [budget.md](budget.md): requests per user action, measured

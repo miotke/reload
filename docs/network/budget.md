@@ -1,53 +1,56 @@
 # Network budget
 
-How many requests each user action makes: the measured baseline before the core merge, and the design target the core merge implements.
+How many requests each user action makes: the measured baseline before the core merge, the numbers measured at `05ba0ff`, and what changed after the fixes in [decision 0017](../decisions/0017-details-without-quota-release-json-by-tag.md).
 
 Update these numbers after merges that change network behaviour (see `.claude/CLAUDE.md`).
 
-## Baseline, before the core merge
+## Measured: baseline and `05ba0ff`
 
-Measured in the network audit at commit `561937a`. Unauthenticated, 20 installed add-ons.
+From the network audits. Unauthenticated, 20 installed add-ons. Each cell is **core API / search API / quota-free** requests.
 
-| Action | API calls | Notes |
+| Flow | Baseline (`561937a`) | Now (`05ba0ff`) |
 |---|---|---|
-| Install 1 add-on | 1 | the release list |
-| Launch / check for updates | 20 | one per installed add-on; 304s with ETags still cost quota unauthenticated |
-| Typing "bigwigs" | 21 | support checks on each search |
-| Category click | 15 | support checks on the top results |
-| 3 searches over deleted repos | 45 | failures weren't cached |
-| ⌘R with quota exhausted | 40 | all 403s |
-| CLI `update` with nothing new | 20 | |
-| Update All (5 add-ons) | 5 redundant | each add-on re-resolved after the check |
-| App activation, store-watcher reload | 0 | |
-| Browse (empty query) | 0 | |
+| First launch / seed (0 installed) | n/a | 0/0/347 (1 catalogue + 200 HEAD + 146 `release.json`), ~6–18 s |
+| Install 1 add-on | 1/0/2 | 0/0/3 |
+| Launch within 2 h | 20/0/0 | 0/0/0 |
+| Launch after 2 h | 20/0/0 | 0/0/40 |
+| ⌘R | 20/0/0 | 0/0/21 |
+| Type "bigwigs" | 21/0/11 | 0/0/0 |
+| Category click | 15/0/5 | 0/0/0 |
+| Too few local hits | 3/3/1 | 0/1/0, then cached |
+| Open details (cold) | n/a | 1/0/4–5 |
+| Update All (5) | 5/0/5 zips | 0/0/5 zips |
+| CLI update, nothing new | 20/0/0 | 0/0/40 |
+| ⌘R ×2 at quota 0 | 40 (403s) | 0/0/60 |
+| Search ×3 over 404 repos | 45 | 0 |
+| Offline, 5 searches | 5 failed fetches | 1 (15 min backoff) |
+| 2nd installation's first refresh | n/a | 0/0/343 |
 
 The catalogue is one 186 KB download (609 KB uncompressed, 2,421 rows), cached 24 h with an ETag.
 
-One launch, one search and one category click add up to 56 of the 60 calls allowed per hour.
+At the baseline, one launch, one search and one category click added up to 56 of the 60 calls allowed per hour.
 
-## Target (the core merge's design, not yet re-measured)
+## After these fixes
 
-| Action | Requests | API calls |
-|---|---|---|
-| Search, browse, sort, categories | 0 | 0 |
-| Search with fewer than 3 local matches (3+ characters) | 1 | 1 search call (10/min limit), then cached 24 h |
-| Opening details | 2–4 for that repo, only if stale | 0 |
-| Refresh every 2 hours | about 5 + N (N = installed and changed repos) | 0 |
-| First launch | about 1,000 (~25 s at concurrency 4) | 0 |
-| Prerelease channel | release list | 1 per add-on |
-| Update / Update All in the app | the zips only | 0 (installs the releases the last check found) |
-| CLI `update`, nothing new | one quota-free check per add-on | 0 for add-ons with `release.json` |
+Rows the 0017 changes affect. **Measured** rows come from the offline request-count tests (`NetworkBudgetTests`, `DetailsTests`, `WebSupportTests`) over stubbed HTTP; **expected** rows follow from the same code paths but weren't counted end to end.
 
-Re-measure and replace this table with real numbers on the next network audit. How: [decision 0009](../decisions/0009-local-first-search.md), [decision 0010](../decisions/0010-quota-free-endpoints.md), [decision 0011](../decisions/0011-single-cache-owner.md).
+| Flow | Before (`05ba0ff`) | After | |
+|---|---|---|---|
+| Open details (cold) | 1/0/4–5, plus zips for repos without `release.json` | 0/0/3–4 (HEAD, the tag's `release.json`, README paths), never a zip | measured |
+| Open details again, any process, within 24 h | 0/0/0 | 0/0/0 | measured |
+| Release notes | part of every cold open | 1/0/0 on **Show Release Notes**, then stored by tag | measured |
+| Launch after 2 h (relaunch) | 0/0/40 | 0/0/20: one HEAD per add-on, no `release.json`; +1 when the catalogue's 24 h is up | measured |
+| ⌘R in a new process | 0/0/21 | 0/0/21, none of it `release.json` | measured |
+| A new tag for an installed add-on | its `release.json` in every process | that `release.json` once; other processes reuse it | measured |
+| 2nd installation's first refresh, within 1 h | 0/0/343 | 0/0/0 (tags shared, verdicts from stored `release.json`) | measured |
+| 2nd installation's first refresh, later | 0/0/343 | up to 100 HEADs (smaller seed), `release.json` only for new tags | measured with 10 repos; 100 expected |
+| CLI update, nothing new | 0/0/40 | 0/0/20 | expected |
+| ⌘R ×2 at quota 0 | 0/0/60 | 0/0/40, HEADs only | expected |
+| ⌘R for add-ons only the API can decide | 1 core call each | 1 per repo every 6 h, or when its latest tag changes; one add-on's own update always asks | measured |
+| A github.com failure in a background check | could spend an API call and overwrote the verdict | 0 API calls; verdict kept, retried after 15 min | measured |
+| Live search with a stored answer | 500 ms wait first | answered at once, no "searching GitHub" state | measured |
 
-## Side by side
-
-| Action | Baseline API calls | Target API calls |
-|---|---|---|
-| Launch / check for updates | 20 | 0 (quota-free refresh) |
-| Typing "bigwigs" | 21 | 0 |
-| Category click | 15 | 0 |
-| CLI `update`, nothing new | 20 | 0 on the stable channel |
+How: [decision 0009](../decisions/0009-local-first-search.md), [0010](../decisions/0010-quota-free-endpoints.md), [0011](../decisions/0011-single-cache-owner.md), [0017](../decisions/0017-details-without-quota-release-json-by-tag.md).
 
 ## Useful facts
 
@@ -55,3 +58,4 @@ Re-measure and replace this table with real numbers on the next network audit. H
 - Search API: 10 calls/min unauthenticated.
 - `releases/latest/download/release.json` takes 3 hops and about 350 ms; use the `releases/latest` redirect plus `releases/download/<tag>/release.json` instead ([github-endpoints.md](github-endpoints.md)).
 - Seeding all ~1,877 candidate repos on first launch was rejected: about 7,500 requests and ~3 minutes.
+- A stored `release.json` is about 600 B; 200 seeded repos add about 120 KB to `metadata.sqlite`.
