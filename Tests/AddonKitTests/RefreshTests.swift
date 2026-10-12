@@ -69,7 +69,8 @@ import Testing
     @Test func storedStatesAreCorrectedForWhatWasInstalledSince() async throws {
         let h = try await makeHarness()
         try h.publish("Test/Addon", [("v2", 2, 2), ("v1", 1, 1)])
-        let first = await run(h)
+        // Forced: the install just stored v1 as the latest tag, which a background refresh would reuse.
+        let first = await run(h, force: true)
         guard case .available(let release)? = first.last?.updates?[installedRef] else {
             Issue.record("expected an update")
             return
@@ -107,7 +108,7 @@ import Testing
         await h.manager.setClock { Date().addingTimeInterval(3 * 3600) }
         h.http.reset()
         let events = await run(h, force: true)
-        #expect(events.filter { $0.phase == .support }.last?.total == 2)
+        #expect(events.filter { $0.phase == .support }.last?.total == 3, "Alpha, Epsilon and the installed add-on")
         #expect(h.http.urls.contains("https://github.com/A/Alpha/releases/latest"))
         #expect(h.http.urls.contains("https://github.com/E/Epsilon/releases/latest"), "new to the catalogue")
         #expect(!h.http.urls.contains { $0.contains("B/Beta") || $0.contains("D/Delta") })

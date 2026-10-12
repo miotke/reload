@@ -11,15 +11,22 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
     return source
 }
 
-/// Support checks and latest tags over github.com, which cost no API quota.
+/// Support checks over github.com, which cost no API quota, and the cache policies that
+/// decide when they touch the network.
 @Suite struct WebSupportTests {
     @Test func supportedFromLatestReleaseJSON() async throws {
         let http = RedirectingHTTPClient()
         http.publishLatest("o/r", tag: "v2.0", flavors: ["mainline", "forever"])
-        #expect(await source(http).support(for: ref, flavor: .forever) == .supported(version: "v2.0"))
+        let source = await source(http)
+        #expect(await source.check(ref, flavor: .forever) == SupportCheck(status: .supported(version: "v2.0"), tag: "v2.0"))
         #expect(http.apiRequests.isEmpty)
+        // One HEAD, and the redirect isn't followed (that would download the release page).
         #expect(http.requests.first?.httpMethod == "HEAD")
+        #expect(!http.urls.contains("https://github.com/o/r/releases/tag/v2.0"))
         #expect(http.requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == nil })
+        // The answer is stored, with its tag.
+        #expect(await source.store.record(for: ref)?.tag == "v2.0")
+        #expect(await source.store.latestTag(for: ref)?.tag == "v2.0")
     }
 
     @Test func releaseJSONWithoutTheFlavorIsUnsupported() async {
@@ -38,24 +45,9 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
     @Test func noReleasesOrMissingRepo() async throws {
         let http = RedirectingHTTPClient()
         http.publishLatest("o/r", tag: nil)
-        #expect(await source(http).support(for: ref, flavor: .forever) == .noReleases)
-        #expect(try await source(http).latestTag(for: ref) == nil)
-
-        // releases/latest itself 404s for a missing repo.
+        #expect(await source(http).check(ref, flavor: .forever) == SupportCheck(status: .noReleases, tag: nil))
         let missing = AddonRef(source: .github, identifier: "o/gone")
         #expect(await source(http).support(for: missing, flavor: .forever) == .noReleases)
-        await #expect(throws: AddonError.notFound(missing)) { try await source(http).latestTag(for: missing) }
-    }
-
-    @Test func latestTagIsReusedBriefly() async throws {
-        let http = RedirectingHTTPClient()
-        http.publishLatest("o/r", tag: "release/1.0")
-        let source = await source(http)
-        #expect(try await source.latestTag(for: ref) == "release/1.0")
-        #expect(try await source.latestTag(for: AddonRef(source: .github, identifier: "O/R")) == "release/1.0")
-        // One HEAD, and the redirect isn't followed (that would download the release page).
-        #expect(http.urls == ["https://github.com/o/r/releases/latest"])
-        #expect(http.requests.first?.httpMethod == "HEAD")
     }
 
     @Test func tagParsing() {
@@ -66,41 +58,112 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
             == "https://github.com/o/r/releases/download/a%2Fb%20c/release.json")
     }
 
-    @Test func unchangedTagReusesTheStoredVerdict() async throws {
-        let database = try MetadataDatabase.inMemory()
+    // MARK: Cache policies
+
+    @Test func preferStoredNeverTouchesTheNetwork() async throws {
         let http = RedirectingHTTPClient()
         http.publishLatest("o/r", tag: "v1")
-        let first = GitHubSource(http: http, database: database)
-        let check = await first.check(ref, flavor: .forever)
-        #expect(check == SupportCheck(status: .supported(version: "v1"), tag: "v1"))
-        await SupportCache(database: database).set(check.status, for: ref, tag: check.tag)
+        let source = await source(http)
+        #expect(await source.check(ref, flavor: .forever, policy: .preferStored) == SupportCheck(status: .unknown, tag: nil))
+        #expect(http.requests.isEmpty)
+        #expect(await source.store.record(for: ref) == nil, "nothing written")
 
-        // A new process: the tag is unchanged, so release.json isn't fetched again.
+        _ = await source.check(ref, flavor: .forever)
         http.reset()
-        #expect(await GitHubSource(http: http, database: database).support(for: ref, flavor: .forever) == .supported(version: "v1"))
+        #expect(await source.check(ref, flavor: .forever, policy: .preferStored).status == .supported(version: "v1"))
+        #expect(http.requests.isEmpty)
+    }
+
+    @Test func revalidateIfStaleUsesTheTTLs() async throws {
+        let http = RedirectingHTTPClient()
+        http.publishLatest("o/r", tag: "v1")
+        let source = await source(http)
+        let clock = MutableClock()
+        await source.setClock(clock.now)
+        _ = await source.check(ref, flavor: .forever)
+        http.reset()
+
+        clock.date += SupportCache.defaultTTL - 60
+        _ = await source.check(ref, flavor: .forever)
+        #expect(http.requests.isEmpty, "fresh: no request")
+
+        clock.date += 120
+        _ = await source.check(ref, flavor: .forever)
+        #expect(http.urls == ["https://github.com/o/r/releases/latest"], "stale, same tag: one HEAD, verdict reused")
+        let stored = try #require(await source.store.record(for: ref))
+        #expect(stored.checkedAt == clock.date, "the revalidation is written")
+    }
+
+    @Test func negativeAndErrorAnswersHaveTheirOwnLifetimes() async throws {
+        let http = RedirectingHTTPClient()
+        http.publishLatest("o/r", tag: nil)
+        http.stub("https://github.com/o/err/releases/latest", status: 500)
+        let source = await source(http)
+        let clock = MutableClock()
+        await source.setClock(clock.now)
+        let broken = AddonRef(source: .github, identifier: "o/err")
+        // Quota is "comfortable", so the API fallback is tried; make it fail too.
+        http.stub("https://api.github.com/repos/o/err/releases?per_page=10", status: 500)
+        _ = await source.check(ref, flavor: .forever)
+        #expect(await source.check(broken, flavor: .forever).status == .unknown)
+        #expect(await source.store.status(for: broken) == nil, "a failure is never shown")
+        http.reset()
+
+        clock.date += 10 * 60
+        _ = await source.check(ref, flavor: .forever)
+        _ = await source.check(broken, flavor: .forever)
+        #expect(http.requests.isEmpty, "both within their lifetimes")
+
+        clock.date += 10 * 60
+        _ = await source.check(ref, flavor: .forever)
+        _ = await source.check(broken, flavor: .forever)
+        #expect(http.urls.contains("https://github.com/o/err/releases/latest"), "errors retry after 15 min")
+        #expect(!http.urls.contains("https://github.com/o/r/releases/latest"), "negative answers last 24 h")
+    }
+
+    @Test func forceRevalidateAlwaysAsksButReusesTheVerdictForAnUnchangedTag() async throws {
+        let http = RedirectingHTTPClient()
+        http.publishLatest("o/r", tag: "v1")
+        let database = try MetadataDatabase.inMemory()
+        _ = await GitHubSource(http: http, database: database).check(ref, flavor: .forever)
+
+        // A new process: release.json isn't fetched again for the same tag.
+        http.reset()
+        let source = GitHubSource(http: http, database: database)
+        #expect(await source.check(ref, flavor: .forever, policy: .forceRevalidate).status == .supported(version: "v1"))
         #expect(http.urls == ["https://github.com/o/r/releases/latest"])
 
         // A new tag means a new release.json.
         http.publishLatest("o/r", tag: "v2", flavors: ["mainline"])
         http.reset()
-        #expect(await GitHubSource(http: http, database: database).support(for: ref, flavor: .forever) == .unsupported)
+        #expect(await source.check(ref, flavor: .forever, policy: .forceRevalidate).status == .unsupported)
         #expect(http.urls.contains { $0.hasSuffix("/v2/release.json") })
     }
 
-    @Test func webResolveBuildsTheAssetURLWithoutTheAPI() async throws {
+    @Test func concurrentChecksShareOneRequest() async throws {
+        let http = RedirectingHTTPClient(delay: .milliseconds(50))
+        http.publishLatest("o/r", tag: "v1")
+        let source = await source(http)
+        async let a = source.check(ref, flavor: .forever, policy: .forceRevalidate)
+        async let b = source.check(ref, flavor: .forever, policy: .forceRevalidate)
+        let (first, second) = await (a, b)
+        #expect(first == second)
+        #expect(http.urls.filter { $0 == "https://github.com/o/r/releases/latest" }.count == 1)
+    }
+
+    @Test func quotaFreeResolveBuildsTheAssetURL() async throws {
         let http = RedirectingHTTPClient()
         http.publishLatest("o/r", tag: "v3")
-        let release = try #require(try await source(http).webResolve(ref, flavor: .forever))
+        let release = try #require(await source(http).quotaFreeResolve(ref, flavor: .forever, policy: .forceRevalidate))
         #expect(release.version == "v3")
         #expect(release.assetName == "Addon-v3.zip")
         #expect(release.downloadURL.absoluteString == "https://github.com/o/r/releases/download/v3/Addon-v3.zip")
-        #expect(release.releaseID < 0)
         #expect(release.releaseID == GitHubSource.syntheticReleaseID(ref: ref, tag: "v3"))
         #expect(http.apiRequests.isEmpty)
 
         // Without the flavor (or without release.json) only the API can decide.
         http.publishLatest("o/r", tag: "v4", flavors: ["mainline"])
-        #expect(try await source(http).webResolve(ref, flavor: .forever) == nil)
+        #expect(await source(http).quotaFreeResolve(ref, flavor: .forever, policy: .forceRevalidate) == nil)
     }
 
     @Test func tagComparisonForQuotaFreeReleases() {
@@ -114,27 +177,43 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
         #expect(installed.isUpdate(release))
     }
 
+    // MARK: Politeness
+
     @Test func retriesServerErrorsThenSucceeds() async throws {
         let http = FlakyHTTPClient(failures: 2, status: 503)
         http.inner.publishLatest("o/r", tag: "v1")
         let flaky = GitHubSource(http: http)
         await flaky.setRetryDelay { _, _ in .zero }
-        #expect(try await flaky.latestTag(for: ref) == "v1")
-        #expect(http.attempts == 3)
+        #expect(await flaky.check(ref, flavor: .forever).tag == "v1")
+        #expect(http.attempts == 4) // 2 failures, the HEAD, then release.json
     }
 
     @Test func persistent429PausesWebRequests() async throws {
         let http = RedirectingHTTPClient()
         http.stub("https://github.com/o/r/releases/latest", status: 429, headers: ["Retry-After": "120"])
         let source = await source(http)
-        await #expect(throws: AddonError.self) { try await source.latestTag(for: ref) }
-        #expect(http.requests.count == 1) // a long Retry-After isn't retried
+        #expect(await source.check(ref, flavor: .forever).status == .unknown)
+        #expect(http.requests.count == 1, "a long Retry-After isn't retried, and the API isn't asked instead")
         // While paused, other repos aren't requested from github.com at all.
         http.publishLatest("o/other", tag: "v1")
-        await #expect(throws: AddonError.self) {
-            try await source.latestTag(for: AddonRef(source: .github, identifier: "o/other"))
-        }
+        #expect(await source.check(AddonRef(source: .github, identifier: "o/other"), flavor: .forever).status == .unknown)
         #expect(http.requests.count == 1)
+    }
+
+    @Test func secondaryLimit403PausesForAMinute() async throws {
+        let http = RedirectingHTTPClient()
+        http.stub("https://github.com/o/r/releases/latest", status: 403)
+        let source = await source(http)
+        let clock = MutableClock()
+        await source.setClock(clock.now)
+        _ = await source.check(ref, flavor: .forever)
+        http.publishLatest("o/next", tag: "v1")
+        clock.date += 30
+        _ = await source.check(AddonRef(source: .github, identifier: "o/next"), flavor: .forever)
+        #expect(http.requests.count == 1)
+        clock.date += 40
+        _ = await source.check(AddonRef(source: .github, identifier: "o/next"), flavor: .forever, policy: .forceRevalidate)
+        #expect(http.urls.contains("https://github.com/o/next/releases/latest"))
     }
 
     @Test func webFailureFallsBackToTheAPIOnlyWithComfortableQuota() async throws {
@@ -152,7 +231,22 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
         #expect(await source.support(for: other, flavor: .forever) == .unknown)
         #expect(http.apiRequests.count == 1)
     }
+
+    /// Callers can't bypass `check`: the raw github.com lookups are private to the source.
+    @Test func noCallerReachesTheRawLookups() throws {
+        let sources = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appending(path: "Sources")
+        let files = FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)!
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" && $0.lastPathComponent != "GitHubSource.swift" }
+        for file in files {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            for forbidden in ["fetchLatestTag(", "webReleaseJSON(", "isFresh(", "storedSupport("] {
+                #expect(!text.contains(forbidden) || file.lastPathComponent == "SupportCache.swift", "\(file.lastPathComponent) calls \(forbidden)")
+            }
+        }
+    }
 }
+
 
 /// Fails the first `failures` requests with `status`, then delegates.
 final class FlakyHTTPClient: HTTPClient, Sendable {

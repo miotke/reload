@@ -38,7 +38,7 @@ The same check runs on an add-on folder already on disk, which adopting uses.
 
 ## Quota-free resolve (stable channel)
 
-`webResolve(_:flavor:)` resolves the latest stable release without the API when its `release.json` names a build for the flavor. The download URL is built as `github.com/{owner}/{repo}/releases/download/{tag}/{filename}`, so installing or updating BigWigs, DBM and other packager-built add-ons costs no API quota.
+`AddonManager.resolve` (stable channel) and stable update checks first use the latest release from `latestRelease` (see [the decision below](#decision-one-owner-for-support-state-chosen-by-cache-policy)). When its `release.json` names a build for the flavor, the release is resolved without the API. The download URL is built as `github.com/{owner}/{repo}/releases/download/{tag}/{filename}`, so installing or updating BigWigs, DBM and other packager-built add-ons costs no API quota.
 
 - It returns nil, and the caller falls back to the API resolve above, when the latest release has no `release.json` or lacks the flavor (an older release might still have it).
 - Such a release has no real release ID or date: `releaseID` is a negative hash of `owner/repo@tag` and `publishedAt` is the time of the check. `InstalledAddon.isUpdate` compares **tags** whenever either side has a synthetic ID, so a re-resolve never shows a false "update available".
@@ -75,7 +75,7 @@ At most 2 candidate zips are inspected per release without a `release.json`, and
 
 ## Support checks
 
-`check(_:flavor:)` (and `support(for:flavor:)`, the `SupportChecking` protocol) costs **no API quota**. It looks only at the latest stable release:
+`check(_:flavor:policy:background:)` (and `support(for:flavor:)`, the `SupportChecking` protocol) costs **no API quota**. It looks only at the latest stable release:
 
 ```mermaid
 flowchart LR
@@ -89,18 +89,44 @@ flowchart LR
     B -- 404 --> D[.needsDownload]
 ```
 
-| Outcome | `SupportStatus` | Stored |
+| Outcome | `SupportStatus` | Reused by `.revalidateIfStale` for |
 |---|---|---|
-| Latest release's `release.json` lists Forever | `.supported(version: tag)` | 24 h before it's re-checked |
-| It lists only other flavors | `.unsupported` | 24 h |
+| Latest release's `release.json` lists Forever | `.supported(version: tag)` | 1 h |
+| It lists only other flavors | `.unsupported` | 1 h |
+| Latest release has no `release.json` | `.needsDownload` | 1 h |
 | No releases, or the repo is gone | `.noReleases` | 24 h (a negative result) |
-| Latest release has no `release.json` | `.needsDownload` | 24 h |
-| Anything else failed | `.unknown` | 15 min as an `error` row, never shown |
+| Anything else failed | `.unknown` | 15 min (stored as an `error` row, never shown) |
 
-- An unchanged tag means one `HEAD` and no `release.json` download.
-- `latestTag(for:)` is the first step on its own. Answers are reused for 10 minutes, so a refresh's update and support phases share one request per repo; update checks pass `maxAge: 0`.
 - If github.com fails for a reason other than pushing back (429/403), `apiSupport(for:flavor:)`, the old API path, answers while quota is comfortable. It also looks past the latest release, and keeps a 10-call reserve.
 - `background: true` requests stay off constrained networks.
+
+## Decision: one owner for support state, chosen by cache policy
+
+**Context.** Support verdicts and latest tags were cached in two places, an in-memory cache in `GitHubSource` and the SQLite `support` table, and callers decided freshness between them (checking `isFresh`, passing `reuse:`/`maxAge:` flags, or calling the tag and `release.json` lookups directly). That duplicated the "latest tag → release.json" logic and made it easy to force a request every time, or to trust an answer that was too old.
+
+**Decision.**
+1. **Single owner.** `GitHubSource.latestRelease(for:flavor:policy:)` is the only code that decides support. It reads and writes the stored verdicts and latest tags itself (`SupportCache` over the `support` and `repo_meta` tables). There is no other support cache. The raw lookups (`fetchLatestTag`, `webReleaseJSON`) are private to `GitHubSource`; callers never judge freshness. A test checks that no other file reaches them.
+2. **Cache policy instead of flags:**
+
+   | `CachePolicy` | Network | Store |
+   |---|---|---|
+   | `.preferStored` | never | read only; `.unknown` if nothing is stored |
+   | `.revalidateIfStale` | only when the stored answer is past its lifetime (table above) | writes what it learns |
+   | `.forceRevalidate` | always asks for the latest tag; still reuses the stored verdict when the tag is unchanged | writes what it learns |
+3. **One shared primitive.** `latestRelease` answers "what's the latest stable release, and does it support the flavor" (`LatestRelease { tag, status, build }`). `check` returns its verdict; update checks use the same answer (and its `release.json` build) to decide "up to date" or build a quota-free `ResolvedRelease`; installs use it through `quotaFreeResolve`.
+4. **Concurrent callers share one request:** a second lookup for the same repo and flavor waits for the first.
+
+**Who uses which policy:**
+
+| Caller | Policy |
+|---|---|
+| Search and Browse | none: they read stored verdicts only |
+| Opening details | `.revalidateIfStale` |
+| Background refresh (every 2 h): update and support phases | `.revalidateIfStale`; the support phase reuses what the update phase just stored |
+| Explicit check (⌘R, `checkForUpdates`, `addonctl outdated`/`update`), forced refresh, install, `update` | `.forceRevalidate` |
+
+**Consequences.** Freshness rules live in one place (`SupportCache` lifetimes plus the policy). A forced check of an unchanged repo costs one `HEAD`. The refresh may still pre-filter its targets as an optimisation, but `check` remains the authority. Writes happen per check rather than in caller-side batches.
+
 
 ## Parsing refs
 

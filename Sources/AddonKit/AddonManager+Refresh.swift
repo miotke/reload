@@ -18,8 +18,6 @@ extension AddonManager {
     public static let refreshConcurrency = 4
     /// Progress is emitted at most this often, apart from phase changes and the end.
     static let progressInterval: Duration = .milliseconds(100)
-    /// Verdicts are written in batches of this many.
-    static let supportBatchSize = 25
 
     public nonisolated func refresh(in installation: Installation, force: Bool) -> AsyncStream<RefreshProgress> {
         // Only the newest progress matters; `.finished` is always the last element, so it's
@@ -57,7 +55,11 @@ extension AddonManager {
         let installed = (try? await store.addons(in: installation)) ?? []
         reporter.send(RefreshProgress(phase: .updates, completed: 0, total: installed.count, message: "Checking for updates…"), force: true)
         let total = installed.count
-        let updates = (try? await checkForUpdates(in: installation, background: true) { addon, done in
+        // A forced refresh (⌘R) asks for every installed add-on's latest tag; the background
+        // one reuses answers younger than their TTL. Either way the answers are stored, so
+        // the support phase below reuses them for installed add-ons.
+        let policy: GitHubSource.CachePolicy = force ? .forceRevalidate : .revalidateIfStale
+        let updates = (try? await checkForUpdates(in: installation, policy: policy, background: true) { addon, done in
             reporter.send(RefreshProgress(phase: .updates, completed: done, total: total, message: "Checked \(addon.name)"))
         }) ?? [:]
         guard !Task.isCancelled else { return }
@@ -79,7 +81,7 @@ extension AddonManager {
     }
 
     /// Repos to check, most useful first:
-    /// - installed add-ons without a fresh verdict;
+    /// - installed add-ons (`check` skips those with fresh answers);
     /// - on the first refresh, the `seedCount` most recently updated catalogue repos with a
     ///   release.json;
     /// - repos whose catalogue `last_updated` is newer than their verdict, and repos new to
@@ -89,9 +91,8 @@ extension AddonManager {
     func supportTargets(installation: Installation, installed: [AddonRef], diff: CatalogueDiff, seed: Bool) async -> [AddonRef] {
         let flavor = installation.flavor.rawValue
         var names: [String] = []
-        for ref in installed where !(await supportCache.isFresh(ref, flavor: installation.flavor)) {
-            names.append(ref.identifier)
-        }
+        // Installed add-ons are always targets; `check` decides whether that needs a request.
+        names += installed.map(\.identifier)
         if seed {
             let rows = (try? await database.query("""
                 SELECT c.full_name FROM catalogue c
@@ -124,38 +125,34 @@ extension AddonManager {
         return names.filter { seen.insert($0.lowercased()).inserted }.map { AddonRef(source: .github, identifier: $0) }
     }
 
+    /// Runs `check` for each target, 4 at a time. `check` owns the stored verdicts: it skips
+    /// the network for answers still within their TTL and writes what it learns.
     private func checkSupport(_ targets: [AddonRef], flavor: Flavor, reporter: ProgressReporter) async {
         let github = self.github
-        var pending: [SupportRecord] = []
-        var lastFlush = ContinuousClock.now
         var done = 0
-        await withTaskGroup(of: (AddonRef, SupportCheck).self) { group in
+        await withTaskGroup(of: AddonRef.self) { group in
             var queue = targets[...]
             func addNext() {
                 guard let ref = queue.popFirst() else { return }
-                group.addTask { (ref, await github.check(ref, flavor: flavor, background: true, reuse: false)) }
+                group.addTask {
+                    _ = await github.check(ref, flavor: flavor, policy: .revalidateIfStale, background: true)
+                    return ref
+                }
             }
             for _ in 0..<Self.refreshConcurrency { addNext() }
-            while let (ref, check) = await group.next() {
+            while let ref = await group.next() {
                 if Task.isCancelled {
                     group.cancelAll()
                     break
                 }
                 done += 1
-                pending.append(SupportRecord(ref: ref, status: check.status, tag: check.tag, checkedAt: now()))
-                // Batched so the database (and anyone watching it) sees a few commits, not hundreds.
-                if pending.count >= Self.supportBatchSize || ContinuousClock.now - lastFlush > .seconds(1) {
-                    await supportCache.set(pending, flavor: flavor)
-                    pending = []
-                    lastFlush = .now
-                }
                 let name = ref.identifier.split(separator: "/").last.map(String.init) ?? ref.identifier
                 reporter.send(RefreshProgress(phase: .support, completed: done, total: targets.count, message: "Checked \(name)"))
                 addNext()
             }
         }
-        await supportCache.set(pending, flavor: flavor)
     }
+
 
     /// The last refresh's update states, corrected for anything installed since.
     private func storedUpdates(in installation: Installation) async -> [AddonRef: UpdateState] {

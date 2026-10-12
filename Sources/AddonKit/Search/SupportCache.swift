@@ -25,14 +25,25 @@ public struct SupportRecord: Sendable, Hashable {
 public actor SupportCache {
     /// The JSON file earlier versions wrote to the caches folder. No longer used.
     public static let fileName = "forever-support.json"
-    /// A verdict younger than this is never re-checked.
-    public static let defaultTTL: TimeInterval = 24 * 60 * 60
+    /// How long `.revalidateIfStale` reuses a verdict for a repo with releases. Short enough
+    /// that the 2-hour background refresh sees new tags of installed add-ons.
+    public static let defaultTTL: TimeInterval = 60 * 60
+    /// How long a negative answer (no releases, repo gone) is reused.
+    public static let negativeTTL: TimeInterval = 24 * 60 * 60
     /// Failed checks aren't retried for this long.
     public static let errorTTL: TimeInterval = 15 * 60
 
+    /// A stored row as `GitHubSource.latestRelease` sees it.
+    struct StoredSupport: Sendable {
+        /// Nil for a failed check.
+        var status: SupportStatus?
+        var tag: String?
+        var checkedAt: Date
+    }
+
     public nonisolated let database: MetadataDatabase
     private let ttl: TimeInterval
-    private let now: @Sendable () -> Date
+    private var now: @Sendable () -> Date
 
     public init(database: MetadataDatabase, ttl: TimeInterval = SupportCache.defaultTTL, now: @escaping @Sendable () -> Date = Date.init) {
         self.database = database
@@ -62,13 +73,27 @@ public actor SupportCache {
         return rows.first.flatMap(Self.record)
     }
 
-    /// True when `ref` was checked (successfully or not) recently enough not to check again.
-    public func isFresh(_ ref: AddonRef, flavor: Flavor = .forever) async -> Bool {
+    func setClock(_ clock: @escaping @Sendable () -> Date) {
+        now = clock
+    }
+
+    func storedSupport(for ref: AddonRef, flavor: Flavor) async -> StoredSupport? {
         guard let row = try? await database.query(
-            "SELECT status, checked_at FROM support WHERE full_name = ? AND flavor = ?", ref.identifier, flavor.rawValue).first,
-            let checked = row.date(1) else { return false }
-        let age = now().timeIntervalSince(checked)
-        return row.string(0) == "error" ? age < Self.errorTTL : age < ttl
+            "SELECT status, version, tag, checked_at FROM support WHERE full_name = ? AND flavor = ?",
+            ref.identifier, flavor.rawValue).first,
+            let kind = row.string(0), let checked = row.date(3) else { return nil }
+        return StoredSupport(status: Self.status(kind: kind, version: row.string(1)), tag: row.string(2), checkedAt: checked)
+    }
+
+    /// Whether a stored answer is within its lifetime: verdicts 1 h, negative answers 24 h,
+    /// failures 15 min. Only `GitHubSource.latestRelease` decides with this.
+    func isFresh(_ stored: StoredSupport) -> Bool {
+        let age = now().timeIntervalSince(stored.checkedAt)
+        switch stored.status {
+        case nil: return age < Self.errorTTL
+        case .noReleases?: return age < Self.negativeTTL
+        default: return age < ttl
+        }
     }
 
     /// Every stored verdict for `flavor`.
@@ -146,6 +171,13 @@ public actor SupportCache {
                     ELSE excluded.latest_published_at END,
                 latest_tag = excluded.latest_tag, tag_checked_at = excluded.tag_checked_at
             """, ref.identifier, tag, now(), publishedAt)
+    }
+
+    /// Records when the stored latest tag was published, once an API call reveals it. Never
+    /// changes the tag itself: that's `GitHubSource.check`'s job.
+    public func setPublishedAt(_ date: Date, ifLatestTagIs tag: String, for ref: AddonRef) async {
+        _ = try? await database.execute(
+            "UPDATE repo_meta SET latest_published_at = ? WHERE full_name = ? AND latest_tag = ?", date, ref.identifier, tag)
     }
 
     /// Publish date of the stored latest tag, when an API call has revealed it.

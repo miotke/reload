@@ -72,10 +72,7 @@ extension AddonManager {
         _ ref: AddonRef, owner: String, repo: String, flavor: Flavor, previous: StoredDetails?
     ) async -> StoredDetails? {
         // Support: quota-free, and only if the stored verdict is stale.
-        if !(await supportCache.isFresh(ref, flavor: flavor)) {
-            let check = await github.check(ref, flavor: flavor, reuse: false)
-            await supportCache.set([SupportRecord(ref: ref, status: check.status, tag: check.tag, checkedAt: now())], flavor: flavor)
-        }
+        _ = await github.check(ref, flavor: flavor, policy: .revalidateIfStale)
 
         // README: remembered path and ETag first; a stored "none" is an empty path.
         let meta = try? await database.query(
@@ -118,9 +115,7 @@ extension AddonManager {
             latestVersion = release.version
             latestPublishedAt = release.publishedAt
             latestChangelog = release.changelog
-            if await supportCache.latestTag(for: ref)?.tag == release.version {
-                await supportCache.setLatestTag(release.version, publishedAt: release.publishedAt, for: ref)
-            }
+            await supportCache.setPublishedAt(release.publishedAt, ifLatestTagIs: release.version, for: ref)
         } else {
             latestVersion = previous?.latestVersion
             latestPublishedAt = previous?.latestPublishedAt

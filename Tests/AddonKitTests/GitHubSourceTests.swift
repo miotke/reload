@@ -322,19 +322,16 @@ private final class TestClock: Sendable {
         #expect(stub.requests.count == 2)
     }
 
-    @Test func cachesForSixHoursThenRevalidatesWithETag() async throws {
+    /// `apiSupport` keeps no answers of its own (`check` stores them); it revalidates its
+    /// releases list with the ETag.
+    @Test func revalidatesWithETag() async throws {
         let stub = StubHTTPClient()
         stub.stub(api, headers: ["ETag": #""v1""#, "x-ratelimit-remaining": "50"],
                   body: try encode([ghRelease(1, tag: "v1", assets: [ghAsset(10, "A.zip")])]))
         let source = GitHubSource(http: stub)
-        let clock = TestClock()
-        await source.setClock { clock.date }
         #expect(await source.apiSupport(for: ref, flavor: .forever) == .needsDownload)
-        clock.date += 5 * 3600
-        #expect(await source.apiSupport(for: AddonRef(source: .github, identifier: "O/R"), flavor: .forever) == .needsDownload)
         #expect(stub.requests.count == 1)
 
-        clock.date += 2 * 3600
         stub.stub(api, status: 304, headers: ["x-ratelimit-remaining": "50"], body: Data())
         #expect(await source.apiSupport(for: ref, flavor: .forever) == .needsDownload)
         #expect(stub.requests.count == 2)

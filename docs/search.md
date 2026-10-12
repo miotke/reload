@@ -97,14 +97,14 @@ flowchart LR
 
 | Refresh | Support targets |
 |---|---|
-| First ever for this installation | the 200 most recently updated catalogue repos with a `release.json`, plus installed add-ons without a fresh verdict |
-| Later (every 2 h, or forced) | installed add-ons without a fresh verdict; repos whose catalogue `last_updated` is newer than their verdict; repos new to the catalogue (with `release.json`); the 20 oldest verdicts past 14 days |
+| First ever for this installation | the 200 most recently updated catalogue repos with a `release.json`, plus installed add-ons |
+| Later (every 2 h, or forced) | installed add-ons; repos whose catalogue `last_updated` is newer than their verdict; repos new to the catalogue (with `release.json`); the 20 oldest verdicts past 14 days |
 
 - A forced refresh runs the installed checks and a catalogue revalidation at once, but never re-seeds.
 - Repos without a `release.json` are never requested; search shows them as `.needsDownload`.
 - Stored update states are corrected on the way out: an `.available` release that's since been installed comes back `.upToDate`.
 - **Politeness:** github.com only (no API quota for `release.json` add-ons), 4 checks at a time, jittered retries, and a global pause on 429/403. Requests stay off Low Data Mode networks.
-- **Writes** are batched (25 verdicts or 1 s per transaction), so watchers see a handful of commits.
+- **Who decides:** every target goes through `check(policy: .revalidateIfStale)`, which skips the network for answers still within their lifetime and stores what it learns (see the cache-policy decision in [github-source.md](github-source.md#decision-one-owner-for-support-state-chosen-by-cache-policy)). The target list is only a pre-filter. A forced refresh checks installed add-ons with `.forceRevalidate`.
 - **Progress** is coalesced to about 10 Hz: counts and a short message ("Checked BigWigs"), never result lists. The stream keeps only the newest few elements; `.finished` is always last, and cancelling the consumer stops the work without recording a refresh.
 
 ## Details
@@ -115,7 +115,7 @@ flowchart LR
 |---|---|
 | name, owner, summary, last updated | the `catalogue` row (also for repos found by live search), else the installed record or repo name |
 | stars | `repo_meta`, from live search results |
-| support, latest version | the stored verdict, re-checked first if older than 24 h (quota-free) |
+| support, latest version | the stored verdict, via `check(policy: .revalidateIfStale)` (quota-free) |
 | README | raw.githubusercontent.com, see below |
 | screenshots | images in the README, see below |
 | latest release date and notes | the API resolve, only while quota is comfortable; otherwise the last stored ones |
@@ -140,7 +140,7 @@ flowchart LR
 | `rate_limit` | `core` / `search` | remaining calls and reset time |
 
 - `catalogue` and `support` are `WITHOUT ROWID` tables; `catalogue(last_updated)` and `support(flavor, checked_at)` are indexed for the refresh queries.
-- **Verdict lifetimes:** a verdict is shown as long as it's stored. It's re-checked when the catalogue says the repo changed after `checked_at`, when it's older than 24 h and someone opens the add-on, or as part of a refresh's rotating slice (older than 14 days). An `error` row only stops retries for 15 minutes and is never shown.
+- **Verdict lifetimes:** a verdict is shown as long as it's stored. Whether to re-check is decided only by `GitHubSource.check` and its cache policy: verdicts are reused for 1 h, negative answers (no releases) for 24 h, and an `error` row stops retries for 15 minutes and is never shown. The refresh also targets repos the catalogue says changed after `checked_at`, and a rotating slice older than 14 days.
 - **Migrations:** ordered SQL steps; `PRAGMA user_version` counts how many have run. Each new step runs in its own `BEGIN IMMEDIATE` transaction on open, re-checking the version inside the lock so the app and CLI can't both apply it.
 - **Changes:** `MetadataDatabase.changes()` streams the tables and repos each commit touched, so the UI can patch only affected rows. Writes from another process don't appear there; compare `dataVersion()` on app activation instead.
 - Earlier versions kept `catalogue.plist` and `forever-support.json` in Caches. They're no longer read or written.

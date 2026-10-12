@@ -1,14 +1,10 @@
 import Foundation
 
-/// The outcome of a quota-free support check.
+/// The outcome of a support check.
 public struct SupportCheck: Sendable, Hashable {
     public var status: SupportStatus
     /// The latest stable tag seen, when the repo has releases.
     public var tag: String?
-    /// True when the repo answered "no releases" or "not found"; stored as a negative result.
-    public var isNegative: Bool {
-        status == .noReleases
-    }
 }
 
 /// Resolves add-ons published as GitHub Releases (docs/github-source.md).
@@ -17,31 +13,29 @@ public struct SupportCheck: Sendable, Hashable {
 ///   downloads, the `releases/latest` redirect and raw.githubusercontent.com don't.
 /// - The rate-limit state is exposed via `rateLimit()` and, with a database, shared with
 ///   other processes. No API request is made while it says the quota is used up.
+/// - Support verdicts and latest tags have one owner: `latestRelease`/`check` read and write
+///   them in `store`, and decide by a `CachePolicy` whether to go to the network.
 public actor GitHubSource: Source, SupportChecking {
     public nonisolated let id: SourceID = .github
 
     /// `apiSupport(for:flavor:)` returns `.unknown` instead of calling the API when this few calls remain.
     public static let supportReserve = 10
-    /// How long a support answer is reused in memory without any request.
-    public static let supportTTL: TimeInterval = 6 * 60 * 60
     /// Releases without release.json whose zips are downloaded before giving up.
     public static let maxInspectedReleases = 3
     /// Zips inspected per release without release.json.
     public static let maxCandidatesPerRelease = 2
     /// Optional API calls (README fallback, release details) are only made above this many.
     public static let comfortableQuota = 30
-    /// How long a `latestTag(for:)` answer is reused, so a refresh's update and support
-    /// phases share one request per repo.
-    public static let latestTagTTL: TimeInterval = 10 * 60
     /// Retries of a github.com request after a 429 or 5xx.
     static let maxWebRetries = 2
     /// Repos whose last releases response is kept in memory for ETag revalidation.
     static let releasesCacheLimit = 64
-    /// A failed support check isn't repeated for this long.
-    static let errorTTL: TimeInterval = 15 * 60
 
     static let apiBase = URL(string: "https://api.github.com")!
     static let webBase = URL(string: "https://github.com")!
+
+    /// Stored support verdicts and latest tags. `check` is the only writer of verdicts.
+    public nonisolated let store: SupportCache
 
     private let http: HTTPClient
     private var token: String?
@@ -62,10 +56,10 @@ public actor GitHubSource: Source, SupportChecking {
     /// at `releasesCacheLimit` with the least recently stored dropped first.
     private var releasesCache: [String: (etag: String, releases: [GitHubRelease])] = [:]
     private var releasesCacheOrder: [String] = []
-    private var supportCache: [String: (check: SupportCheck, checkedAt: Date)] = [:]
-    private var latestTags: [String: (tag: String?, checkedAt: Date)] = [:]
     /// release.json by `owner/repo@tag` (nil: that release has none).
     private var tagReleaseJSON: [String: ReleaseJSON?] = [:]
+    /// Latest-release lookups in flight, so two callers asking at once share one request.
+    private var inFlightLatest: [String: Task<LatestRelease, Never>] = [:]
     /// Set after github.com keeps refusing; web requests fail fast until then.
     private var webBlockedUntil: Date?
     /// Delay before retry `attempt` (1-based), given the server's `Retry-After` if any.
@@ -79,13 +73,14 @@ public actor GitHubSource: Source, SupportChecking {
     }
 
     /// - Parameters:
-    ///   - database: shares the API rate-limit state with other processes and supplies stored
-    ///     verdicts, so a support check whose latest tag hasn't changed costs one request.
+    ///   - database: shares the API rate-limit state with other processes and holds the
+    ///     support verdicts (an in-memory database is used without one).
+    ///   - store: the `SupportCache` to own; by default one over `database`.
     ///   - tokenProvider: read once, on the first API call, when `token` is nil.
     ///   - archiveURL: where to keep inspected zips (`Downloader.archiveURL(for:)`).
     public init(
         http: HTTPClient = URLSessionHTTPClient(), token: String? = nil, cacheDirectory: URL? = nil,
-        database: MetadataDatabase?, tokenProvider: (@Sendable () -> String?)? = nil,
+        database: MetadataDatabase?, store: SupportCache? = nil, tokenProvider: (@Sendable () -> String?)? = nil,
         archiveURL: (@Sendable (ResolvedRelease) -> URL)? = nil
     ) {
         self.http = http
@@ -93,6 +88,7 @@ public actor GitHubSource: Source, SupportChecking {
         self.tokenProvider = token == nil ? tokenProvider : nil
         self.cacheDirectory = cacheDirectory
         self.database = database
+        self.store = store ?? SupportCache(database: database ?? (try! MetadataDatabase.inMemory()))
         self.archiveURL = archiveURL
     }
 
@@ -138,8 +134,9 @@ public actor GitHubSource: Source, SupportChecking {
         rateReset = state.resetAt
     }
 
-    func setClock(_ clock: @escaping @Sendable () -> Date) {
+    func setClock(_ clock: @escaping @Sendable () -> Date) async {
         now = clock
+        await store.setClock(clock)
     }
 
     func setRetryDelay(_ delay: @escaping @Sendable (Int, TimeInterval?) -> Duration) {
@@ -244,21 +241,148 @@ public actor GitHubSource: Source, SupportChecking {
         }
     }
 
-    /// Resolves the latest stable release without the API, when its release.json names a
-    /// build for `flavor`: the asset URL is `releases/download/<tag>/<filename>`. Returns nil
-    /// when only the API can decide (no release.json, or the latest release lacks the flavor
-    /// but an older one might have it).
+    /// A stable negative ID for a release known only by its tag (FNV-1a of `owner/repo@tag`).
+    static func syntheticReleaseID(ref: AddonRef, tag: String) -> Int64 {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in "\(ref.identifier.lowercased())@\(tag)".utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01B3
+        }
+        return -Int64(hash & 0x3FFF_FFFF_FFFF_FFFF) - 1
+    }
+
+    // MARK: - Latest release and support (the single owner of support state)
+
+    /// How `check` and `latestRelease` may use what's stored before going to the network.
+    public enum CachePolicy: Sendable, Hashable {
+        /// Never touch the network: the stored answer, or `.unknown`.
+        case preferStored
+        /// Reuse a stored answer within its lifetime (`SupportCache` TTLs), else revalidate.
+        case revalidateIfStale
+        /// Always ask for the latest tag; a stored verdict for an unchanged tag is still reused.
+        case forceRevalidate
+    }
+
+    /// What the latest stable release is and whether it supports a flavor.
+    public struct LatestRelease: Sendable, Hashable {
+        /// Nil when the repo has no releases (or doesn't exist), or nothing is known.
+        public var tag: String?
+        public var status: SupportStatus
+        /// The flavor's build from the release's release.json, when it was needed and found.
+        public var build: ReleaseJSON.Release?
+    }
+
+    /// Whether `ref` supports `flavor`, by its latest stable release (docs/github-source.md).
+    /// This is the only way support is decided: it reads and writes the stored verdicts and
+    /// latest tags itself, so callers never judge freshness.
+    public func check(_ ref: AddonRef, flavor: Flavor, policy: CachePolicy = .revalidateIfStale, background: Bool = false) async -> SupportCheck {
+        let latest = await latestRelease(for: ref, flavor: flavor, policy: policy, background: background)
+        return SupportCheck(status: latest.status, tag: latest.tag)
+    }
+
+    public func support(for ref: AddonRef, flavor: Flavor) async -> SupportStatus {
+        await check(ref, flavor: flavor).status
+    }
+
+    /// The shared primitive behind `check`, update checks and quota-free resolves:
+    /// 1. A stored answer is used if the policy allows (`.preferStored` always,
+    ///    `.revalidateIfStale` within its TTL).
+    /// 2. Otherwise `releases/latest` gives the tag (redirect not followed). A stored verdict
+    ///    made against the same tag is reused; a new tag means fetching its release.json.
+    /// 3. The answer is stored. Failures are stored as errors (retried after 15 minutes).
     ///
-    /// The result has no real release ID or date: `releaseID` is a negative hash of the tag
-    /// and `publishedAt` is the stored date if an API call ever revealed it, else now.
-    /// `InstalledAddon.isUpdate` compares tags for such releases.
-    /// Pass `tag` when the latest tag was just looked up, to skip asking again.
-    public func webResolve(_ ref: AddonRef, flavor: Flavor, tag knownTag: String? = nil, background: Bool = false) async throws -> ResolvedRelease? {
-        let (owner, repo) = try Self.split(ref)
-        let latest = if let knownTag { knownTag } else { try await latestTag(for: ref, maxAge: 0, background: background) }
-        guard let tag = latest else { return nil }
-        guard let json = try await webReleaseJSON(owner: owner, repo: repo, tag: tag, background: background),
-              let build = json.release(for: flavor) else { return nil }
+    /// Concurrent calls for the same repo and flavor share one request. With `needBuild`,
+    /// a supported release's build (for its download URL) is filled in, fetching the
+    /// release.json if this process hasn't seen it.
+    func latestRelease(
+        for ref: AddonRef, flavor: Flavor, policy: CachePolicy, needBuild: Bool = false, background: Bool = false
+    ) async -> LatestRelease {
+        guard ref.source == .github, let (owner, repo) = try? Self.split(ref) else {
+            return LatestRelease(tag: nil, status: .unknown)
+        }
+        let stored = await store.storedSupport(for: ref, flavor: flavor)
+        let usable = stored.flatMap { row -> LatestRelease? in
+            guard let status = row.status else { return nil }
+            return LatestRelease(tag: row.tag, status: status)
+        }
+        switch policy {
+        case .preferStored:
+            return await withBuild(usable ?? LatestRelease(tag: stored?.tag, status: .unknown), ref: ref, flavor: flavor, fetch: false, background: background)
+        case .revalidateIfStale:
+            if let stored, await store.isFresh(stored) {
+                let answer = usable ?? LatestRelease(tag: stored.tag, status: .unknown)
+                return await withBuild(answer, ref: ref, flavor: flavor, fetch: needBuild, background: background)
+            }
+        case .forceRevalidate:
+            break
+        }
+
+        let key = Self.cacheKey(ref) + "#" + flavor.rawValue
+        let task: Task<LatestRelease, Never>
+        if let running = inFlightLatest[key] {
+            task = running
+        } else {
+            task = Task {
+                defer { self.inFlightLatest[key] = nil }
+                return await self.revalidate(ref, owner: owner, repo: repo, flavor: flavor, stored: usable, background: background)
+            }
+            inFlightLatest[key] = task
+        }
+        let answer = await task.value
+        return await withBuild(answer, ref: ref, flavor: flavor, fetch: needBuild, background: background)
+    }
+
+    private func revalidate(
+        _ ref: AddonRef, owner: String, repo: String, flavor: Flavor, stored: LatestRelease?, background: Bool
+    ) async -> LatestRelease {
+        let answer: LatestRelease
+        do {
+            if let tag = try await fetchLatestTag(owner: owner, repo: repo, ref: ref, background: background) {
+                if let stored, stored.tag == tag {
+                    answer = stored
+                } else if let json = try await webReleaseJSON(owner: owner, repo: repo, tag: tag, background: background) {
+                    let build = json.release(for: flavor)
+                    answer = LatestRelease(tag: tag, status: build != nil ? .supported(version: tag) : .unsupported, build: build)
+                } else {
+                    answer = LatestRelease(tag: tag, status: .needsDownload)
+                }
+            } else {
+                answer = LatestRelease(tag: nil, status: .noReleases)
+            }
+        } catch AddonError.notFound {
+            answer = LatestRelease(tag: nil, status: .noReleases)
+        } catch {
+            // If github.com is pushing back, don't move the load onto the API quota.
+            let pushedBack = (error as? AddonError).map(Self.isRateLimit) ?? false
+            var status = SupportStatus.unknown
+            if !pushedBack, await quotaIsComfortable() {
+                status = await apiSupport(for: ref, flavor: flavor)
+            }
+            answer = LatestRelease(tag: stored?.tag, status: status)
+        }
+        await store.set([SupportRecord(ref: ref, status: answer.status, tag: answer.tag, checkedAt: now())], flavor: flavor)
+        return answer
+    }
+
+    private func withBuild(_ answer: LatestRelease, ref: AddonRef, flavor: Flavor, fetch: Bool, background: Bool) async -> LatestRelease {
+        guard answer.build == nil, case .supported = answer.status, let tag = answer.tag,
+              let (owner, repo) = try? Self.split(ref) else { return answer }
+        var answer = answer
+        let key = "\(owner)/\(repo)@\(tag)".lowercased()
+        if let cached = tagReleaseJSON[key] {
+            answer.build = cached?.release(for: flavor)
+        } else if fetch {
+            answer.build = (try? await webReleaseJSON(owner: owner, repo: repo, tag: tag, background: background))??.release(for: flavor)
+        }
+        return answer
+    }
+
+    /// The quota-free `ResolvedRelease` for a supported latest release: the asset URL is
+    /// `releases/download/<tag>/<filename>`. It has no real release ID or date: `releaseID`
+    /// is a negative hash of the tag and `publishedAt` is now. `InstalledAddon.isUpdate`
+    /// compares tags for such releases.
+    func resolvedRelease(_ ref: AddonRef, from latest: LatestRelease, flavor: Flavor) -> ResolvedRelease? {
+        guard let tag = latest.tag, let build = latest.build, let (owner, repo) = try? Self.split(ref) else { return nil }
         let interface = build.metadata.first { flavor.rules.releaseJSONFlavors.contains($0.flavor.lowercased()) }?.interface
         return ResolvedRelease(
             ref: ref,
@@ -275,65 +399,11 @@ public actor GitHubSource: Source, SupportChecking {
         )
     }
 
-    /// A stable negative ID for a release known only by its tag (FNV-1a of `owner/repo@tag`).
-    static func syntheticReleaseID(ref: AddonRef, tag: String) -> Int64 {
-        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-        for byte in "\(ref.identifier.lowercased())@\(tag)".utf8 {
-            hash ^= UInt64(byte)
-            hash = hash &* 0x0000_0100_0000_01B3
-        }
-        return -Int64(hash & 0x3FFF_FFFF_FFFF_FFFF) - 1
-    }
-
-    // MARK: - Support checks
-
-    public func support(for ref: AddonRef, flavor: Flavor) async -> SupportStatus {
-        await check(ref, flavor: flavor).status
-    }
-
-    /// Decides support from the latest release's release.json on github.com, which costs
-    /// no API quota:
-    /// 1. `releases/latest` (redirect not followed) gives the tag, or says there are no releases.
-    /// 2. If a stored verdict was made against the same tag, it's reused.
-    /// 3. Otherwise `releases/download/<tag>/release.json` gives the flavors.
-    ///
-    /// Only the latest stable release is considered. Other failures give `.unknown`, which
-    /// isn't retried for 15 minutes. If github.com fails while API quota is comfortable, the
-    /// API path (`apiSupport`) answers instead.
-    /// `reuse: false` skips the in-memory answer, for callers that already know the stored
-    /// verdict is stale (refresh, details).
-    public func check(_ ref: AddonRef, flavor: Flavor, background: Bool = false, reuse: Bool = true) async -> SupportCheck {
-        guard ref.source == .github, let (owner, repo) = try? Self.split(ref) else { return SupportCheck(status: .unknown) }
-        let key = Self.cacheKey(ref) + "#" + flavor.rawValue
-        if reuse, let hit = supportCache[key] {
-            let ttl = hit.check.status == .unknown ? Self.errorTTL : Self.supportTTL
-            if now().timeIntervalSince(hit.checkedAt) < ttl { return hit.check }
-        }
-        let result: SupportCheck
-        do {
-            if let tag = try await latestTag(for: ref, background: background) {
-                if let stored = await storedVerdict(ref, flavor: flavor), stored.tag == tag {
-                    result = SupportCheck(status: stored.status, tag: tag)
-                } else if let json = try await webReleaseJSON(owner: owner, repo: repo, tag: tag, background: background) {
-                    result = SupportCheck(status: json.release(for: flavor) != nil ? .supported(version: tag) : .unsupported, tag: tag)
-                } else {
-                    result = SupportCheck(status: .needsDownload, tag: tag)
-                }
-            } else {
-                result = SupportCheck(status: .noReleases)
-            }
-        } catch AddonError.notFound {
-            result = SupportCheck(status: .noReleases)
-        } catch {
-            // If github.com is pushing back, don't move the load onto the API quota.
-            let pushedBack = (error as? AddonError).map(Self.isRateLimit) ?? false
-            if !pushedBack, await quotaIsComfortable() {
-                return SupportCheck(status: await apiSupport(for: ref, flavor: flavor))
-            }
-            result = SupportCheck(status: .unknown)
-        }
-        supportCache[key] = (result, now())
-        return result
+    /// Resolves the latest stable release without the API when its release.json names a
+    /// build for `flavor`; nil when only the API can decide.
+    func quotaFreeResolve(_ ref: AddonRef, flavor: Flavor, policy: CachePolicy, background: Bool = false) async -> ResolvedRelease? {
+        let latest = await latestRelease(for: ref, flavor: flavor, policy: policy, needBuild: true, background: background)
+        return resolvedRelease(ref, from: latest, flavor: flavor)
     }
 
     private static func isRateLimit(_ error: AddonError) -> Bool {
@@ -341,41 +411,24 @@ public actor GitHubSource: Source, SupportChecking {
         return false
     }
 
-    private func storedVerdict(_ ref: AddonRef, flavor: Flavor) async -> (status: SupportStatus, tag: String?)? {
-        guard let row = try? await database?.query(
-            "SELECT status, version, tag FROM support WHERE full_name = ? AND flavor = ? AND status != 'error'",
-            ref.identifier, flavor.rawValue).first,
-            let kind = row.string(0), let status = SupportCache.status(kind: kind, version: row.string(1)) else { return nil }
-        return (status, row.string(2))
-    }
-
     /// The older support check over the releases API. It looks past the latest release but
     /// costs one API call per repo, and returns `.unknown` within `supportReserve` of the limit.
+    /// Used by `check` only when github.com fails and quota is comfortable.
     public func apiSupport(for ref: AddonRef, flavor: Flavor) async -> SupportStatus {
         guard ref.source == .github, let (owner, repo) = try? Self.split(ref) else { return .unknown }
-        let key = Self.cacheKey(ref) + "#" + flavor.rawValue + "#api"
         let current = now()
-        if let hit = supportCache[key], current.timeIntervalSince(hit.checkedAt) < Self.supportTTL {
-            return hit.check.status
-        }
         await loadRateLimitIfNeeded()
         if let remaining = rateRemaining, remaining <= Self.supportReserve, rateReset.map({ $0 > current }) ?? true {
             return .unknown
         }
         do {
             let releases = try await cachedReleases(ref, owner: owner, repo: repo)
-            let status: SupportStatus
-            if ReleaseSelector.eligible(releases, channel: .stable).isEmpty {
-                status = .noReleases
-            } else {
-                switch try await select(ref: ref, releases: releases, flavor: flavor, channel: .stable, downloadZips: false) {
-                case .selected(let release, _, _): status = .supported(version: release.tagName)
-                case .needsDownload: status = .needsDownload
-                case .none: status = .unsupported
-                }
+            if ReleaseSelector.eligible(releases, channel: .stable).isEmpty { return .noReleases }
+            switch try await select(ref: ref, releases: releases, flavor: flavor, channel: .stable, downloadZips: false) {
+            case .selected(let release, _, _): return .supported(version: release.tagName)
+            case .needsDownload: return .needsDownload
+            case .none: return .unsupported
             }
-            supportCache[key] = (SupportCheck(status: status), now())
-            return status
         } catch {
             return .unknown
         }
@@ -386,33 +439,22 @@ public actor GitHubSource: Source, SupportChecking {
     /// Tag of the latest stable release (drafts and prereleases excluded), read from the
     /// `Location` of `github.com/<repo>/releases/latest` without following it (following
     /// would download the whole release page). Nil when the repo has no releases. Throws
-    /// `notFound` for a missing repo. Costs no API quota. An answer younger than `maxAge`
-    /// is reused; pass 0 to always ask.
-    public func latestTag(
-        for ref: AddonRef, maxAge: TimeInterval = GitHubSource.latestTagTTL, background: Bool = false
-    ) async throws -> String? {
-        let (owner, repo) = try Self.split(ref)
-        let key = Self.cacheKey(ref)
-        if let hit = latestTags[key], now().timeIntervalSince(hit.checkedAt) < maxAge {
-            return hit.tag
-        }
+    /// `notFound` for a missing repo. Private: callers go through `latestRelease`.
+    private func fetchLatestTag(owner: String, repo: String, ref: AddonRef, background: Bool) async throws -> String? {
         let url = Self.webBase.appending(path: "\(owner)/\(repo)/releases/latest")
         let (_, response) = try await webRequest(url, method: "HEAD", followRedirects: false, background: background)
-        let tag: String?
         switch response.statusCode {
         case 300..<400:
             let location = response.value(forHTTPHeaderField: "Location").flatMap { URL(string: $0, relativeTo: url) }
-            tag = Self.tag(fromReleaseURL: location)
+            return Self.tag(fromReleaseURL: location)
         case 200..<300:
             // A client that followed the redirect anyway: the final URL carries the tag.
-            tag = Self.tag(fromReleaseURL: response.url)
+            return Self.tag(fromReleaseURL: response.url)
         case 404:
             throw AddonError.notFound(ref)
         default:
             throw AddonError.http(status: response.statusCode, url: url)
         }
-        latestTags[key] = (tag, now())
-        return tag
     }
 
     /// `…/owner/repo/releases/tag/<tag>` → `<tag>`; anything else (a repo without releases
@@ -432,7 +474,8 @@ public actor GitHubSource: Source, SupportChecking {
         return URL(string: "https://github.com/\(owner)/\(repo)/releases/download/\(escapedTag)/\(escapedFile)")!
     }
 
-    /// release.json of the release tagged `tag`, or nil if it has none.
+    /// release.json of the release tagged `tag`, or nil if it has none. Kept in memory by
+    /// tag for this process; tags are effectively immutable.
     private func webReleaseJSON(owner: String, repo: String, tag: String, background: Bool) async throws -> ReleaseJSON? {
         let key = "\(owner)/\(repo)@\(tag)".lowercased()
         if let hit = tagReleaseJSON[key] { return hit }
@@ -447,6 +490,7 @@ public actor GitHubSource: Source, SupportChecking {
         tagReleaseJSON[key] = .some(json)
         return json
     }
+
 
     /// A request to github.com or raw.githubusercontent.com: no token, no API quota.
     ///

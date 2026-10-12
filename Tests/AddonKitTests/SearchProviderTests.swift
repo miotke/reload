@@ -54,15 +54,25 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         #expect(FileManager.default.fileExists(atPath: dir.appending(path: MetadataDatabase.fileName).path))
     }
 
-    @Test func verdictsStayVisibleButGoStaleAfterADay() async throws {
+    func isFresh(_ cache: SupportCache, _ ref: AddonRef) async -> Bool {
+        guard let stored = await cache.storedSupport(for: ref, flavor: .forever) else { return false }
+        return await cache.isFresh(stored)
+    }
+
+    @Test func lifetimesDependOnTheAnswerButVerdictsStayVisible() async throws {
         let clock = SearchTestClock()
         let cache = SupportCache(database: try .inMemory(), now: { clock.now })
         await cache.set(.noReleases, for: bw)
-        clock.advance(23 * 3600)
-        #expect(await cache.isFresh(bw))
-        clock.advance(2 * 3600)
-        #expect(!(await cache.isFresh(bw)))
+        await cache.set(.supported(version: "1"), for: dbm)
+        clock.advance(50 * 60)
+        #expect(await isFresh(cache, dbm))
+        clock.advance(20 * 60)
+        #expect(!(await isFresh(cache, dbm)), "verdicts: 1 h")
+        #expect(await isFresh(cache, bw), "negative answers: 24 h")
+        clock.advance(24 * 3600)
+        #expect(!(await isFresh(cache, bw)))
         #expect(await cache.status(for: bw) == .noReleases)
+        #expect(await cache.status(for: dbm) == .supported(version: "1"))
     }
 
     @Test func failuresAreRememberedBrieflyAndNeverShown() async throws {
@@ -74,10 +84,11 @@ func sampleInstalledAddon(_ identifier: String, name: String, folders: [String])
         #expect(await cache.status(for: bw) == .needsDownload)
         #expect(await cache.status(for: dbm) == nil)
         #expect(await cache.statuses().keys.map(\.identifier) == ["BigWigsMods/BigWigs"])
-        #expect(await cache.isFresh(dbm))
+        #expect(await isFresh(cache, dbm))
         clock.advance(16 * 60)
-        #expect(!(await cache.isFresh(dbm)))
+        #expect(!(await isFresh(cache, dbm)))
     }
+
 
     @Test func tagAndStars() async throws {
         let cache = SupportCache(database: try .inMemory())

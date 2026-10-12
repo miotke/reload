@@ -50,14 +50,15 @@ public actor AddonManager: AddonManaging {
         let database = (try? MetadataDatabase(directories: directories)) ?? (try! MetadataDatabase.inMemory())
         self.database = database
         self.catalogue = CatalogueSource(http: http, database: database)
-        self.supportCache = SupportCache(database: database)
+        let supportCache = SupportCache(database: database)
+        self.supportCache = supportCache
         self.parser = GitHubSource(http: http)
 
         // The Keychain is read on first GitHub use, not here: init runs on the main thread at
         // launch and a Keychain prompt would block it.
         let tokenProvider: @Sendable () -> String? = { Self.token(environment: environment, keychain: keychain) }
         self.github = GitHubSource(
-            http: http, cacheDirectory: directories.caches, database: database, tokenProvider: tokenProvider,
+            http: http, cacheDirectory: directories.caches, database: database, store: supportCache, tokenProvider: tokenProvider,
             archiveURL: { downloader.archiveURL(for: $0) }
         )
         self.githubSearch = GitHubSearchProvider(http: http, database: database, tokenProvider: tokenProvider)
@@ -213,7 +214,7 @@ public actor AddonManager: AddonManaging {
     /// uses the API only when that can't decide.
     public func resolve(_ ref: AddonRef, for installation: Installation, channel: Channel) async throws -> ResolvedRelease {
         guard ref.source == .github else { throw AddonError.invalidReference(ref.description) }
-        if channel == .stable, let release = try? await github.webResolve(ref, flavor: installation.flavor) {
+        if channel == .stable, let release = await github.quotaFreeResolve(ref, flavor: installation.flavor, policy: .forceRevalidate) {
             return release
         }
         return try await resolve(ref, for: installation, channel: channel, etag: nil).release
@@ -275,13 +276,16 @@ public actor AddonManager: AddonManaging {
 
     // MARK: - Updates
 
+    /// An explicit check (⌘R, `addonctl outdated`): always asks for the latest tags.
     public func checkForUpdates(in installation: Installation) async throws -> [AddonRef: UpdateState] {
-        try await checkForUpdates(in: installation, progress: { _, _ in })
+        try await checkForUpdates(in: installation, policy: .forceRevalidate, progress: { _, _ in })
     }
 
     /// `progress` is called once per add-on as its check lands, with the number done so far.
+    /// The background refresh passes `.revalidateIfStale`; explicit checks `.forceRevalidate`.
     func checkForUpdates(
-        in installation: Installation, background: Bool = false, progress: @Sendable (InstalledAddon, Int) -> Void
+        in installation: Installation, policy: GitHubSource.CachePolicy, background: Bool = false,
+        progress: @Sendable (InstalledAddon, Int) -> Void
     ) async throws -> [AddonRef: UpdateState] {
         let addons = try await store.addons(in: installation)
         var states: [AddonRef: UpdateState] = [:]
@@ -292,7 +296,7 @@ public actor AddonManager: AddonManaging {
             func addNext() {
                 guard let addon = pending.popFirst() else { return }
                 group.addTask {
-                    let (state, etag) = await self.updateState(of: addon, in: installation, background: background)
+                    let (state, etag) = await self.updateState(of: addon, in: installation, policy: policy, background: background)
                     return (addon, state, etag)
                 }
             }
@@ -319,19 +323,25 @@ public actor AddonManager: AddonManaging {
         return states
     }
 
-    func updateState(of addon: InstalledAddon, in installation: Installation, background: Bool = false) async -> (UpdateState, String?) {
+    func updateState(
+        of addon: InstalledAddon, in installation: Installation, policy: GitHubSource.CachePolicy, background: Bool = false
+    ) async -> (UpdateState, String?) {
         if addon.pinned { return (.pinned, nil) }
         do {
             guard addon.id.source == .github else { return (.failed("Unsupported source"), nil) }
-            // Stable channel: the free latest tag settles most add-ons. An unchanged tag is
-            // up to date; a new tag whose release.json has the flavor is the update. Only
-            // when neither decides (no release.json, or the new release lacks the flavor) is
-            // the API asked. Prereleases always need the API.
-            if addon.channel == .stable, let tag = try? await github.latestTag(for: addon.id, maxAge: 0, background: background) {
-                await supportCache.setLatestTag(tag, for: addon.id)
-                if tag == addon.version { return (.upToDate, addon.etag) }
-                if let release = try? await github.webResolve(addon.id, flavor: installation.flavor, tag: tag, background: background) {
-                    return addon.isUpdate(release) ? (.available(release), nil) : (.upToDate, addon.etag)
+            // Stable channel: the latest release (the same lookup support checks use) settles
+            // most add-ons. An unchanged tag is up to date; a new tag whose release.json has
+            // the flavor is the update. Only when neither decides (no release.json, the new
+            // release lacks the flavor, or the lookup failed) is the API asked. Prereleases
+            // always need the API.
+            if addon.channel == .stable {
+                let latest = await github.latestRelease(
+                    for: addon.id, flavor: installation.flavor, policy: policy, needBuild: true, background: background)
+                if latest.status != .unknown, let tag = latest.tag {
+                    if tag == addon.version { return (.upToDate, addon.etag) }
+                    if let release = await github.resolvedRelease(addon.id, from: latest, flavor: installation.flavor) {
+                        return addon.isUpdate(release) ? (.available(release), nil) : (.upToDate, addon.etag)
+                    }
                 }
             }
             switch try await github.resolve(addon.id, flavor: installation.flavor, channel: addon.channel, etag: addon.etag) {
@@ -346,6 +356,7 @@ public actor AddonManager: AddonManaging {
             return (.failed(error.localizedDescription), nil)
         }
     }
+
 
     /// Updates `refs`, or every unpinned add-on when `refs` is empty. Each add-on is checked
     /// first (latest tag, else ETag) and only installed when an update is available, so an
@@ -427,7 +438,7 @@ public actor AddonManager: AddonManaging {
             }
             release = given
         } else {
-            switch await updateState(of: addon, in: installation).0 {
+            switch await updateState(of: addon, in: installation, policy: .forceRevalidate).0 {
             case .available(let found):
                 release = found
             case .upToDate, .pinned:
