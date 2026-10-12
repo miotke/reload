@@ -29,6 +29,7 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0018](0018-adoption-suggestions-from-toc-hints.md) | Adoption suggestions from TOC hints and the catalogue | Accepted | 2026-10-12 |
 | [0019](0019-available-games-and-visible-row-checks.md) | Show available games instead of a support verdict; check visible rows | Accepted | 2026-10-12 |
 | [0020](0020-core-ui-boundary-and-feature-models.md) | Core/UI boundary, feature models and snapshot rendering | Accepted | 2026-10-12 |
+| [0021](0021-sidebar-navigation-and-game-picker.md) | Sidebar navigation with library sections and categories; game picker in the title | Accepted | 2026-10-12 |
 
 ## By area
 
@@ -37,7 +38,7 @@ Each record explains one decision: its context, what was decided, the alternativ
 | Architecture | 0001, 0004, 0005, 0008 |
 | Sources and flavor support | 0002, 0003, 0016, 0018, 0019 |
 | Network | 0009, 0010, 0011, 0017, 0019 |
-| App | 0006, 0007, 0012, 0013, 0015, 0019 |
+| App | 0006, 0007, 0012, 0013, 0015, 0019, 0021 |
 | Docs | 0014 |
 
 ## Writing a new record

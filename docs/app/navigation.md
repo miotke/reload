@@ -2,7 +2,7 @@
 
 How you move around the main window: the game picker in the title, the sidebar's sections and categories, and what the toolbar search applies to.
 
-Code: `App/ForeverAddons/Views/SidebarView.swift` (sidebar, title menu), `Support/SidebarSections.swift` (sections, counts, search scope), `Models/AppModel.swift` (`section`, `searchText`). The rest of the window: [layout.md](layout.md).
+Code: `App/ForeverAddons/Views/SidebarView.swift` (sidebar, title menu), `Support/SidebarSections.swift` (sections, counts, search scope), `Models/AppModel.swift` (`section`, `searchText`). Why: [decision 0021](../decisions/0021-sidebar-navigation-and-game-picker.md). The rest of the window: [layout.md](layout.md).
 
 ## Game picker
 
