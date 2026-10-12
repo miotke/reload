@@ -27,15 +27,16 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0016](0016-one-flavor-per-game.md) | One flavor per game, rules as data | Accepted | 2026-10-11 |
 | [0017](0017-details-without-quota-release-json-by-tag.md) | Details and release notes without API quota; `release.json` stored by tag | Accepted | 2026-10-11 |
 | [0018](0018-adoption-suggestions-from-toc-hints.md) | Adoption suggestions from TOC hints and the catalogue | Accepted | 2026-10-12 |
+| [0019](0019-available-games-and-visible-row-checks.md) | Show available games instead of a support verdict; check visible rows | Accepted | 2026-10-12 |
 
 ## By area
 
 | Area | Records |
 |---|---|
 | Architecture | 0001, 0004, 0005, 0008 |
-| Sources and flavor support | 0002, 0003, 0016, 0018 |
-| Network | 0009, 0010, 0011, 0017 |
-| App | 0006, 0007, 0012, 0013, 0015 |
+| Sources and flavor support | 0002, 0003, 0016, 0018, 0019 |
+| Network | 0009, 0010, 0011, 0017, 0019 |
+| App | 0006, 0007, 0012, 0013, 0015, 0019 |
 | Docs | 0014 |
 
 ## Writing a new record
