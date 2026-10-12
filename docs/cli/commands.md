@@ -6,7 +6,7 @@ Every `addonctl` command, how `<ref>` arguments are resolved, and how the instal
 
 ## Installing it
 
-- **From the app:** on first launch the app offers to install it, creating the symlink `/usr/local/bin/addonctl` → the binary inside the app (admin password needed). You can also install it later from Settings ▸ Command-Line Tool. See [app/cli-install.md](../app/cli-install.md).
+- **From the app:** on first launch the app offers to install it, creating the symlink `/usr/local/bin/addonctl` → the binary inside the app (admin password needed). You can also install it later from Settings ▸ Command Line. See [app/cli-install.md](../app/cli-install.md).
 - **From source:** `swift build -c release --product addonctl`, then put `.build/release/addonctl` on your `PATH`.
 
 ## Commands
