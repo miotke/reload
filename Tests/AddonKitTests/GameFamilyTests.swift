@@ -6,9 +6,9 @@ import Testing
 /// Game families, every flavor a release ships, and the per-family "hide incompatible" rule
 /// (decision 0019).
 @Suite struct GameFamilyTests {
-    let autoPotion = AddonRef(source: .github, identifier: "test/AutoPotion")
-    /// Everything AutoPotion 3.17.1's release.json names.
-    let autoPotionFlavors: Set<Flavor> = [.mists, .mainline, .wrath, .cata, .vanilla, .tbc, .forever]
+    let quickFlask = AddonRef(source: .github, identifier: "test/QuickFlask")
+    /// Everything QuickFlask 3.17.1's release.json names.
+    let quickFlaskFlavors: Set<Flavor> = [.mists, .mainline, .wrath, .cata, .vanilla, .tbc, .forever]
 
     @Test func familyMapping() {
         #expect(Flavor.mainline.family == .retail)
@@ -34,9 +34,9 @@ import Testing
 
     // MARK: release.json
 
-    @Test func autoPotionShipsRetailForeverAndClassic() throws {
-        let json = try ReleaseJSON(data: fixtureData("github/autopotion-release-3.17.1.json"))
-        #expect(json.availableFlavors == autoPotionFlavors)
+    @Test func quickFlaskShipsRetailForeverAndClassic() throws {
+        let json = try ReleaseJSON(data: fixtureData("github/quickflask-release-3.17.1.json"))
+        #expect(json.availableFlavors == quickFlaskFlavors)
         #expect(json.availableFlavors.families == [.retail, .forever, .classic])
     }
 
@@ -50,47 +50,47 @@ import Testing
 
     @Test func checkStoresAndReturnsEveryFlavor() async throws {
         let http = RedirectingHTTPClient()
-        let repo = autoPotion.identifier
+        let repo = quickFlask.identifier
         http.redirect("https://github.com/\(repo)/releases/latest", to: "https://github.com/\(repo)/releases/tag/3.17.1")
-        http.stub("https://github.com/\(repo)/releases/download/3.17.1/release.json", body: try fixtureData("github/autopotion-release-3.17.1.json"))
+        http.stub("https://github.com/\(repo)/releases/download/3.17.1/release.json", body: try fixtureData("github/quickflask-release-3.17.1.json"))
         let source = GitHub(http: http)
 
-        let check = await source.latest.check(autoPotion, flavor: .forever)
+        let check = await source.latest.check(quickFlask, flavor: .forever)
         #expect(check.status == .supported(version: "3.17.1"))
-        #expect(check.availableFlavors == autoPotionFlavors)
+        #expect(check.availableFlavors == quickFlaskFlavors)
         #expect(check.families == [.retail, .forever, .classic])
         #expect(http.apiRequests.isEmpty)
-        #expect(await source.latest.store.availableFlavors(for: autoPotion) == autoPotionFlavors)
+        #expect(await source.latest.store.availableFlavors(for: quickFlask) == quickFlaskFlavors)
 
         // Another flavor's stored answer reads the same per-repo flavors, without a request.
         http.reset()
-        #expect(await source.latest.check(autoPotion, flavor: .mists, policy: .revalidateIfStale).availableFlavors == autoPotionFlavors)
+        #expect(await source.latest.check(quickFlask, flavor: .mists, policy: .revalidateIfStale).availableFlavors == quickFlaskFlavors)
         #expect(http.requests.isEmpty)
-        #expect(await source.latest.check(autoPotion, flavor: .forever, policy: .preferStored).availableFlavors == autoPotionFlavors)
+        #expect(await source.latest.check(quickFlask, flavor: .forever, policy: .preferStored).availableFlavors == quickFlaskFlavors)
     }
 
     /// A verdict stored before flavor lists existed (tag known, no flavors) gets its list from
     /// the tag's release.json on the next non-stored check, and isn't "fresh" for visible rows.
     @Test func verdictWithoutFlavorsFetchesThemOnce() async throws {
         let http = RedirectingHTTPClient()
-        let repo = autoPotion.identifier
-        http.stub("https://github.com/\(repo)/releases/download/3.17.1/release.json", body: try fixtureData("github/autopotion-release-3.17.1.json"))
+        let repo = quickFlask.identifier
+        http.stub("https://github.com/\(repo)/releases/download/3.17.1/release.json", body: try fixtureData("github/quickflask-release-3.17.1.json"))
         let source = GitHub(http: http)
-        await source.latest.store.set([SupportRecord(ref: autoPotion, status: .supported(version: "3.17.1"), tag: "3.17.1", checkedAt: .now)], flavor: .forever)
-        #expect(await source.latest.hasFreshAnswer(for: autoPotion, flavor: .forever) == false)
+        await source.latest.store.set([SupportRecord(ref: quickFlask, status: .supported(version: "3.17.1"), tag: "3.17.1", checkedAt: .now)], flavor: .forever)
+        #expect(await source.latest.hasFreshAnswer(for: quickFlask, flavor: .forever) == false)
 
         // Stored-only reads never fetch.
-        #expect(await source.latest.check(autoPotion, flavor: .forever, policy: .preferStored).availableFlavors == nil)
+        #expect(await source.latest.check(quickFlask, flavor: .forever, policy: .preferStored).availableFlavors == nil)
         #expect(http.requests.isEmpty)
 
-        let check = await source.latest.check(autoPotion, flavor: .forever, policy: .revalidateIfStale)
-        #expect(check.availableFlavors == autoPotionFlavors)
+        let check = await source.latest.check(quickFlask, flavor: .forever, policy: .revalidateIfStale)
+        #expect(check.availableFlavors == quickFlaskFlavors)
         #expect(http.apiRequests.isEmpty)
         #expect(http.requests.count == 1)
-        #expect(await source.latest.hasFreshAnswer(for: autoPotion, flavor: .forever))
+        #expect(await source.latest.hasFreshAnswer(for: quickFlask, flavor: .forever))
 
         http.reset()
-        _ = await source.latest.check(autoPotion, flavor: .forever, policy: .revalidateIfStale)
+        _ = await source.latest.check(quickFlask, flavor: .forever, policy: .revalidateIfStale)
         #expect(http.requests.isEmpty)
     }
 
@@ -105,14 +105,14 @@ import Testing
 
     @Test func inspectionNeverReplacesReleaseJSON() async throws {
         let cache = SupportCache(database: try MetadataDatabase.inMemory())
-        await cache.setAvailableFlavors([.forever], tag: "v1", source: .inspection, for: autoPotion)
-        #expect(await cache.storedFlavors(for: autoPotion)?.source == .inspection)
-        await cache.setAvailableFlavors(autoPotionFlavors, tag: "v1", source: .releaseJSON, for: autoPotion)
-        await cache.setAvailableFlavors([.vanilla], tag: "v2", source: .inspection, for: autoPotion)
-        #expect(await cache.availableFlavors(for: autoPotion) == autoPotionFlavors)
+        await cache.setAvailableFlavors([.forever], tag: "v1", source: .inspection, for: quickFlask)
+        #expect(await cache.storedFlavors(for: quickFlask)?.source == .inspection)
+        await cache.setAvailableFlavors(quickFlaskFlavors, tag: "v1", source: .releaseJSON, for: quickFlask)
+        await cache.setAvailableFlavors([.vanilla], tag: "v2", source: .inspection, for: quickFlask)
+        #expect(await cache.availableFlavors(for: quickFlask) == quickFlaskFlavors)
         // A later release without release.json clears what an older one said.
-        await cache.setAvailableFlavors(nil, tag: "v3", source: .releaseJSON, for: autoPotion)
-        #expect(await cache.availableFlavors(for: autoPotion) == nil)
+        await cache.setAvailableFlavors(nil, tag: "v3", source: .releaseJSON, for: quickFlask)
+        #expect(await cache.availableFlavors(for: quickFlask) == nil)
     }
 
     @Test func migrationBackfillsFromStoredReleaseJSON() async throws {
@@ -124,9 +124,9 @@ import Testing
         func exec(_ sql: String) { #expect(sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK, "\(sql.prefix(60))") }
         for step in MetadataDatabase.migrations.prefix(4) { exec(step) }
         exec("PRAGMA user_version = 4")
-        let json = String(decoding: try JSONEncoder().encode(ReleaseJSON(data: fixtureData("github/autopotion-release-3.17.1.json"))), as: UTF8.self)
-        exec("INSERT INTO repo_meta(full_name, latest_tag, tag_checked_at) VALUES ('test/autopotion', '3.17.1', 1)")
-        exec("INSERT INTO release_json(full_name, tag, json, fetched_at) VALUES ('test/AutoPotion', '3.17.1', '\(json)', 1)")
+        let json = String(decoding: try JSONEncoder().encode(ReleaseJSON(data: fixtureData("github/quickflask-release-3.17.1.json"))), as: UTF8.self)
+        exec("INSERT INTO repo_meta(full_name, latest_tag, tag_checked_at) VALUES ('test/quickflask', '3.17.1', 1)")
+        exec("INSERT INTO release_json(full_name, tag, json, fetched_at) VALUES ('test/QuickFlask', '3.17.1', '\(json)', 1)")
         exec("INSERT INTO repo_meta(full_name, latest_tag, tag_checked_at) VALUES ('o/bare', 'v1', 1)")
         exec("INSERT INTO release_json(full_name, tag, json, fetched_at) VALUES ('o/bare', 'v1', NULL, 1)")
         sqlite3_close(db)
@@ -134,8 +134,8 @@ import Testing
         let database = try MetadataDatabase(url: url)
         #expect(try await database.schemaVersion() == MetadataDatabase.migrations.count)
         let cache = SupportCache(database: database)
-        #expect(await cache.availableFlavors(for: autoPotion) == autoPotionFlavors)
-        #expect(await cache.storedFlavors(for: autoPotion)?.tag == "3.17.1")
+        #expect(await cache.availableFlavors(for: quickFlask) == quickFlaskFlavors)
+        #expect(await cache.storedFlavors(for: quickFlask)?.tag == "3.17.1")
         #expect(await cache.availableFlavors(for: AddonRef(source: .github, identifier: "o/bare")) == nil)
     }
 
@@ -204,7 +204,7 @@ import Testing
         func sentence(_ flavors: Set<Flavor>?, _ flavor: Flavor = .forever) -> String {
             GameAvailability.sentence(availableFlavors: flavors, for: flavor)
         }
-        #expect(sentence(autoPotionFlavors) == "Has a Forever build")
+        #expect(sentence(quickFlaskFlavors) == "Has a Forever build")
         #expect(sentence([.mainline]) == "Retail build only: may work on Forever; it will show as out of date")
         #expect(sentence([.vanilla, .mists]) == "Classic only: won't load on Forever")
         #expect(sentence(nil) == "Not checked yet")

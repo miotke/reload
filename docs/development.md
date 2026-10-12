@@ -15,7 +15,7 @@ If `xcode-select -p` points to the Command Line Tools, either run `sudo xcode-se
 Package.swift            AddonKit library, reload CLI, AddonKitTests, reloadTests
 Sources/AddonKit/        core library (architecture/core.md)
 Sources/reload/        command-line tool (cli/commands.md)
-Tests/AddonKitTests/     Swift Testing suites; Fixtures/ holds recorded GitHub JSON, a catalogue CSV, zips
+Tests/AddonKitTests/     Swift Testing suites; Fixtures/ holds made-up GitHub JSON, a catalogue CSV, zips
 Tests/reloadTests/     CLI tests
 App/project.yml          XcodeGen spec for the app (app/project.md)
 App/Reload/       SwiftUI app
@@ -65,7 +65,8 @@ Run the app and the tests before saying something works. Report failures plainly
 ### What the tests cover
 
 - Pure code: TOC parsing edge cases (BOM, CRLF, interface lists, colour codes), TOC suffix splitting, `release.json`, `.build.info`, search ranking against a fixture catalogue.
-- `ReleaseSelector` against recorded GitHub JSON: no `release.json`, no Forever entry in the newest release, prerelease-only, drafts, `nolib` assets.
+- Fixtures are invented (made-up repos, descriptions and release notes in the real formats), so they carry no third-party text. Keep it that way when adding new ones.
+- `ReleaseSelector` against GitHub-shaped JSON fixtures: no `release.json`, no Forever entry in the newest release, prerelease-only, drafts, `nolib` assets.
 - The installer against a temp `AddOns` folder with tiny fixture zips: normal install, an update that drops a folder, conflicts, unmanaged overwrite, zip-slip, and a failure mid-swap that must restore backups.
 - One opt-in live test resolves real add-ons against GitHub (`RELOAD_LIVE_TESTS=1`).
 

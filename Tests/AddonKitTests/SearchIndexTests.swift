@@ -40,15 +40,9 @@ func catalogueEntry(_ fullName: String, name: String? = nil, description: String
         index.search(text, limit: n).map(\.fullName)
     }
 
-    @Test func dbmAliasFindsDeadlyBossMods() {
-        #expect(top("dbm").contains("DeadlyBossMods/DeadlyBossMods"))
-        #expect(top("DBM").first == "DeadlyBossMods/DeadlyBossMods")
-    }
-
-    @Test func bigwigsIsFirst() {
-        #expect(top("bigwigs").first == "BigWigsMods/BigWigs")
-        #expect(top("BigWigs").first == "BigWigsMods/BigWigs")
-        #expect(top("bw").first == "BigWigsMods/BigWigs")
+    @Test func exactNameIsFirst() {
+        #expect(top("bosswarnings").first == "example-boss/BossWarnings")
+        #expect(top("BossWarnings").first == "example-boss/BossWarnings")
     }
 
     @Test func bagFindsBagAddons() {
@@ -58,29 +52,25 @@ func catalogueEntry(_ fullName: String, name: String? = nil, description: String
             #expect(name.lowercased().contains("bag"), "\(name)")
         }
         // Word-prefix match inside a camelCase name.
-        #expect(index.search("bag").contains { $0.fullName == "Cidan/BetterBags" })
-        #expect(index.search("bags").contains { $0.fullName == "Cidan/BetterBags" })
+        #expect(index.search("bag").contains { $0.fullName == "example-bags/TidyBags" })
+        #expect(index.search("bags").contains { $0.fullName == "example-bags/TidyBags" })
     }
 
     @Test func bossFindsBossMods() {
-        #expect(top("boss").contains("DeadlyBossMods/DeadlyBossMods"))
-        // Description match ("beat any boss encounter").
-        #expect(index.search("boss").contains { $0.fullName == "BigWigsMods/BigWigs" })
-        #expect(top("boss mods").contains("DeadlyBossMods/DeadlyBossMods"))
+        #expect(top("boss").contains("example-boss/BossWarnings"))
+        // Description match ("other boss mods").
+        #expect(index.search("boss").contains { $0.fullName == "tinkerbee/PauseBar" })
+        #expect(top("boss mods").contains("deepdelve/DelveBossMods"))
     }
 
     @Test func camelCaseSubwordsMatch() {
-        #expect(index.search("wigs").contains { $0.fullName == "BigWigsMods/BigWigs" })
-        #expect(index.search("deadly boss").first?.fullName == "DeadlyBossMods/DeadlyBossMods")
+        #expect(index.search("warnings").contains { $0.fullName == "example-boss/BossWarnings" })
+        #expect(index.search("delve boss").first?.fullName == "deepdelve/DelveBossMods")
     }
 
-    @Test func aliasForWeakAuras() {
-        #expect(top("wa").contains("WeakAuras/WeakAuras2"))
-    }
-
-    @Test func bugsack() {
-        #expect(top("bugsack").first == "funkydude/BugSack")
-        #expect(top("bug").contains("funkydude/BugSack"))
+    @Test func errorSack() {
+        #expect(top("errorsack").first == "example-dev/ErrorSack")
+        #expect(top("error").contains("example-dev/ErrorSack"))
     }
 
     @Test func emptyAndNonMatchingQueries() {
@@ -90,7 +80,41 @@ func catalogueEntry(_ fullName: String, name: String? = nil, description: String
     }
 
     @Test func ownerMatches() {
-        #expect(index.search("funkydude").contains { $0.fullName == "funkydude/BugSack" })
+        #expect(index.search("cartograph").contains { $0.fullName == "cartograph/OpenMap" })
+    }
+}
+
+/// `SearchAliases` names real add-ons, so these entries use those names under made-up owners,
+/// next to look-alikes that match the alias text literally.
+@Suite struct SearchAliasTests {
+    let index = SearchIndex(entries: [
+        catalogueEntry("alias-test/DeadlyBossMods", description: "Raid timers and warnings", updated: 5),
+        catalogueEntry("alias-test/DBM-BarSkins", description: "Bar skins for boss mods", updated: 9),
+        catalogueEntry("alias-test/DBMVoicePack", updated: 8),
+        catalogueEntry("alias-test/BigWigs", description: "Boss encounter timers", updated: 4),
+        catalogueEntry("alias-test/BigWigs_Plugins", updated: 7),
+        catalogueEntry("alias-test/BwTimers", updated: 9),
+        catalogueEntry("alias-test/WeakAuras2", description: "Custom auras and icons", updated: 3),
+        catalogueEntry("alias-test/WaterTracker", updated: 9),
+        catalogueEntry("alias-test/WardrobeHelper", updated: 8),
+    ])
+
+    private func top(_ text: String, _ n: Int = 3) -> [String] {
+        index.search(text, limit: n).map(\.fullName)
+    }
+
+    @Test func dbmAliasFindsDeadlyBossMods() {
+        #expect(top("dbm").contains("alias-test/DeadlyBossMods"))
+        #expect(top("DBM").first == "alias-test/DeadlyBossMods")
+        #expect(index.search("deadly boss").first?.fullName == "alias-test/DeadlyBossMods")
+    }
+
+    @Test func bwAliasFindsBigWigs() {
+        #expect(top("bw").first == "alias-test/BigWigs")
+    }
+
+    @Test func aliasForWeakAuras() {
+        #expect(top("wa").contains("alias-test/WeakAuras2"))
     }
 }
 
@@ -143,7 +167,7 @@ func catalogueEntry(_ fullName: String, name: String? = nil, description: String
     @Test func fullCatalogueQueriesAreFast() throws {
         let base = try searchCatalogueFixture()
         var entries: [CatalogueEntry] = []
-        for i in 0..<12 {
+        for i in 0..<40 {
             entries += base.map { var e = $0; e.fullName = "\(e.fullName)\(i)"; return e }
         }
         let start = ContinuousClock.now
@@ -153,7 +177,7 @@ func catalogueEntry(_ fullName: String, name: String? = nil, description: String
             _ = index.search(query)
         }
         let queried = ContinuousClock.now
-        #expect(entries.count == 2400)
+        #expect(entries.count == 2_440)
         #expect(built - start < .seconds(1))
         #expect((queried - built) / 6 < .milliseconds(50))
     }

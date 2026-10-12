@@ -27,7 +27,7 @@ final class SearchTestClock: @unchecked Sendable {
         http.stub(url, headers: ["ETag": "\"abc\""], body: try fixtureData("search/addons.csv"))
 
         let source = makeSource(http, database: database, clock: clock)
-        #expect(try await source.entries().count == 200)
+        #expect(try await source.entries().count == 61)
         #expect(http.requests.count == 1)
         #expect(http.requests[0].value(forHTTPHeaderField: "User-Agent") == AppInfo.userAgent)
         #expect(http.requests[0].value(forHTTPHeaderField: "If-None-Match") == nil)
@@ -39,7 +39,7 @@ final class SearchTestClock: @unchecked Sendable {
 
         // Another process opening the same file sees the rows without a request.
         let other = try MetadataDatabase(url: dir.appending(path: MetadataDatabase.fileName))
-        #expect(try await makeSource(http, database: other, clock: clock).entries().count == 200)
+        #expect(try await makeSource(http, database: other, clock: clock).entries().count == 61)
         #expect(http.requests.count == 1)
     }
 
@@ -52,7 +52,7 @@ final class SearchTestClock: @unchecked Sendable {
 
         clock.advance(25 * 3600)
         http.stub(url, status: 304, body: Data())
-        #expect(try await source.entries().count == 200)
+        #expect(try await source.entries().count == 61)
         await source.waitForRevalidation()
         #expect(http.requests.count == 2)
         #expect(http.requests[1].value(forHTTPHeaderField: "If-None-Match") == "\"abc\"")
@@ -73,7 +73,7 @@ final class SearchTestClock: @unchecked Sendable {
         clock.advance(48 * 3600)
         http.stub(url, status: 500, body: Data())
         let source = makeSource(http, database: database, clock: clock)
-        #expect(try await source.entries().count == 200)
+        #expect(try await source.entries().count == 61)
         await source.waitForRevalidation()
         #expect(http.requests.count == 2)
 
@@ -139,7 +139,7 @@ final class SearchTestClock: @unchecked Sendable {
         _ = try await source.refresh(force: true)
         let live = try #require(await source.entry(for: AddonRef(source: .github, identifier: "x/live")))
         #expect(live.fromLiveSearch)
-        #expect(try await source.entries().count == 201)
+        #expect(try await source.entries().count == 62)
     }
 
     @Test func importOfTheFullCatalogueIsFast() async throws {

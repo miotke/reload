@@ -79,11 +79,11 @@ nonisolated enum Fixtures {
                                         stars: 412, updated: date(10, 2), flavors: [.forever, .mainline], support: .supported(version: "v0.5.14"))
     static let browseUpdate = result("funkydude/BugSack", "BugSack", summary: "Collects Lua errors in a sack you can open later",
                                      stars: 88, updated: date(10, 8), flavors: [.forever, .mainline, .vanilla], support: .supported(version: "v11.2.3"))
-    static let browseNotInstalled = result("WeakAuras/WeakAuras2", "WeakAuras", summary: "Powerful framework to display customizable graphics",
+    static let browseNotInstalled = result("WeakAuras/WeakAuras2", "WeakAuras", summary: "Custom auras, bars and icons driven by triggers",
                                            stars: 1350, updated: date(10, 10), flavors: [.forever, .mainline, .vanilla, .mists], support: .supported(version: "5.20.1"))
     static let browseRetailOnly = result("Tercioo/Plater-Nameplates", "Plater", summary: "Nameplate add-on with scripting and animations",
                                          stars: 220, updated: date(9, 30), flavors: [.mainline], support: .unsupported)
-    static let browseClassicOnly = result("Questie/Questie", "Questie", summary: "The ultimate Classic quest helper",
+    static let browseClassicOnly = result("Questie/Questie", "Questie", summary: "Quest objectives on the map for classic flavors",
                                           stars: 960, updated: date(10, 5), flavors: [.vanilla, .tbc, .wrath], support: .unsupported)
     static let browseUnchecked = result("someone/TinyTooltip", "TinyTooltip", summary: nil,
                                         stars: 31, updated: date(8, 14), flavors: nil, support: .needsDownload)
