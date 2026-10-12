@@ -1,21 +1,87 @@
 # ForeverAddons docs
 
-| Doc | Covers |
-|---|---|
-| [design.md](design.md) | The original design and architecture: goals, sources, data model, every component, milestones |
-| [core.md](core.md) | The AddonKit library and `AddonManager`, the API both front ends use |
-| [github-source.md](github-source.md) | How the Forever release and zip are chosen on GitHub |
-| [installing.md](installing.md) | Downloads, safe installs, the install records, finding WoW |
-| [search.md](search.md) | Search layers, ranking, Forever support checks, Browse |
-| [app.md](app.md) | The SwiftUI app: Xcode project, data, live updates, CLI install |
-| [cli.md](cli.md) | `addonctl` commands, options, exit codes |
-| [development.md](development.md) | Building, testing and conventions |
+Index of every doc, with a line on when to read it. Load only the files you need.
+
+New here? Start with [overview.md](overview.md). Working on the code? [development.md](development.md).
 
 ```mermaid
 flowchart LR
-    App[App<br/>app.md] --> Core
-    CLI[addonctl<br/>cli.md] --> Core
-    Core[AddonKit<br/>core.md] --> GH[GitHub source<br/>github-source.md]
-    Core --> Inst[Installing<br/>installing.md]
-    Core --> S[Search<br/>search.md]
+    App[App<br/>app/] --> Core
+    CLI[addonctl<br/>cli/] --> Core
+    Core[AddonKit<br/>architecture/core.md] --> Sel[Release selection<br/>features/release-selection.md]
+    Core --> Inst[Installing<br/>features/installing.md]
+    Core --> S[Search<br/>features/search.md]
+    Core --> Store[Storage<br/>architecture/data-storage.md]
+    Core --> R[Refresh<br/>features/refresh.md]
+    R --> Net
+    Sel --> Net[GitHub<br/>network/]
+    S --> Net
 ```
+
+## Start here
+
+| Doc | Read this when… |
+|---|---|
+| [overview.md](overview.md) | you want to know what the app is and how the app, CLI and core fit together |
+| [development.md](development.md) | you're building, testing or running the app safely, or need the conventions |
+
+## architecture/
+
+| Doc | Read this when… |
+|---|---|
+| [core.md](architecture/core.md) | you need the `AddonManager` API, the component map or the source layout |
+| [data-storage.md](architecture/data-storage.md) | you need to know where a file lives, how the install store locks, or the SQLite schema, migrations and change stream |
+| [concurrency.md](architecture/concurrency.md) | you're adding shared state, an actor, or code that must run off the main thread |
+| [flavors.md](architecture/flavors.md) | you're touching Forever constants, TOC or `release.json` parsing |
+| [errors.md](architecture/errors.md) | you're adding or handling an `AddonError`, or mapping one to a CLI exit code |
+
+## features/
+
+| Doc | Read this when… |
+|---|---|
+| [release-selection.md](features/release-selection.md) | you need to know how a Forever release and zip are chosen, or what support checks return |
+| [installing.md](features/installing.md) | you're changing install, update, rollback, uninstall, or the downloader |
+| [finding-wow.md](features/finding-wow.md) | WoW isn't detected, or you're changing installation detection or IDs |
+| [search.md](features/search.md) | you're changing search layers, ranking, aliases, the GitHub fallback, catalogue import or Browse |
+| [refresh.md](features/refresh.md) | you're changing the background refresh: its phases, targets, politeness or progress |
+| [details-and-screenshots.md](features/details-and-screenshots.md) | you're working on the inspector, where its details come from, README fetching and rendering, or screenshots |
+
+## network/
+
+| Doc | Read this when… |
+|---|---|
+| [overview.md](network/overview.md) | **before any change that makes requests**: when the network is used and the rules |
+| [github-endpoints.md](network/github-endpoints.md) | you need a URL, its quota cost, the headers or the error mapping |
+| [caching.md](network/caching.md) | you're adding a cache, a TTL, or deciding freshness (`CachePolicy`) |
+| [budget.md](network/budget.md) | you want requests per user action, baseline vs target |
+
+## performance/
+
+| Doc | Read this when… |
+|---|---|
+| [measurements.md](performance/measurements.md) | you want baseline numbers for launch, memory, search, SQLite, zips |
+| [guidelines.md](performance/guidelines.md) | **before changing hot paths, tables or database code** |
+
+## app/
+
+| Doc | Read this when… |
+|---|---|
+| [project.md](app/project.md) | you're changing the Xcode project, targets, the embedded CLI or `ADDONS_DATA_DIR` |
+| [layout.md](app/layout.md) | you're working on the window, sidebar, toolbar, inspector placement, tables or sorting |
+| [first-launch.md](app/first-launch.md) | you're touching the seeding sheet, refresh progress or the 2-hour auto refresh |
+| [cli-install.md](app/cli-install.md) | you're changing how the app installs `addonctl` into `/usr/local/bin` |
+
+## cli/
+
+| Doc | Read this when… |
+|---|---|
+| [commands.md](cli/commands.md) | you need a command, how `<ref>` resolves, or how the installation is picked |
+| [output.md](cli/output.md) | you're changing tables, JSON, progress, exit codes, environment or completions |
+| [config.md](cli/config.md) | you need config keys, the `addons.json` format or current limits |
+
+## decisions/
+
+| Doc | Read this when… |
+|---|---|
+| [README.md](decisions/README.md) | you want to know *why* something is the way it is, or need to record a new decision |
+| [0000-original-design.md](decisions/0000-original-design.md) | you want the original goals, milestones and source research (historical) |

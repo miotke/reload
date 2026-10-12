@@ -13,7 +13,7 @@ Native macOS add-on manager for World of Warcraft: Forever. A SwiftUI app (`App/
 - **After merging app changes into `main`, record the decisions:**
   - architecture, network and performance choices as `docs/decisions/NNNN-short-title.md` (context, decision, alternatives, consequences)
   - updated numbers in `docs/network/` and `docs/performance/`
-- No READMEs in subfolders. The root `README.md` is the GitHub landing page and links into `docs/`.
+- No READMEs in subfolders, except the decision index `docs/decisions/README.md`. The root `README.md` is the GitHub landing page and links into `docs/`.
 
 ## Build & test
 
