@@ -87,7 +87,7 @@ private final class TestClock: Sendable {
         let request = try #require(stub.requests.first)
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer ghp_secret")
         #expect(request.value(forHTTPHeaderField: "If-None-Match") == #"W/"abc""#)
-        let limit = await source.rateLimit()
+        let limit = await source.api.rateLimit()
         #expect(limit.remaining == 4999)
         #expect(limit.resetAt == Date(timeIntervalSince1970: 1_800_000_000))
     }
@@ -107,7 +107,7 @@ private final class TestClock: Sendable {
         await #expect(throws: AddonError.rateLimited(resetAt: Date(timeIntervalSince1970: 1_791_763_105))) {
             _ = try await source.resolve(ref, flavor: .forever, channel: .stable, etag: nil)
         }
-        let limit = await source.rateLimit()
+        let limit = await source.api.rateLimit()
         #expect(limit.remaining == 0)
     }
 
@@ -116,7 +116,7 @@ private final class TestClock: Sendable {
         stub.stub(api, status: 429, headers: ["Retry-After": "60"], body: Data())
         let source = GitHubSource(http: stub)
         let clock = TestClock()
-        await source.setClock { clock.date }
+        await source.api.setClock { clock.date }
         await #expect(throws: AddonError.rateLimited(resetAt: clock.date.addingTimeInterval(60))) {
             _ = try await source.resolve(ref, flavor: .forever, channel: .stable, etag: nil)
         }
@@ -309,7 +309,7 @@ private final class TestClock: Sendable {
                   body: try encode([ghRelease(1, tag: "v1", assets: [ghAsset(10, "A.zip")])]))
         let source = GitHubSource(http: stub)
         let clock = TestClock()
-        await source.setClock { clock.date }
+        await source.api.setClock { clock.date }
         #expect(await source.apiSupport(for: ref, flavor: .forever) == .needsDownload)
 
         let other = AddonRef(source: .github, identifier: "o/other")
@@ -342,7 +342,8 @@ private final class TestClock: Sendable {
 @Suite struct GitHubSourceLiveTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["ADDONS_LIVE_TESTS"] == "1"))
     func resolvesBigWigsForForever() async throws {
-        let source = GitHubSource(token: ProcessInfo.processInfo.environment["GITHUB_TOKEN"])
+        let github = GitHub(token: ProcessInfo.processInfo.environment["GITHUB_TOKEN"])
+        let source = github.source
         let bigwigs = try #require(source.parse("https://github.com/BigWigsMods/BigWigs"))
         let result = try await source.resolve(bigwigs, flavor: .forever, channel: .stable, etag: nil)
         guard case .release(let release, let etag) = result else {
@@ -352,6 +353,6 @@ private final class TestClock: Sendable {
         #expect(release.assetName.hasSuffix(".zip"))
         #expect(!release.assetName.contains("-nolib"))
         #expect(etag != nil)
-        #expect(await source.support(for: bigwigs, flavor: .forever) == .supported(version: release.version))
+        #expect(await github.latest.support(for: bigwigs, flavor: .forever) == .supported(version: release.version))
     }
 }

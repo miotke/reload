@@ -53,27 +53,27 @@ import Testing
         let repo = autoPotion.identifier
         http.redirect("https://github.com/\(repo)/releases/latest", to: "https://github.com/\(repo)/releases/tag/3.17.1")
         http.stub("https://github.com/\(repo)/releases/download/3.17.1/release.json", body: try fixtureData("github/autopotion-release-3.17.1.json"))
-        let source = GitHubSource(http: http)
+        let source = GitHub(http: http)
 
-        let check = await source.check(autoPotion, flavor: .forever)
+        let check = await source.latest.check(autoPotion, flavor: .forever)
         #expect(check.status == .supported(version: "3.17.1"))
         #expect(check.availableFlavors == autoPotionFlavors)
         #expect(check.families == [.retail, .forever, .classic])
         #expect(http.apiRequests.isEmpty)
-        #expect(await source.store.availableFlavors(for: autoPotion) == autoPotionFlavors)
+        #expect(await source.latest.store.availableFlavors(for: autoPotion) == autoPotionFlavors)
 
         // Another flavor's stored answer reads the same per-repo flavors, without a request.
         http.reset()
-        #expect(await source.check(autoPotion, flavor: .mists, policy: .revalidateIfStale).availableFlavors == autoPotionFlavors)
+        #expect(await source.latest.check(autoPotion, flavor: .mists, policy: .revalidateIfStale).availableFlavors == autoPotionFlavors)
         #expect(http.requests.isEmpty)
-        #expect(await source.check(autoPotion, flavor: .forever, policy: .preferStored).availableFlavors == autoPotionFlavors)
+        #expect(await source.latest.check(autoPotion, flavor: .forever, policy: .preferStored).availableFlavors == autoPotionFlavors)
     }
 
     @Test func noReleaseJSONLeavesFlavorsUnknown() async {
         let http = RedirectingHTTPClient()
         http.publishLatest("o/r", tag: "v1", flavors: nil)
-        let source = GitHubSource(http: http)
-        let check = await source.check(AddonRef(source: .github, identifier: "o/r"), flavor: .forever)
+        let source = GitHub(http: http)
+        let check = await source.latest.check(AddonRef(source: .github, identifier: "o/r"), flavor: .forever)
         #expect(check.status == .needsDownload)
         #expect(check.availableFlavors == nil)
     }

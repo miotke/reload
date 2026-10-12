@@ -58,7 +58,7 @@ flowchart LR
 
 - **Quota-free only.** Each ref is a background `latestRelease(policy: .revalidateIfStale)`: `HEAD releases/latest` on github.com, plus the tag's `release.json` when it isn't stored. Background checks never fall back to the API.
 - Only refs without a fresh stored answer for the flavor (the same lifetimes as the refresh); a latest tag another flavor stored within the hour needs no request at all.
-- At most **20 refs per call** (the rest wait for the next), **4 at a time**; refs already in flight from an earlier call are dropped, and duplicates count once.
+- At most **20 refs per call** (the rest wait for the next), **4 at a time**; `AddonManager.visibleCheckTargets(_:isChecked:)` picks them, unchecked rows first; refs already in flight from an earlier call are dropped, and duplicates count once.
 - Skipped entirely while github.com is pausing requests (429/403 backoff) and on Low Data Mode (`NWPathMonitor` says the path is constrained). A pause mid-call stops the rest; so does cancelling the caller (a new query).
 - Answers go through the normal store, so `database.changes()` reports them and the rows patch live. Cost per call: at most 20 HEADs plus one `release.json` per new tag ([budget.md](../network/budget.md)).
 

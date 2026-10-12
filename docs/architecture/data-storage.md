@@ -72,7 +72,7 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 | `rate_limit` | `core` / `search` | remaining calls and reset time |
 
 - `catalogue`, `support` and `release_json` are `WITHOUT ROWID` tables. `catalogue(last_updated)` and `support(flavor, checked_at)` are indexed for the refresh queries.
-- How long each kind of row is trusted: [network/caching.md](../network/caching.md#lifetimes). Only `GitHubSource` writes `support` and `repo_meta` tags ([decision 0011](../decisions/0011-single-cache-owner.md)).
+- How long each kind of row is trusted: [network/caching.md](../network/caching.md#lifetimes). Only `LatestReleaseStore` writes `support` and `repo_meta` tags ([decision 0011](../decisions/0011-single-cache-owner.md)).
 
 ### Migrations
 

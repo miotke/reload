@@ -7,8 +7,6 @@ import Foundation
 extension AddonManager {
     /// Stored details are reused this long.
     public static let detailsTTL: TimeInterval = 24 * 60 * 60
-    /// A repo found to have no README isn't asked again for this long.
-    public static let noReadmeTTL: TimeInterval = 7 * 24 * 60 * 60
 
     public func details(for ref: AddonRef, in installation: Installation) async throws -> AddonDetails {
         let (owner, repo) = try GitHubSource.split(ref)
@@ -21,13 +19,13 @@ extension AddonManager {
         let stale = stored == nil || now().timeIntervalSince(stored!.fetchedAt) >= Self.detailsTTL
         // Support and the latest tag: the single owner decides, quota-free. Fresh details
         // cost nothing, so they read what's stored.
-        let latest = await github.latestRelease(for: ref, flavor: flavor, policy: stale ? .revalidateIfStale : .preferStored)
+        let latest = await github.latest.latestRelease(for: ref, flavor: flavor, policy: stale ? .revalidateIfStale : .preferStored)
         if stale {
             stored = await fetchDetails(ref, owner: owner, repo: repo, flavor: flavor, previous: stored) ?? stored
         }
         var notes = stored.flatMap { Self.notes(in: $0, tag: latest.tag) }
         // With a token the API has quota to spare, so the notes come along automatically.
-        if notes == nil, latest.tag != nil, await github.hasToken(), await github.quotaIsComfortable() {
+        if notes == nil, latest.tag != nil, await github.api.hasToken(), await github.api.quotaIsComfortable() {
             notes = try? await releaseNotes(for: ref, in: installation)
         }
         let storedPublishedAt = await supportCache.latestPublishedAt(for: ref)
@@ -52,15 +50,15 @@ extension AddonManager {
     }
 
     /// Notes of the latest stable release: from the `details` table when stored for that
-    /// tag, else one API call (`GitHubSource.releaseNotes`, no zips), then stored by tag.
+    /// tag, else one API call (`GitHubAPIClient.releaseNotes`, no zips), then stored by tag.
     /// Nil when the repo has no releases.
     public func releaseNotes(for ref: AddonRef, in installation: Installation) async throws -> (version: String, publishedAt: Date?, markdown: String)? {
         let flavor = installation.flavor
-        let tag = await github.latestRelease(for: ref, flavor: flavor, policy: .preferStored).tag
+        let tag = await github.latest.latestRelease(for: ref, flavor: flavor, policy: .preferStored).tag
         if let stored = await storedDetails(ref, flavor: flavor), let notes = Self.notes(in: stored, tag: tag) {
             return notes
         }
-        guard let notes = try await github.releaseNotes(for: ref, tag: tag) else { return nil }
+        guard let notes = try await github.api.releaseNotes(for: ref, tag: tag) else { return nil }
         // A row created here has no README yet; its epoch `fetched_at` makes `details` fetch one.
         _ = try? await database.execute("""
             INSERT INTO details(full_name, flavor, latest_version, latest_published_at, latest_changelog, fetched_at)
@@ -108,41 +106,13 @@ extension AddonManager {
     private func fetchDetails(
         _ ref: AddonRef, owner: String, repo: String, flavor: Flavor, previous: StoredDetails?
     ) async -> StoredDetails? {
-        // README: remembered path and ETag first; a stored "none" is an empty path.
-        let meta = try? await database.query(
-            "SELECT readme_path, readme_etag, readme_checked_at FROM repo_meta WHERE full_name = ?", ref.identifier).first
-        let knownPath = meta?.string(0)
+        // README: remembered path and ETag first, and the "no README" negative cache.
         let readme: String?
         let readmePath: String?
-        if knownPath == "", let checked = meta?.date(2), now().timeIntervalSince(checked) < Self.noReadmeTTL {
-            // Recently found to have none: don't walk the candidate paths again.
-            readme = nil
-            readmePath = nil
-        } else {
-            do {
-                switch try await github.readme(for: ref, knownPath: knownPath, etag: previous?.readme == nil ? nil : meta?.string(1)) {
-                case .found(let markdown, let path, let etag):
-                    readme = markdown
-                    readmePath = path
-                    _ = try? await database.execute("""
-                        INSERT INTO repo_meta(full_name, readme_path, readme_etag, readme_checked_at) VALUES (?, ?, ?, ?)
-                        ON CONFLICT(full_name) DO UPDATE SET readme_path = excluded.readme_path,
-                            readme_etag = excluded.readme_etag, readme_checked_at = excluded.readme_checked_at
-                        """, ref.identifier, path, etag, now())
-                case .notModified:
-                    readme = previous?.readme
-                    readmePath = knownPath
-                case .none:
-                    readme = nil
-                    readmePath = nil
-                    _ = try? await database.execute("""
-                        INSERT INTO repo_meta(full_name, readme_path, readme_etag, readme_checked_at) VALUES (?, '', NULL, ?)
-                        ON CONFLICT(full_name) DO UPDATE SET readme_path = '', readme_etag = NULL, readme_checked_at = excluded.readme_checked_at
-                        """, ref.identifier, now())
-                }
-            } catch {
-                return nil
-            }
+        do {
+            (readme, readmePath) = try await github.readmes.current(for: ref, previous: previous?.readme, now: now())
+        } catch {
+            return nil
         }
         let screenshots = readme.map { ReadmeImages.extract(from: $0, owner: owner, repo: repo, readmePath: readmePath ?? "README.md") } ?? []
 

@@ -61,7 +61,7 @@ extension AddonManager {
         // A forced refresh (⌘R) asks for every installed add-on's latest tag; the background
         // one reuses answers younger than their TTL. Either way the answers are stored, so
         // the support phase below reuses them for installed add-ons.
-        let policy: GitHubSource.CachePolicy = force ? .forceRevalidate : .revalidateIfStale
+        let policy: CachePolicy = force ? .forceRevalidate : .revalidateIfStale
         let updates = (try? await checkForUpdates(in: installation, policy: policy, background: true) { addon, done in
             reporter.send(RefreshProgress(phase: .updates, completed: done, total: total, message: "Checked \(addon.name)"))
         }) ?? [:]
@@ -134,14 +134,14 @@ extension AddonManager {
     /// Runs `check` for each target, 4 at a time. `check` owns the stored verdicts: it skips
     /// the network for answers still within their TTL and writes what it learns.
     private func checkSupport(_ targets: [AddonRef], flavor: Flavor, reporter: ProgressReporter) async {
-        let github = self.github
+        let latest = github.latest
         var done = 0
         await withTaskGroup(of: AddonRef.self) { group in
             var queue = targets[...]
             func addNext() {
                 guard let ref = queue.popFirst() else { return }
                 group.addTask {
-                    _ = await github.check(ref, flavor: flavor, policy: .revalidateIfStale, background: true)
+                    _ = await latest.check(ref, flavor: flavor, policy: .revalidateIfStale, background: true)
                     return ref
                 }
             }

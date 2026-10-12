@@ -2,7 +2,7 @@
 
 What the inspector and the add-on window show for an add-on, how details are loaded, and how README and screenshot images are rendered.
 
-Code: `AddonManager+Details.swift` (`details(for:in:)` → `AddonDetails`), `Details/ReadmeImages.swift`; app side in `App/ForeverAddons/Views/AddonInspectorView.swift`, `ScreenshotViews.swift`, `MarkdownView.swift`, `Support/ScreenshotLoader.swift`, `Support/MarkdownBlocks.swift`. Where the inspector sits: [app/layout.md](../app/layout.md).
+Code: `AddonManager+Details.swift` (`details(for:in:)` → `AddonDetails`), `GitHub/ReadmeFetcher.swift`, `Details/ReadmeImages.swift`; app side in `App/ForeverAddons/Views/AddonInspectorView.swift`, `ScreenshotViews.swift`, `MarkdownView.swift`, `Support/ScreenshotLoader.swift`, `Support/MarkdownBlocks.swift`. Where the inspector sits: [app/layout.md](../app/layout.md).
 
 ## What the inspector shows
 
@@ -56,7 +56,7 @@ Opening an add-on is one of the times the core goes to the network.
 **Fetching (core):**
 - Fetched from `raw.githubusercontent.com/{owner}/{repo}/HEAD/<path>`: `HEAD` there means the default branch, which the catalogue doesn't give.
 - The paths GitHub itself uses are tried in order: `README.md`, `.github/README.md`, `readme.md`, `Readme.md`, `docs/README.md`, `README.markdown`, `README.MD`, `README`.
-- The path that worked and its ETag are kept in `repo_meta`, so the next check is one conditional request. "No README" is remembered too, and trusted for 7 days before the paths are tried again.
+- `ReadmeFetcher` keeps the path that worked and its ETag in `repo_meta`, so the next check is one conditional request. "No README" is remembered too, and trusted for 7 days before the paths are tried again.
 - READMEs are capped at 512 KB. The API's `/readme` is asked only with a token, when every path 404s.
 
 **Rendering (app):**

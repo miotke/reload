@@ -1,8 +1,8 @@
 # Release selection
 
-How `GitHubSource` finds the newest GitHub release of an add-on that supports the installation's flavor (Forever, Retail or a classic game), and the right zip within it. Examples use Forever.
+How `GitHubSource` and `LatestReleaseStore` find the newest GitHub release of an add-on that supports the installation's flavor (Forever, Retail or a classic game), and the right zip within it. Examples use Forever.
 
-Code: `Sources/AddonKit/Sources/GitHubSource.swift`, `GitHubModels.swift`, `Selection/ReleaseSelector.swift`, `Selection/ZipInspector.swift`. Why `release.json` first: [decision 0003](../decisions/0003-forever-detection.md); per-flavor rules: [decision 0016](../decisions/0016-one-flavor-per-game.md). The requests it makes: [github-endpoints.md](../network/github-endpoints.md).
+Code: `Sources/AddonKit/GitHub/GitHubSource.swift` (the API flow below), `LatestReleaseStore.swift` (support checks, quota-free resolve), `GitHubModels.swift`, `Selection/ReleaseSelector.swift`, `Selection/ZipInspector.swift`. Why `release.json` first: [decision 0003](../decisions/0003-forever-detection.md); per-flavor rules: [decision 0016](../decisions/0016-one-flavor-per-game.md). The requests it makes: [github-endpoints.md](../network/github-endpoints.md).
 
 ## How a release is chosen
 
@@ -50,7 +50,7 @@ The same check runs on an add-on folder already on disk, which adopting uses. Su
 
 ## Quota-free resolve (stable channel)
 
-`AddonManager.resolve` (stable channel) and stable update checks first ask `GitHubSource.latestRelease` for the latest release. When its `release.json` names a build for the flavor, the release is resolved without the API. The download URL is built as `github.com/{owner}/{repo}/releases/download/{tag}/{filename}`, so installing or updating BigWigs, DBM and other packager-built add-ons costs no API quota. Why: [decision 0010](../decisions/0010-quota-free-endpoints.md).
+`AddonManager.resolve` (stable channel) and stable update checks first ask `LatestReleaseStore.latestRelease` for the latest release. When its `release.json` names a build for the flavor, the release is resolved without the API. The download URL is built as `github.com/{owner}/{repo}/releases/download/{tag}/{filename}`, so installing or updating BigWigs, DBM and other packager-built add-ons costs no API quota. Why: [decision 0010](../decisions/0010-quota-free-endpoints.md).
 
 - It returns nil, and the caller falls back to the API flow above, when the latest release has no `release.json` or lacks the flavor (an older release might still have it).
 - Such a release has no real release ID or date: `releaseID` is a negative hash of `owner/repo@tag` and `publishedAt` is the time of the check. `InstalledAddon.isUpdate` compares **tags** whenever either side has a synthetic ID, so a re-resolve never shows a false "update available".
@@ -87,9 +87,9 @@ flowchart LR
 
 - Alongside the verdict, `LatestRelease` and `SupportCheck` carry `availableFlavors`: every flavor the release's `release.json` names, nil without one. It's stored per repo in `repo_meta` (`available_flavors`, `flavors_tag`, `flavors_source`) in the verdict's transaction; another flavor's check reuses it, and a stored `release.json` without it is derived locally. For a release with no `release.json`, an installed or adopted zip's TOCs fill it in (source `inspection`, which never replaces a `release.json` answer). `SupportStatus` stays as is for install logic.
 
-- `GitHubSource` is the **only owner** of verdicts and latest tags; callers pass a `CachePolicy` and never judge freshness themselves ([decision 0011](../decisions/0011-single-cache-owner.md)). How long each outcome is reused: [caching.md](../network/caching.md#lifetimes).
+- `LatestReleaseStore` is the **only owner** of verdicts and latest tags; callers pass a `CachePolicy` and never judge freshness themselves ([decision 0011](../decisions/0011-single-cache-owner.md)). How long each outcome is reused: [caching.md](../network/caching.md#lifetimes).
 - Concurrent lookups for the same repo and flavor share one request.
-- If github.com fails for a reason other than pushing back (429/403), `apiSupport(for:flavor:)`, the API path, answers while quota is comfortable. It also looks past the latest release, and keeps a 10-call reserve.
+- If github.com fails for a reason other than pushing back (429/403), `GitHubSource.apiSupport(for:flavor:)`, the API path, answers while quota is comfortable. It also looks past the latest release, and keeps a 10-call reserve.
 - `background: true` requests stay off constrained (Low Data Mode) networks.
 
 ## Retail build on Forever
@@ -101,6 +101,7 @@ Forever loads the `_Mainline` family TOC, so a Retail build often works there ([
 - **Update checks keep to that build.** They first ask whether the latest release now has a build for the installation's own flavor; if so, that's the update ("Forever build available"), even for the same tag, and installing it clears `installedFlavorBuild`. Otherwise they check the Retail build as usual. `isUpdate` treats a change of build as an update.
 - An add-on installed as its own build never switches: if a release drops Forever, the check says `noCompatibleRelease` or stays on the last Forever release.
 - App: **Install Retail Build…** with a confirmation; CLI: `addonctl install --retail-build`.
+- Which action applies is decided in the core: `InstallAction(installed:update:availableFlavors:flavor:)` gives `.installFallbackBuild` (from `Flavor.offeredFallbackBuild`), and an update back to the own build is `UpdateOffer.ownBuild`.
 
 ## Parsing refs
 
