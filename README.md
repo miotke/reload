@@ -74,15 +74,44 @@ See [`docs/app/project.md`](docs/app/project.md) for how the Xcode project is ge
 
 ## Command-line tool
 
-After installing it from the app:
+Install it from the app (Settings ▸ Command Line ▸ Install), then run `reload --help` or `reload <command> --help` for the full list. An add-on can be named by its title (`bigwigs`), `owner/repo` or a GitHub URL.
 
-```console
-$ reload search boss
-$ reload install BigWigsMods/BigWigs
-$ reload outdated
-$ reload update
-$ reload rm bigwigs
-$ reload --help
+Find and install add-ons:
+
+```sh
+reload search boss mods             # search the catalogue; GAMES shows which game versions each supports
+reload info bigwigs --changelog     # details, latest version and release notes
+reload install BigWigsMods/BigWigs  # install one or more add-ons
+reload install WeakAuras/WeakAuras2 --prerelease  # follow beta releases
+```
+
+Keep them up to date:
+
+```sh
+reload outdated                     # what has an update
+reload update                       # update everything that isn't pinned
+reload update --dry-run             # show what would change without installing
+reload pin bigwigs                  # hold an add-on at its current version
+reload rollback weakauras           # go back to the previous version (and pin it)
+```
+
+Manage what's installed:
+
+```sh
+reload list                         # managed add-ons with version, channel and state
+reload list --unmanaged             # also folders you installed by hand
+reload adopt                        # start managing hand-installed add-ons Reload recognises
+reload rm bigwigs                   # move an add-on's folders to the Trash
+```
+
+Several WoW installs, backups and troubleshooting:
+
+```sh
+reload installs                     # list detected installations (* marks the default)
+reload update -I 3f2a               # one installation: an id (or 4+ characters of it) from `reload installs`, or a path
+reload export -o addons.json        # save your add-on list
+reload import addons.json           # install the same list on another Mac or install
+reload doctor                       # check folders, the store, GitHub quota and more
 ```
 
 Every command supports `--json` for scripting. See [`docs/cli/commands.md`](docs/cli/commands.md) for every command and [`docs/cli/output.md`](docs/cli/output.md) for options and exit codes.
