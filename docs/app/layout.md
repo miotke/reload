@@ -135,7 +135,7 @@ Installed, released and updated dates read "Today" or a short date ("Oct 9, 2026
 
 ## Add-on window
 
-- **Double-click or Return** on a Browse row or a managed Installed row opens the add-on in its own window. Both tables' context menus also have **Open in New Window**.
+- **Double-click or Return** on a Browse row or a managed Installed row opens the add-on in its own window. Both tables' context menus also have **Open in New Window**. That's the only way to open one: File ▸ New, which SwiftUI adds for every `WindowGroup`, is removed, because it would open an empty add-on window or a duplicate main window.
 - It's a `WindowGroup(id: "addon", for: AddonWindowID)`; `AddonWindowID` holds the ref and the installation ID. Opening the same add-on again focuses its existing window.
 - Default size 900×800, minimum 560×420.
 - It reuses `AddonDetailView` (the inspector's content) in a `.window` style, with 320×200 thumbnails. Contents: [details-and-screenshots.md](../features/details-and-screenshots.md).

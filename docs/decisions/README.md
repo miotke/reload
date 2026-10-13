@@ -13,7 +13,7 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0002](0002-github-releases-no-keyed-apis.md) | GitHub Releases as the primary source, no keyed APIs | Accepted | 2026-10-11 |
 | [0003](0003-forever-detection.md) | Forever detection: `release.json` first, zip TOCs as fallback, one `FlavorRules` table | Accepted; partly superseded by 0016 | 2026-10-11 |
 | [0004](0004-transactional-installer.md) | Transactional installer, Trash on uninstall, `flock`-locked JSON store | Accepted | 2026-10-11 |
-| [0005](0005-swift-6-concurrency.md) | macOS 27, Swift 6.4, approachable concurrency, `Mutex` | Accepted | 2026-10-11 |
+| [0005](0005-swift-6-concurrency.md) | macOS 27, Swift 6.4, approachable concurrency, `Mutex` | Accepted; platform superseded by 0028 | 2026-10-11 |
 | [0006](0006-bundled-cli-install.md) | Bundle the CLI; symlink install through `osascript` off the main thread | Accepted | 2026-10-11 |
 | [0007](0007-real-data-only.md) | Real data only; mock manager removed | Accepted | 2026-10-11 |
 | [0008](0008-sqlite-metadata-database.md) | SQLite metadata database via the system SQLite3 API; keep `SearchIndex` over FTS5 | Accepted | 2026-10-11 |
@@ -35,15 +35,17 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0024](0024-rename-to-reload.md) | Rename ForeverAddons to Reload; move old data across once | Accepted | 2026-10-12 |
 | [0025](0025-github-releases-with-optional-signing.md) | GitHub Releases zips from one script; signing and notarization when credentials exist | Accepted | 2026-10-12 |
 | [0026](0026-bundle-id-without-personal-name.md) | Bundle ID `io.github.miotke.Reload`; move data from earlier IDs once | Accepted | 2026-10-12 |
+| [0027](0027-release-branches.md) | One `release/vX.Y.Z` branch per version; its PR carries the notes and merging it is the release | Accepted | 2026-10-12 |
+| [0028](0028-macos-26-minimum.md) | Minimum macOS 26 and Swift 6.2, Apple silicon only | Accepted | 2026-10-12 |
 
 ## By area
 
 | Area | Records |
 |---|---|
-| Architecture | 0001, 0004, 0005, 0008, 0024, 0026 |
+| Architecture | 0001, 0004, 0005, 0008, 0024, 0026, 0028 |
 | Sources and flavor support | 0002, 0003, 0016, 0018, 0019 |
 | Network | 0009, 0010, 0011, 0017, 0019 |
-| App | 0006, 0007, 0012, 0013, 0015, 0019, 0021, 0022, 0023, 0024, 0025, 0026 |
+| App | 0006, 0007, 0012, 0013, 0015, 0019, 0021, 0022, 0023, 0024, 0025, 0026, 0027 |
 | Performance | 0008, 0013, 0023 |
 | Docs | 0014 |
 
@@ -61,4 +63,4 @@ Each record explains one decision: its context, what was decided, the alternativ
   - **Consequences**: what follows, good and bad
 - Add a row to the tables above.
 - When a decision replaces an older one, set the old one's status to "Superseded by NNNN". Don't delete it.
-- Record decisions after merging app changes into `main` (see `.claude/CLAUDE.md`).
+- Record decisions after merging app changes into the release branch (see `.claude/CLAUDE.md`).

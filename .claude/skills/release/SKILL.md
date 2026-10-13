@@ -1,59 +1,68 @@
 ---
 name: release
-description: Bump Reload's version on a branch and open a PR for it; after the PR merges, tag it and draft the GitHub release with the DMG and zip.
-argument-hint: "[version | patch | minor | major | publish]"
+description: Start a release branch for the next Reload version, keep its PR's release notes current, and after the PR merges tag, build and publish the release.
+argument-hint: "[start [version | patch | minor | major] | notes | publish]"
 disable-model-invocation: true
 ---
 
 # Release Reload
 
-Two phases. Full background: `docs/app/releases.md`.
+Every change for a version lands on `release/vX.Y.Z`. Its pull request into `main` carries the release notes in its description. Merging that PR is the release: a workflow tags, builds and publishes the merge commit. Full background: `docs/app/releases.md`, [decision 0027](../../../docs/decisions/0027-release-branches.md).
 
-- `/release`, `/release patch|minor|major` or `/release 0.3.0`: **prepare**, which opens a version-bump PR.
-- `/release publish`: run after that PR is merged. Tags `main` and drafts the GitHub release.
+- `/release start`, `/release start patch|minor|major` or `/release start 0.3.0`: open the next release branch and its PR.
+- `/release notes`: rewrite the PR description from what's on the branch.
+- `/release publish`: after the PR is merged, check the automatic release, or finish it by hand if the run failed.
+- `/release` with no argument: `notes` if a `release/v*` branch is open, otherwise `start`.
+
+The branch is `release/vX.Y.Z`, never `vX.Y.Z`: a branch and a tag with the same name make git refs ambiguous.
 
 Signed tags need a message (`tag.gpgsign` is on), so always `git tag -m`. Commits get only the `Co-Authored-By` trailer, never a `Claude-Session` line. Commit subjects are lowercase, imperative, under 60 characters.
 
-## Prepare
+When `xcode-select -p` points at the Command Line Tools, set `DEVELOPER_DIR` to an installed Xcode 26 or later (`ls -d /Applications/Xcode*.app`) for every build and test below.
 
-1. `git fetch --tags origin`. Stop if the working tree isn't clean, then `git switch main && git pull --ff-only`.
-2. Find the current version: `git tag --list 'v*' --sort=-v:refname | head -1`, and check it against `AppInfo.version` in `Sources/AddonKit/Sources/Source.swift`.
+## Start
+
+1. `git fetch --tags origin`. Stop if the working tree isn't clean. Stop if a `release/v*` branch is already open (`gh pr list --head 'release/' --state open` or `git branch -r --list 'origin/release/*'`): there is one release in flight at a time.
+2. `git switch main && git pull --ff-only`. Find the current version: `git tag --list 'v*' --sort=-v:refname | head -1`, and check it against `AppInfo.version` in `Sources/AddonKit/Sources/Source.swift`.
 3. Work out the new version: the argument if it's `X.Y.Z`, otherwise bump `patch` (the default), `minor` or `major`. Stop if the tag `vX.Y.Z` already exists.
-4. `git switch -c release/vX.Y.Z`.
-5. Update every version number:
+4. `git switch -c release/vX.Y.Z`, then update every version number:
    - `App/project.yml`: `CFBundleShortVersionString: "X.Y.Z"`, and `CFBundleVersion` plus one
    - `App/Reload/Info.plist`: the same two keys (`/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString X.Y.Z' -c 'Set :CFBundleVersion N'`)
    - `Sources/AddonKit/Sources/Source.swift`: `AppInfo.version`
    - Then `rg -n '<old version>' --glob '!build' --glob '!docs/decisions'` and fix any other copy that describes the current version, not history.
-6. Check, with `DEVELOPER_DIR` set to the installed Xcode 27 (`ls -d /Applications/Xcode*.app`) when `xcode-select -p` points at the Command Line Tools:
-   - `swift test`
-   - `swift scripts/check-docs.swift`
-   - `scripts/release.sh X.Y.Z`, which also confirms the three versions match and that the DMG builds
-   Report any failure plainly, and stop.
-7. Commit `bump version to X.Y.Z`, then `git push -u origin release/vX.Y.Z`.
-8. Open the PR: `gh pr create --base main --title "release X.Y.Z"`. The body has:
-   - the changes since the last tag, from `git log --oneline vOLD..main`, grouped into a few plain-language bullets
-   - a line saying that after merging, `/release publish` tags and drafts the release
-   - the PR attribution footer from the session's instructions
-9. Reply with the PR link and the version. Nothing else.
+5. Commit `bump version to X.Y.Z` and `git push -u origin release/vX.Y.Z`.
+6. Open the PR as a draft: `gh pr create --draft --base main --title "Reload X.Y.Z" --body-file <notes>`, with the notes from **Release notes** below (an empty "What's new" list is fine at this point).
+7. Reply with the PR link and the version.
+
+## While the release is open
+
+- Work lands on `release/vX.Y.Z`: commit there directly, or merge feature branches into it. Not into `main`.
+- After a change a player would notice, run `/release notes`.
+
+## Notes
+
+1. Switch to the open `release/vX.Y.Z` branch and `git pull --ff-only`.
+2. Write the notes (see **Release notes**), comparing against the last published release.
+3. `gh pr edit <number> --body-file <notes>`. Reply with one line saying what changed in the notes.
 
 ## Publish
 
-1. `git switch main && git pull --ff-only`. Read the version from `AppInfo.version`. Stop if `vX.Y.Z` already exists, or if `git log --oneline --grep 'bump version to X.Y.Z'` finds nothing (the PR isn't merged yet).
-2. `git tag -m "Reload X.Y.Z" vX.Y.Z && git push origin vX.Y.Z`. The tag starts the Release workflow.
-3. Write the release notes to `build/release/notes-X.Y.Z.md` (see **Release notes** below).
-4. GitHub's runners don't have Xcode 27 yet (see `docs/app/releases.md`). Watch the run with `gh run list --workflow release.yml -L 1`. If it failed at "Select Xcode 27", build here instead:
-   ```sh
-   scripts/release.sh X.Y.Z
-   gh release create vX.Y.Z build/release/Reload-X.Y.Z.dmg* build/release/Reload-X.Y.Z.zip* \
-     --draft --verify-tag --title "Reload X.Y.Z" --notes-file build/release/notes-X.Y.Z.md
-   ```
-   If it passed, the workflow already drafted the release with generated notes; replace them with `gh release edit vX.Y.Z --notes-file build/release/notes-X.Y.Z.md` instead of creating a second release.
-5. Reply with the draft link, and remind the user to publish it on GitHub. Never publish it yourself.
+Merging the release PR publishes the release by itself: the Release workflow tests and builds the merge commit, tags it `vX.Y.Z`, publishes the release with the PR description as its notes, and deletes the branch. `/release publish` checks that it worked and recovers when it didn't.
+
+1. Find the release PR: `gh pr list --head release/vX.Y.Z --state merged`. Stop if it isn't merged yet; merging is the user's call, so don't merge it yourself unless they ask.
+2. Watch its run: `gh run list --workflow release.yml --event pull_request -L 1`, then `gh run watch <id>`.
+3. **If it passed:** check that `https://github.com/miotke/reload/releases/latest` redirects to `vX.Y.Z` and the DMG downloads. `git switch main && git pull --ff-only && git branch -d release/vX.Y.Z`. Reply with the release link.
+4. **If it failed,** report the failing step plainly, then publish from this Mac:
+   1. `git switch main && git pull --ff-only`. Check `AppInfo.version` is X.Y.Z and `HEAD` is the PR's merge commit (`gh pr view <number> --json mergeCommit -q .mergeCommit.oid`).
+   2. `swift test` and `swift scripts/check-docs.swift`. Stop on a failure.
+   3. If the run didn't get as far as tagging: `git tag -m "Reload X.Y.Z" vX.Y.Z && git push origin vX.Y.Z`. The tag starts a second run that drafts the release; let it, or build here with `scripts/release.sh X.Y.Z`.
+   4. Save the notes: `gh pr view <number> --json body -q .body | grep -v '^🤖 Generated with' > build/release/notes-X.Y.Z.md`.
+   5. Publish: `gh release edit vX.Y.Z --notes-file build/release/notes-X.Y.Z.md --draft=false --latest` if a draft exists, otherwise `gh release create vX.Y.Z build/release/Reload-X.Y.Z.dmg* build/release/Reload-X.Y.Z.zip* --verify-tag --latest --title "Reload X.Y.Z" --notes-file build/release/notes-X.Y.Z.md`.
+   6. Check `releases/latest` as in step 3, delete the branch (`git push origin --delete release/vX.Y.Z`), and reply with the release link.
 
 ## Release notes
 
-Written for players, not developers. Every release gets the same three parts:
+Written for players, not developers. Every release gets the same three parts, plus the PR attribution footer from the session's instructions while it's a PR description:
 
 ```markdown
 Reload is a native macOS add-on manager for World of Warcraft: Forever: search, install, update and roll back add-ons from the app or the `reload` command.
@@ -64,10 +73,10 @@ Reload is a native macOS add-on manager for World of Warcraft: Forever: search, 
 
 ## Install
 
-Download `Reload-X.Y.Z.dmg`, open it and drag Reload into Applications. <signing line>. Requires macOS 27 on Apple silicon.
+Download `Reload-X.Y.Z.dmg`, open it and drag Reload into Applications. <signing line>. Requires macOS 26 or later on Apple silicon.
 ```
 
-- **What's new** compares against the last *published* release: `gh release list --exclude-drafts --limit 1 --json tagName -q '.[0].tagName'`, then `git log --oneline vPREV..vX.Y.Z`. If nothing has been published yet, say it's the first public release and list the main features from the README instead.
+- **What's new** compares against the last *published* release: `gh release list --exclude-drafts --limit 1 --json tagName -q '.[0].tagName'`, then `git log --oneline vPREV..HEAD`. If nothing has been published yet, say it's the first public release and list the main features from the README instead.
 - Group commits by what a player notices (new features, fixes, changes to where data lives). Leave out docs, tests, refactors and release plumbing unless they change behaviour. Never paste raw commit subjects.
 - Call out anything a player has to do or will see once, such as a one-time migration or a new permission prompt.
 - Signing line: "Unsigned build: the first time, open Reload, then go to System Settings ▸ Privacy & Security and click Open Anyway" when the build is ad-hoc signed, otherwise "Signed and notarized".

@@ -34,6 +34,9 @@ struct ReloadApp: App {
         }
         .defaultSize(width: 1300, height: 880)
         .commands {
+            // SwiftUI adds File ▸ New with an item per WindowGroup. A second main window only
+            // duplicates the first, and an add-on window needs an add-on, so they open from rows.
+            CommandGroup(replacing: .newItem) { }
             CommandGroup(after: .textEditing) {
                 Button("Find Add-ons") { SearchFieldFocus.focus() }
                     .keyboardShortcut("f", modifiers: .command)

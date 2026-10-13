@@ -4,7 +4,7 @@ How to build and test Reload, how to run it without touching your real setup, an
 
 ## Requirements
 
-- macOS 27, Xcode 27 (Swift 6.4)
+- macOS 26 or later, Xcode 26 or later (Swift 6.2)
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`), only when changing `App/project.yml`
 
 If `xcode-select -p` points to the Command Line Tools, either run `sudo xcode-select -s /Applications/Xcode.app` or put `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` in front of each command below.
@@ -87,5 +87,5 @@ Run the app and the tests before saying something works. Report failures plainly
 - One topic per file, about 40–150 lines, in the folders listed in [README.md](README.md). Every new file gets a line there.
 - Update the relevant doc in the same commit as the code change.
 - Run `swift scripts/check-docs.swift` before committing. It verifies links, the index, file sizes, doc paths in comments, and the "Where things live" tables.
-- After merging app changes into `main`, add [decision records](decisions/README.md) and update the numbers in [network/budget.md](network/budget.md) and [performance/measurements.md](performance/measurements.md).
+- After merging app changes into the release branch, add [decision records](decisions/README.md) and update the numbers in [network/budget.md](network/budget.md) and [performance/measurements.md](performance/measurements.md).
 - No READMEs in subfolders except `decisions/README.md`, the decision index.

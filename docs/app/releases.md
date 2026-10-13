@@ -4,12 +4,22 @@ How a version of Reload gets built and published on GitHub Releases. There's no 
 
 ## Cutting a release
 
-In Claude Code, `/release` does steps 1–2 as a PR, and `/release publish` does the tagging and drafting after it merges (`.claude/skills/release/SKILL.md`). By hand:
+Each version has a release branch, and merging it is the release ([decision 0027](../decisions/0027-release-branches.md)).
 
-1. Bump the version in all three places: `CFBundleShortVersionString` in `App/project.yml` and `App/Reload/Info.plist`, and `AppInfo.version` in `Sources/AddonKit/Sources/Source.swift`. The release script refuses to build when they differ from the tag.
-2. Commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
-3. The **Release** workflow (`.github/workflows/release.yml`) runs `swift test`, builds with `scripts/release.sh` and creates a **draft** release with `Reload-<version>.dmg`, `Reload-<version>.zip` and a `.sha256` for each.
-4. Replace the generated notes with player-facing ones (what Reload is, what's new since the last published release, how to install: the template is in the skill), check the draft, publish.
+```
+main ──●──────────────────────●  merge commit = vX.Y.Z: tagged, built, published
+        \                    /
+release/vX.Y.Z  ●──●──●──●──●    version bump first, then every change for the release
+                PR description = the release notes
+```
+
+1. **Start:** branch `release/vX.Y.Z` off `main`, bump the version in all three places (`CFBundleShortVersionString` in `App/project.yml` and `App/Reload/Info.plist`, `AppInfo.version` in `Sources/AddonKit/Sources/Source.swift`; the release script refuses to build when they differ from the tag), push, and open a draft PR into `main` titled "Reload X.Y.Z".
+2. **Work:** every change for the version lands on that branch. The PR description holds the player-facing notes: what Reload is, what's new since the last published release, how to install. Keep it current as changes land.
+3. **Merge** the PR when the version is ready. Only the owner merges into `main` (a ruleset requires a PR for everyone else).
+4. **Publish (automatic):** the merge starts the **Release** workflow (`.github/workflows/release.yml`). It checks out the merge commit, runs `swift test`, builds with `scripts/release.sh`, then tags the commit `vX.Y.Z` and publishes the release with `Reload-<version>.dmg`, `Reload-<version>.zip`, a `.sha256` for each, and the PR description as the notes (minus the Claude Code attribution line). Last, it deletes the release branch. It only does this for a merged PR from a `release/v*` branch in this repo. The tag is created only after the build succeeds; it's annotated but not GPG-signed, because the workflow has no signing key.
+5. **If the run fails,** nothing is tagged or published. Fix the problem, or push the tag by hand: a pushed `v*` tag starts the workflow again in its older mode, which drafts the release with generated notes for you to edit and publish. `/release publish` does this.
+
+In Claude Code, `/release start` and `/release notes` do steps 1–2, and `/release publish` checks step 4 and handles step 5 (`.claude/skills/release/SKILL.md`). The branch is `release/vX.Y.Z`, not `vX.Y.Z`, because a branch and a tag with the same name make git refs ambiguous.
 
 To try a build without releasing, run the workflow by hand (Actions ▸ Release ▸ Run workflow) with a version. The files are kept as a workflow artifact instead.
 
@@ -19,7 +29,7 @@ To try a build without releasing, run the workflow by hand (Actions ▸ Release 
 scripts/release.sh 0.2.0
 ```
 
-Output goes to `build/release/` (gitignored): `Reload.app`, `Reload-0.2.0.dmg`, `Reload-0.2.0.zip` and their `.sha256` files. The app bundles the `reload` CLI in `Contents/Helpers` ([cli-install.md](cli-install.md)), so each download ships both. macOS 27 runs only on Apple silicon, so the build is arm64 only.
+Output goes to `build/release/` (gitignored): `Reload.app`, `Reload-0.2.0.dmg`, `Reload-0.2.0.zip` and their `.sha256` files. The app bundles the `reload` CLI in `Contents/Helpers` ([cli-install.md](cli-install.md)), so each download ships both. The build is arm64 only (`ARCHS: arm64` in `project.yml`): Reload supports Apple silicon only ([decision 0028](../decisions/0028-macos-26-minimum.md)).
 
 ## The disk image
 
@@ -43,7 +53,7 @@ With a team ID the script signs with a secure timestamp and the hardened runtime
 
 ## CI runner
 
-The workflow runs on `macos-latest` and picks the newest `/Applications/Xcode_27*.app`, since the deployment target needs the macOS 27 SDK. If the runner has no Xcode 27 yet, the job fails with the list of installed versions; change `runs-on` to a newer image when GitHub adds one.
+The workflow runs on `macos-26` and picks the newest `/Applications/Xcode_26*.app` or later, since the project needs Swift 6.2 and the macOS 26 SDK. If the runner has none, the job fails with the list of installed versions.
 
 ## Not done yet
 
