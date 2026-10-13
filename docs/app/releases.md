@@ -4,6 +4,8 @@ How a version of Reload gets built and published on GitHub Releases. There's no 
 
 ## Cutting a release
 
+In Claude Code, `/release` does steps 1–2 as a PR, and `/release publish` does the tagging and drafting after it merges (`.claude/skills/release/SKILL.md`). By hand:
+
 1. Bump the version in all three places: `CFBundleShortVersionString` in `App/project.yml` and `App/Reload/Info.plist`, and `AppInfo.version` in `Sources/AddonKit/Sources/Source.swift`. The release script refuses to build when they differ from the tag.
 2. Commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
 3. The **Release** workflow (`.github/workflows/release.yml`) runs `swift test`, builds with `scripts/release.sh` and creates a **draft** release with `Reload-<version>.dmg`, `Reload-<version>.zip` and a `.sha256` for each.

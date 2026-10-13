@@ -16,7 +16,15 @@ A native macOS add-on manager for **World of Warcraft: Forever**, written in Swi
 - **Adopt** add-ons you installed by hand.
 - **No API keys needed.** Add-ons come from GitHub Releases. You can add your own GitHub token in Settings to raise rate limits.
 
-## Requirements
+## Install
+
+1. Download `Reload-<version>.dmg` from the [latest release](https://github.com/miotke/reload/releases/latest).
+2. Open it and drag **Reload** into **Applications**.
+3. The first time, right-click Reload in Applications and choose **Open**. Builds aren't signed yet, so macOS asks once.
+
+Needs macOS 27 on Apple silicon. For the `reload` command, open Settings ▸ Command Line ▸ Install.
+
+## Build requirements
 
 - macOS 27 or later
 - Xcode 27 or later (Swift 6.4)
