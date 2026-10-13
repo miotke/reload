@@ -1,8 +1,8 @@
+<h1 align="center">Reload</h1>
+
 <p align="center">
   <img src="App/Design/AppIcon-1024.png" width="160" alt="Reload app icon">
 </p>
-
-<h1 align="center">Reload</h1>
 
 A native macOS add-on manager for **World of Warcraft: Forever**, written in Swift. It's a SwiftUI app with a package-manager-style command-line tool (`reload`) built in. Both share the same core library and the same list of installed add-ons, so changes made in one show up in the other.
 
