@@ -1,26 +1,30 @@
 import Foundation
 
-/// The app and CLI were called ForeverAddons (bundle ID `com.andrewmiotke.ForeverAddons`)
-/// before they were Reload (decision 0024). This moves the old data across once.
+/// Earlier bundle IDs: the ForeverAddons name (decision 0024) and Reload's own first ID,
+/// which carried a personal name (decision 0026). This moves their data across once. The
+/// old IDs stay here only so existing installs can find their data.
 public enum LegacyDataMigration {
-    public static let legacyBundleID = "com.andrewmiotke.ForeverAddons"
+    /// Newest first, so the most recent data wins when more than one exists.
+    public static let legacyBundleIDs = ["com.andrewmiotke.Reload", "com.andrewmiotke.ForeverAddons"]
 
-    /// Moves the legacy Application Support and Caches folders to `directories` when the new
-    /// ones don't exist yet. A rename on the same volume, so it's instant; anything that fails
-    /// is left where it was. Run only for the standard folders, never a `RELOAD_DATA_DIR` one.
-    /// The Keychain token moves on first read (`KeychainStore.get`).
+    /// Moves the first legacy Application Support and Caches folders found to `directories`
+    /// when the new ones don't exist yet. A rename on the same volume, so it's instant; anything
+    /// that fails is left where it was. Run only for the standard folders, never a
+    /// `RELOAD_DATA_DIR` one. The Keychain token moves on first read (`KeychainStore.get`).
     @discardableResult
     public static func moveFolders(
         to directories: AppDirectories = .standard(),
-        from legacy: AppDirectories = .standard(bundleID: legacyBundleID)
+        from legacy: [AppDirectories] = legacyBundleIDs.map { .standard(bundleID: $0) }
     ) -> [URL] {
         let fm = FileManager.default
         var moved: [URL] = []
-        for (old, new) in [(legacy.applicationSupport, directories.applicationSupport), (legacy.caches, directories.caches)] {
-            guard fm.fileExists(atPath: old.path(percentEncoded: false)),
-                  !fm.fileExists(atPath: new.path(percentEncoded: false)) else { continue }
-            try? fm.createDirectory(at: new.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if (try? fm.moveItem(at: old, to: new)) != nil { moved.append(new) }
+        for old in legacy {
+            for (from, to) in [(old.applicationSupport, directories.applicationSupport), (old.caches, directories.caches)] {
+                guard fm.fileExists(atPath: from.path(percentEncoded: false)),
+                      !fm.fileExists(atPath: to.path(percentEncoded: false)) else { continue }
+                try? fm.createDirectory(at: to.deletingLastPathComponent(), withIntermediateDirectories: true)
+                if (try? fm.moveItem(at: from, to: to)) != nil { moved.append(to) }
+            }
         }
         return moved
     }

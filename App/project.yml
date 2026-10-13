@@ -1,6 +1,6 @@
 name: Reload
 options:
-  bundleIdPrefix: com.andrewmiotke
+  bundleIdPrefix: io.github.miotke
   deploymentTarget:
     macOS: "27.0"
   createIntermediateGroups: true
@@ -41,10 +41,10 @@ targets:
         CFBundleVersion: "2"
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
-        NSHumanReadableCopyright: "© 2026 Andrew Miotke. MIT License. Not affiliated with Blizzard Entertainment."
+        NSHumanReadableCopyright: "© 2026 miotke. MIT License. Not affiliated with Blizzard Entertainment."
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.Reload
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.miotke.Reload
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_NAME: Reload
         GENERATE_INFOPLIST_FILE: NO
@@ -73,7 +73,7 @@ targets:
       base:
         PRODUCT_NAME: reload
         PRODUCT_MODULE_NAME: ReloadCLITool
-        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.Reload.cli
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.miotke.Reload.cli
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
@@ -101,7 +101,7 @@ targets:
         product: AddonKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.andrewmiotke.ReloadTests
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.miotke.ReloadTests
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"

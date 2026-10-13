@@ -721,7 +721,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.andrewmiotke.ReloadTests;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.miotke.ReloadTests;
 				SDKROOT = macosx;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 			};
@@ -808,7 +808,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.andrewmiotke.Reload;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.miotke.Reload;
 				PRODUCT_NAME = Reload;
 				SDKROOT = macosx;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -829,7 +829,7 @@
 					"@executable_path/../Frameworks",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -parse-as-library";
-				PRODUCT_BUNDLE_IDENTIFIER = com.andrewmiotke.Reload.cli;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.miotke.Reload.cli;
 				PRODUCT_MODULE_NAME = ReloadCLITool;
 				PRODUCT_NAME = reload;
 				SDKROOT = macosx;
@@ -912,7 +912,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.andrewmiotke.Reload;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.miotke.Reload;
 				PRODUCT_NAME = Reload;
 				SDKROOT = macosx;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -935,7 +935,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.andrewmiotke.ReloadTests;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.miotke.ReloadTests;
 				SDKROOT = macosx;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 			};
@@ -954,7 +954,7 @@
 					"@executable_path/../Frameworks",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -parse-as-library";
-				PRODUCT_BUNDLE_IDENTIFIER = com.andrewmiotke.Reload.cli;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.miotke.Reload.cli;
 				PRODUCT_MODULE_NAME = ReloadCLITool;
 				PRODUCT_NAME = reload;
 				SDKROOT = macosx;

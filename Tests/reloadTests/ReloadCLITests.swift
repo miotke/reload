@@ -524,7 +524,7 @@ func jsonObject(_ text: String) throws -> [String: Any] {
         let store = ConfigStore(directories: AppDirectories(root: root))
         #expect(store.load() == CLIConfig())
 
-        let keychain = KeychainStore(service: "com.andrewmiotke.Reload.reloadTests.\(UUID().uuidString)")
+        let keychain = KeychainStore(service: "io.github.miotke.Reload.reloadTests.\(UUID().uuidString)")
         defer { try? keychain.delete() }
         let service = ConfigService(store: store, keychain: keychain, environment: [:])
 

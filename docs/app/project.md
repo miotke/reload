@@ -38,7 +38,7 @@ The app is signed "Sign to Run Locally", so no Apple developer account is needed
 
 ## Data
 
-By default the app uses the real `AddonManager`: your WoW installations and the shared store in `~/Library/Application Support/com.andrewmiotke.Reload`, the same one `reload` uses ([data-storage.md](../architecture/data-storage.md)). There's no mock data ([decision 0007](../decisions/0007-real-data-only.md)).
+By default the app uses the real `AddonManager`: your WoW installations and the shared store in `~/Library/Application Support/io.github.miotke.Reload`, the same one `reload` uses ([data-storage.md](../architecture/data-storage.md)). There's no mock data ([decision 0007](../decisions/0007-real-data-only.md)).
 
 ### `RELOAD_DATA_DIR`
 

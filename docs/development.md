@@ -56,12 +56,12 @@ Run the app and the tests before saying something works. Report failures plainly
 
 - **Unit tests never touch real folders.** Directories are injected (`AppDirectories(root:)` on a temp folder), HTTP goes through `StubHTTPClient`, and downloads through `StubDownloadTransport`.
 - **Manual runs:** set `RELOAD_DATA_DIR=<temp folder>`, which works for both the app and the CLI ([app/project.md](app/project.md#reload_data_dir)). Then add a fake installation such as `<tmp>/World of Warcraft/_classic_beta_/Interface/AddOns`.
-- **Never** point tests or manual runs at the real WoW folder or `~/Library/Application Support/com.andrewmiotke.Reload`.
-- **Smoke-test and profiling launches** run in the background, stay brief, and are quit afterwards. Never quit the user's own running copy.
+- **Never** point tests or manual runs at the real WoW folder or `~/Library/Application Support/io.github.miotke.Reload`.
+- **Smoke-test and profiling launches** run in the background, stay brief, and are quit afterwards. Never quit a copy of the app you didn't launch.
 - **No privileged commands.** Don't run the CLI install's admin prompt yourself ([app/cli-install.md](app/cli-install.md)).
 - **Reset first-launch state:**
-  - CLI offer: `defaults delete com.andrewmiotke.Reload didOfferCommandLineTool`
-  - Seeding sheet: `defaults delete com.andrewmiotke.Reload didSeedAddonDetails`
+  - CLI offer: `defaults delete io.github.miotke.Reload didOfferCommandLineTool`
+  - Seeding sheet: `defaults delete io.github.miotke.Reload didSeedAddonDetails`
 
 ### What the tests cover
 

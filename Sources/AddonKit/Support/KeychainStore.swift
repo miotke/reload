@@ -29,14 +29,18 @@ public struct KeychainStore: Sendable {
     }
 
     /// The stored value, or nil if none is stored or it can't be read. The default service
-    /// also takes over a token stored under the old ForeverAddons bundle ID, once (decision 0024).
+    /// also takes over a token stored under an earlier bundle ID, once (decisions 0024, 0026).
     public func get() -> String? {
         if let value = read() { return value }
         guard service == AppInfo.bundleID else { return nil }
-        let legacy = KeychainStore(service: LegacyDataMigration.legacyBundleID, account: account)
-        guard let value = legacy.read(), (try? set(value)) != nil else { return nil }
-        try? legacy.delete()
-        return value
+        for id in LegacyDataMigration.legacyBundleIDs {
+            let legacy = KeychainStore(service: id, account: account)
+            guard let value = legacy.read() else { continue }
+            guard (try? set(value)) != nil else { return nil }
+            try? legacy.delete()
+            return value
+        }
+        return nil
     }
 
     private func read() -> String? {

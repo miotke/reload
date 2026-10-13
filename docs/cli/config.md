@@ -8,7 +8,7 @@ Commands: [commands.md](commands.md). Where files live: [data-storage.md](../arc
 
 | Key | Stored in | Notes |
 |---|---|---|
-| `github-token` | Keychain (service `com.andrewmiotke.Reload`, account `github-token`) | Shared with the app's Settings |
+| `github-token` | Keychain (service `io.github.miotke.Reload`, account `github-token`) | Shared with the app's Settings |
 | `default-channel` | `<Application Support>/config.json` | `stable` or `prerelease` |
 | `default-install` | `<Application Support>/config.json` | Validated against known installations; a path is added first |
 

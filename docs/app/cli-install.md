@@ -40,7 +40,7 @@ sequenceDiagram
 - Shown once, after the seeding sheet closes ([first-launch.md](first-launch.md)), unless the tool is already installed.
 - Buttons: **Install** and **Not Now**. Either way it's remembered in user defaults as `didOfferCommandLineTool` and not repeated.
 - Only appears on real data, not with `RELOAD_DATA_DIR`.
-- To reset: Settings ▸ Advanced ▸ **Reset first-launch steps**, or `defaults delete com.andrewmiotke.Reload didOfferCommandLineTool`.
+- To reset: Settings ▸ Advanced ▸ **Reset first-launch steps**, or `defaults delete io.github.miotke.Reload didOfferCommandLineTool`.
 
 ## Settings ▸ Command Line
 

@@ -8,17 +8,17 @@ Code: `Sources/AddonKit/Store/` (`AppDirectories`, `InstallStore`, `MetadataData
 
 | What | Path |
 |---|---|
-| Installed add-on records | `~/Library/Application Support/com.andrewmiotke.Reload/installations/<installation id>.json` |
+| Installed add-on records | `~/Library/Application Support/io.github.miotke.Reload/installations/<installation id>.json` |
 | Store lock | `…/installations/.lock` |
-| Metadata database | `~/Library/Application Support/com.andrewmiotke.Reload/metadata.sqlite` (+ `-wal`, `-shm`) |
-| CLI config | `~/Library/Application Support/com.andrewmiotke.Reload/config.json` ([cli/config.md](../cli/config.md)) |
-| GitHub token | Keychain, service `com.andrewmiotke.Reload`, account `github-token` |
-| Downloaded zips | `~/Library/Caches/com.andrewmiotke.Reload/downloads/<source>/<owner+repo>/<releaseID>-<asset>` |
-| Downloaded `release.json` files | `~/Library/Caches/com.andrewmiotke.Reload/github/release-json/` |
-| Screenshot cache (app) | `~/Library/Caches/com.andrewmiotke.Reload/screenshots/` (`AppDirectories.screenshotsDirectory`) |
+| Metadata database | `~/Library/Application Support/io.github.miotke.Reload/metadata.sqlite` (+ `-wal`, `-shm`) |
+| CLI config | `~/Library/Application Support/io.github.miotke.Reload/config.json` ([cli/config.md](../cli/config.md)) |
+| GitHub token | Keychain, service `io.github.miotke.Reload`, account `github-token` |
+| Downloaded zips | `~/Library/Caches/io.github.miotke.Reload/downloads/<source>/<owner+repo>/<releaseID>-<asset>` |
+| Downloaded `release.json` files | `~/Library/Caches/io.github.miotke.Reload/github/release-json/` |
+| Screenshot cache (app) | `~/Library/Caches/io.github.miotke.Reload/screenshots/` (`AppDirectories.screenshotsDirectory`) |
 | Add-ons | `<WoW>/_classic_beta_/Interface/AddOns/` |
 
-Data from before the rename to Reload (`com.andrewmiotke.ForeverAddons`) is moved here once at startup ([decision 0024](../decisions/0024-rename-to-reload.md)).
+Data stored under an earlier bundle ID (`LegacyDataMigration.legacyBundleIDs`) is moved here once at startup ([decision 0024](../decisions/0024-rename-to-reload.md), [decision 0026](../decisions/0026-bundle-id-without-personal-name.md)).
 
 `AppDirectories` resolves these. `AppDirectories(root:)` puts everything under one folder (`<root>/Application Support`, `<root>/Caches`), which is what tests and `RELOAD_DATA_DIR` use.
 

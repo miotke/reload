@@ -13,7 +13,7 @@ The app, CLI, bundle ID, Xcode project and GitHub repo are now called Reload, an
 
 | Was | Now |
 |---|---|
-| ForeverAddons.app, `com.andrewmiotke.ForeverAddons` | Reload.app, `com.andrewmiotke.Reload` |
+| ForeverAddons.app and its bundle ID | Reload.app and a Reload bundle ID (since replaced, [decision 0026](0026-bundle-id-without-personal-name.md)) |
 | `addonctl` (`Sources/addonctl`, `addonctlTests`) | `reload` (`Sources/reload`, `reloadTests`); the root command type is `ReloadCLI` |
 | `App/ForeverAddons`, `ForeverAddons.xcodeproj` | `App/Reload`, `Reload.xcodeproj`, scheme `Reload` |
 | `ADDONS_DATA_DIR`, `ADDONS_GITHUB_TOKEN`, `ADDONS_LIVE_TESTS` | `RELOAD_DATA_DIR`, `RELOAD_GITHUB_TOKEN`, `RELOAD_LIVE_TESTS` |
@@ -22,7 +22,7 @@ The app, CLI, bundle ID, Xcode project and GitHub repo are now called Reload, an
 - **The Xcode CLI target is `reload-cli`** (product `reload`, module `ReloadCLITool`). A target named `reload` shares the app's `Reload.build` folder on a case-insensitive disk and the build fails.
 - **`AddonKit` keeps its name.** It doesn't carry the product name.
 - **One-time migration** (`LegacyDataMigration`):
-  - The app and CLI rename `~/Library/Application Support/com.andrewmiotke.ForeverAddons` and the matching Caches folder to the new bundle ID at startup, when the new folder doesn't exist yet. It's a rename on one volume, so it's instant; it never runs with `RELOAD_DATA_DIR`.
+  - The app and CLI rename the ForeverAddons folder in `~/Library/Application Support` and the matching Caches folder to the new bundle ID at startup, when the new folder doesn't exist yet. It's a rename on one volume, so it's instant; it never runs with `RELOAD_DATA_DIR`.
   - `KeychainStore.get()` on the default service takes over a token stored under the old service on first read, which is already when the Keychain may be read ([core.md](../architecture/core.md)), so launch never waits on a prompt.
   - The app copies user defaults from the old domain once, without overwriting.
 - No `addonctl` alias. The old symlink in `/usr/local/bin` points into the old app and is replaced by installing the CLI again from Settings ▸ Command Line.

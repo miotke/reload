@@ -36,16 +36,20 @@ struct AppEnvironment {
         return AppEnvironment(mode: .standard, manager: AddonManager())
     }
 
-    /// Settings saved under the old ForeverAddons bundle ID (decision 0024), copied once
-    /// without overwriting anything already set.
+    /// Settings saved under earlier bundle IDs (decisions 0024, 0026), copied once without
+    /// overwriting anything already set. Newest first, so the most recent value wins.
     static func migrateLegacyDefaults(
         into defaults: UserDefaults = .standard,
-        from legacy: [String: Any]? = UserDefaults.standard.persistentDomain(forName: LegacyDataMigration.legacyBundleID)
+        from legacy: [[String: Any]] = LegacyDataMigration.legacyBundleIDs.compactMap {
+            UserDefaults.standard.persistentDomain(forName: $0)
+        }
     ) {
         let marker = "didMigrateLegacyDefaults"
         guard !defaults.bool(forKey: marker) else { return }
-        for (key, value) in legacy ?? [:] where defaults.object(forKey: key) == nil {
-            defaults.set(value, forKey: key)
+        for domain in legacy {
+            for (key, value) in domain where defaults.object(forKey: key) == nil {
+                defaults.set(value, forKey: key)
+            }
         }
         defaults.set(true, forKey: marker)
     }

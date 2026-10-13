@@ -53,7 +53,7 @@ Decision: [0002](0002-github-releases-no-keyed-apis.md).
 ## Open questions (at the time)
 
 1. Forever's launch folder and product code. Currently `_classic_beta_` / `wow_classic_beta`; detect by game version so it keeps working.
-2. App name and bundle id: `Reload` / `com.andrewmiotke.Reload` were placeholders.
+2. App name and bundle id: `Reload` and its bundle ID were placeholders.
 3. Contribute Forever tags back to the catalogue, or keep our own list of known Forever repos?
 
 ## Original milestones

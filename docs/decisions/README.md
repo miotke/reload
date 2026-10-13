@@ -34,15 +34,16 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0023](0023-batched-row-reads-and-sidebar-progress.md) | One query for a Browse list's stored answers; refresh progress observed only in the sidebar | Accepted | 2026-10-12 |
 | [0024](0024-rename-to-reload.md) | Rename ForeverAddons to Reload; move old data across once | Accepted | 2026-10-12 |
 | [0025](0025-github-releases-with-optional-signing.md) | GitHub Releases zips from one script; signing and notarization when credentials exist | Accepted | 2026-10-12 |
+| [0026](0026-bundle-id-without-personal-name.md) | Bundle ID `io.github.miotke.Reload`; move data from earlier IDs once | Accepted | 2026-10-12 |
 
 ## By area
 
 | Area | Records |
 |---|---|
-| Architecture | 0001, 0004, 0005, 0008, 0024 |
+| Architecture | 0001, 0004, 0005, 0008, 0024, 0026 |
 | Sources and flavor support | 0002, 0003, 0016, 0018, 0019 |
 | Network | 0009, 0010, 0011, 0017, 0019 |
-| App | 0006, 0007, 0012, 0013, 0015, 0019, 0021, 0022, 0023, 0024, 0025 |
+| App | 0006, 0007, 0012, 0013, 0015, 0019, 0021, 0022, 0023, 0024, 0025, 0026 |
 | Performance | 0008, 0013, 0023 |
 | Docs | 0014 |
 

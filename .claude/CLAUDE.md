@@ -76,8 +76,8 @@ Read `docs/performance/` before changing hot paths or UI lists.
 
 ## Safety
 
-- Tests and manual runs must never touch the user's real WoW folder or `~/Library/Application Support/com.andrewmiotke.Reload`. Use temp directories or `RELOAD_DATA_DIR=<tmp>`.
-- Profiling or smoke-test launches of the app run in the background, stay brief, and must be quit afterwards. Never quit the user's own running copy.
+- Tests and manual runs must never touch a real WoW folder or the app's real data in `~/Library/Application Support/io.github.miotke.Reload`. Use temp directories or `RELOAD_DATA_DIR=<tmp>`.
+- Profiling or smoke-test launches of the app run in the background, stay brief, and must be quit afterwards. Never quit a copy of the app you didn't launch.
 - Don't run privileged commands (the CLI install's admin prompt) yourself.
 
 ## Git & agents

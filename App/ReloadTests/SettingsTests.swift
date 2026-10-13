@@ -151,17 +151,29 @@ import Testing
     }
 }
 
-/// Settings saved under the ForeverAddons bundle ID carry over once (decision 0024).
+/// Settings saved under earlier bundle IDs carry over once (decisions 0024, 0026).
 @Suite struct LegacyDefaultsTests {
     @Test func copiesOnceWithoutOverwriting() throws {
         let name = "LegacyDefaultsTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         defaults.set("dark", forKey: SettingsKey.appearance)
-        AppEnvironment.migrateLegacyDefaults(into: defaults, from: [SettingsKey.appearance: "light", SettingsKey.appIcon: "rune"])
+        AppEnvironment.migrateLegacyDefaults(into: defaults, from: [[SettingsKey.appearance: "light", SettingsKey.appIcon: "rune"]])
         #expect(defaults.string(forKey: SettingsKey.appearance) == "dark")
         #expect(defaults.string(forKey: SettingsKey.appIcon) == "rune")
-        AppEnvironment.migrateLegacyDefaults(into: defaults, from: [SettingsKey.appIcon: "gilded"])
+        AppEnvironment.migrateLegacyDefaults(into: defaults, from: [[SettingsKey.appIcon: "gilded"]])
         #expect(defaults.string(forKey: SettingsKey.appIcon) == "rune", "runs once")
+    }
+
+    @Test func newestDomainWins() throws {
+        let name = "LegacyDefaultsTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        AppEnvironment.migrateLegacyDefaults(into: defaults, from: [
+            [SettingsKey.appIcon: "rune"],
+            [SettingsKey.appIcon: "gilded", SettingsKey.appearance: "light"],
+        ])
+        #expect(defaults.string(forKey: SettingsKey.appIcon) == "rune")
+        #expect(defaults.string(forKey: SettingsKey.appearance) == "light", "older domains still fill gaps")
     }
 }

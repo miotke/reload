@@ -11,7 +11,7 @@ nonisolated final class DirectoryWatcher: @unchecked Sendable {
     private let url: URL
     private let latency: DispatchTimeInterval
     private let onChange: @Sendable () -> Void
-    private let queue = DispatchQueue(label: "com.andrewmiotke.Reload.DirectoryWatcher")
+    private let queue = DispatchQueue(label: "io.github.miotke.Reload.DirectoryWatcher")
     private var source: (any DispatchSourceFileSystemObject)?
     private var pending: DispatchWorkItem?
     private var stopped = false
