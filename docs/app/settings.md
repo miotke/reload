@@ -60,7 +60,7 @@ From `AddonManaging.gitHubStatus()`, which reads stored state only (no requests)
 ## Advanced
 
 - **Show in Finder** opens `AppEnvironment.directories()`: Application Support and Caches, or the folders under `RELOAD_DATA_DIR`. A missing folder is created first.
-- **Reset…** asks for confirmation, then clears `didSeedAddonDetails` and `didOfferCommandLineTool` (`FirstLaunchSteps`), so the seeding sheet and the `reload` offer come back on the next launch ([first-launch.md](first-launch.md)).
+- **Reset…** asks for confirmation, then sets `didSeedAddonDetails` to false and clears `didOfferCommandLineTool` (`FirstLaunchSteps`). The seeding sheet comes back on the next launch even though refreshes have run, and so does the `reload` offer unless the command is already installed ([first-launch.md](first-launch.md)).
 - With `RELOAD_DATA_DIR` those steps aren't remembered, so the button is disabled.
 
 ## App icon

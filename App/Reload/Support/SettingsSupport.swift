@@ -81,8 +81,17 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
 enum FirstLaunchSteps {
     static let keys = [AppModel.didSeedKey, CommandLineToolModel.didOfferKey]
 
+    /// The seeding flag is set to false rather than removed: with no flag, seeding falls back
+    /// to whether a refresh ever completed, which is always true once Reload has run.
     static func reset(in defaults: UserDefaults) {
-        for key in keys { defaults.removeObject(forKey: key) }
+        defaults.set(false, forKey: AppModel.didSeedKey)
+        defaults.removeObject(forKey: CommandLineToolModel.didOfferKey)
+    }
+
+    /// `didSeed` is the stored flag (nil when never stored, as on sandboxed data).
+    static func needsSeeding(didSeed: Bool?, hasRefreshed: Bool) -> Bool {
+        if let didSeed { return !didSeed }
+        return !hasRefreshed
     }
 }
 

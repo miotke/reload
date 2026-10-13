@@ -25,7 +25,7 @@ flowchart TD
 - Title "Gathering Add-on Details". It blocks the window with a determinate progress bar, the current step and "n of m".
 - It closes when the refresh finishes. After 3 seconds, **Continue in Background** lets you in while it keeps going.
 - On sandboxed data (`RELOAD_DATA_DIR`) the flag isn't stored, so only `lastRefresh` decides.
-- To see it again: Settings ▸ Advanced ▸ **Reset first-launch steps** ([settings.md](settings.md#advanced)), or `defaults delete com.andrewmiotke.Reload didSeedAddonDetails`.
+- To see it again: Settings ▸ Advanced ▸ **Reset first-launch steps** ([settings.md](settings.md#advanced)), or `defaults write com.andrewmiotke.Reload didSeedAddonDetails -bool false`. Deleting the key isn't enough: with no key, seeding only runs if no refresh has ever completed.
 
 ## Refresh progress
 

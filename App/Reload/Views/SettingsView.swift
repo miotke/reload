@@ -138,7 +138,7 @@ struct AdvancedSettingsTab: View {
                 didReset = true
             }
         } message: {
-            Text("The next time Reload opens, it gathers add-on details again and offers to install reload.")
+            Text("The next time Reload opens, it gathers add-on details again and offers to install reload if it isn't installed.")
         }
     }
 

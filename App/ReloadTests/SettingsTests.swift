@@ -47,7 +47,7 @@ import Testing
 }
 
 @MainActor @Suite struct FirstLaunchStepsTests {
-    @Test func resetClearsBothStepsAndNothingElse() {
+    @Test func resetRedoesBothStepsAndNothingElse() {
         let name = "FirstLaunchStepsTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
@@ -57,9 +57,17 @@ import Testing
 
         FirstLaunchSteps.reset(in: defaults)
 
-        #expect(defaults.object(forKey: "didSeedAddonDetails") == nil)
+        #expect(defaults.object(forKey: "didSeedAddonDetails") as? Bool == false)
         #expect(defaults.object(forKey: "didOfferCommandLineTool") == nil)
         #expect(defaults.string(forKey: SettingsKey.appearance) == "dark")
+    }
+
+    @Test func aResetSeedsAgainEvenAfterARefresh() {
+        #expect(FirstLaunchSteps.needsSeeding(didSeed: false, hasRefreshed: true))
+        #expect(!FirstLaunchSteps.needsSeeding(didSeed: true, hasRefreshed: false))
+        // Never stored: seeding depends on whether a refresh ever completed.
+        #expect(FirstLaunchSteps.needsSeeding(didSeed: nil, hasRefreshed: false))
+        #expect(!FirstLaunchSteps.needsSeeding(didSeed: nil, hasRefreshed: true))
     }
 
     @Test func sandboxedDataHasNothingToReset() {

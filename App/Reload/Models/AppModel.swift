@@ -144,10 +144,13 @@ final class AppModel {
         offerCommandLineTool()
     }
 
-    /// No refresh has ever completed: the catalogue, update states and support badges are all empty.
+    /// No refresh has ever completed (the catalogue, update states and support badges are all
+    /// empty), or Settings reset the first-launch steps.
     private func needsSeeding(_ state: InstallationModel) async -> Bool {
-        if defaults?.bool(forKey: Self.didSeedKey) == true { return false }
-        return await manager.lastRefresh(in: state.installation) == nil
+        let didSeed = defaults?.object(forKey: Self.didSeedKey) as? Bool
+        // The stored flag decides alone, so the refresh date is only read when there's none.
+        let hasRefreshed = didSeed == nil ? await manager.lastRefresh(in: state.installation) != nil : true
+        return FirstLaunchSteps.needsSeeding(didSeed: didSeed, hasRefreshed: hasRefreshed)
     }
 
     private func seed(_ state: InstallationModel) {
