@@ -20,7 +20,8 @@ A native macOS add-on manager for **World of Warcraft: Forever**, written in Swi
 
 1. Download `Reload-<version>.dmg` from the [latest release](https://github.com/miotke/reload/releases/latest).
 2. Open it and drag **Reload** into **Applications**.
-3. The first time, right-click Reload in Applications and choose **Open**. Builds aren't signed yet, so macOS asks once.
+3. Open Reload. Builds aren't signed yet, so macOS blocks it the first time.
+4. Open **System Settings ▸ Privacy & Security**, scroll to **Security**, and click **Open Anyway** next to "Reload" was blocked. Confirm with your password. You only need to do this once.
 
 Needs macOS 27 on Apple silicon. For the `reload` command, open Settings ▸ Command Line ▸ Install.
 

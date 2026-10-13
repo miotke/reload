@@ -70,4 +70,4 @@ Download `Reload-X.Y.Z.dmg`, open it and drag Reload into Applications. <signing
 - **What's new** compares against the last *published* release: `gh release list --exclude-drafts --limit 1 --json tagName -q '.[0].tagName'`, then `git log --oneline vPREV..vX.Y.Z`. If nothing has been published yet, say it's the first public release and list the main features from the README instead.
 - Group commits by what a player notices (new features, fixes, changes to where data lives). Leave out docs, tests, refactors and release plumbing unless they change behaviour. Never paste raw commit subjects.
 - Call out anything a player has to do or will see once, such as a one-time migration or a new permission prompt.
-- Signing line: "Unsigned build: the first time, right-click Reload and choose Open" when the build is ad-hoc signed, otherwise "Signed and notarized".
+- Signing line: "Unsigned build: the first time, open Reload, then go to System Settings ▸ Privacy & Security and click Open Anyway" when the build is ad-hoc signed, otherwise "Signed and notarized".

@@ -30,7 +30,7 @@ Reload isn't going on the Mac App Store: it writes into the WoW folder and insta
 
 ## Consequences
 
-- Until signing is set up, people must right-click ▸ Open the first time, and the release notes say so.
+- Until signing is set up, people must click Open Anyway in System Settings ▸ Privacy & Security the first time, and the release notes say so.
 - Bumping a version means editing three files.
 - The CI job depends on GitHub's runner having Xcode 27; it fails clearly when it doesn't.
 - No auto-update yet.

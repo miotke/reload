@@ -29,7 +29,7 @@ It's built by [dmgbuild](https://pypi.org/project/dmgbuild/), pinned in `release
 
 ## Signing and notarization
 
-Off until set up. Without them the build is ad-hoc signed, and people opening it on another Mac must right-click ▸ Open (or allow it in System Settings ▸ Privacy & Security) the first time.
+Off until set up. Without them the build is ad-hoc signed, and people opening it on another Mac must allow it once: open it, then click **Open Anyway** in System Settings ▸ Privacy & Security. macOS no longer offers right-click ▸ Open as a bypass.
 
 | Variable (local) | GitHub secret | What it is |
 |---|---|---|
