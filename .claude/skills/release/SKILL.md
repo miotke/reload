@@ -39,7 +39,7 @@ Signed tags need a message (`tag.gpgsign` is on), so always `git tag -m`. Commit
 
 ## Publish
 
-1. `git switch main && git pull --ff-only`. Read the version from `AppInfo.version`. Stop if `vX.Y.Z` already exists, or if the last commit on `main` doesn't include the bump.
+1. `git switch main && git pull --ff-only`. Read the version from `AppInfo.version`. Stop if `vX.Y.Z` already exists, or if `git log --oneline --grep 'bump version to X.Y.Z'` finds nothing (the PR isn't merged yet).
 2. `git tag -m "Reload X.Y.Z" vX.Y.Z && git push origin vX.Y.Z`. The tag starts the Release workflow.
 3. GitHub's runners don't have Xcode 27 yet (see `docs/app/releases.md`). Watch the run with `gh run list --workflow release.yml -L 1`. If it failed at "Select Xcode 27", build here instead:
    ```sh
