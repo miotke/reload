@@ -25,7 +25,7 @@ Signed tags need a message (`tag.gpgsign` is on), so always `git tag -m`. Commit
    - `App/Reload/Info.plist`: the same two keys (`/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString X.Y.Z' -c 'Set :CFBundleVersion N'`)
    - `Sources/AddonKit/Sources/Source.swift`: `AppInfo.version`
    - Then `rg -n '<old version>' --glob '!build' --glob '!docs/decisions'` and fix any other copy that describes the current version, not history.
-6. Check, with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`:
+6. Check, with `DEVELOPER_DIR` set to the installed Xcode 27 (`ls -d /Applications/Xcode*.app`) when `xcode-select -p` points at the Command Line Tools:
    - `swift test`
    - `swift scripts/check-docs.swift`
    - `scripts/release.sh X.Y.Z`, which also confirms the three versions match and that the DMG builds
@@ -41,12 +41,33 @@ Signed tags need a message (`tag.gpgsign` is on), so always `git tag -m`. Commit
 
 1. `git switch main && git pull --ff-only`. Read the version from `AppInfo.version`. Stop if `vX.Y.Z` already exists, or if `git log --oneline --grep 'bump version to X.Y.Z'` finds nothing (the PR isn't merged yet).
 2. `git tag -m "Reload X.Y.Z" vX.Y.Z && git push origin vX.Y.Z`. The tag starts the Release workflow.
-3. GitHub's runners don't have Xcode 27 yet (see `docs/app/releases.md`). Watch the run with `gh run list --workflow release.yml -L 1`. If it failed at "Select Xcode 27", build here instead:
+3. Write the release notes to `build/release/notes-X.Y.Z.md` (see **Release notes** below).
+4. GitHub's runners don't have Xcode 27 yet (see `docs/app/releases.md`). Watch the run with `gh run list --workflow release.yml -L 1`. If it failed at "Select Xcode 27", build here instead:
    ```sh
    scripts/release.sh X.Y.Z
    gh release create vX.Y.Z build/release/Reload-X.Y.Z.dmg* build/release/Reload-X.Y.Z.zip* \
-     --draft --verify-tag --title "Reload X.Y.Z" --generate-notes \
-     --notes "Unsigned build: right-click Reload.app and choose Open the first time. Requires macOS 27 on Apple silicon."
+     --draft --verify-tag --title "Reload X.Y.Z" --notes-file build/release/notes-X.Y.Z.md
    ```
-   If it passed, the workflow already drafted the release; don't create a second one.
-4. Reply with the draft link, and remind the user to publish it on GitHub. Never publish it yourself.
+   If it passed, the workflow already drafted the release with generated notes; replace them with `gh release edit vX.Y.Z --notes-file build/release/notes-X.Y.Z.md` instead of creating a second release.
+5. Reply with the draft link, and remind the user to publish it on GitHub. Never publish it yourself.
+
+## Release notes
+
+Written for players, not developers. Every release gets the same three parts:
+
+```markdown
+Reload is a native macOS add-on manager for World of Warcraft: Forever: search, install, update and roll back add-ons from the app or the `reload` command.
+
+## What's new in X.Y.Z
+
+- Plain-language bullets, newest and biggest first.
+
+## Install
+
+Download `Reload-X.Y.Z.dmg`, open it and drag Reload into Applications. <signing line>. Requires macOS 27 on Apple silicon.
+```
+
+- **What's new** compares against the last *published* release: `gh release list --exclude-drafts --limit 1 --json tagName -q '.[0].tagName'`, then `git log --oneline vPREV..vX.Y.Z`. If nothing has been published yet, say it's the first public release and list the main features from the README instead.
+- Group commits by what a player notices (new features, fixes, changes to where data lives). Leave out docs, tests, refactors and release plumbing unless they change behaviour. Never paste raw commit subjects.
+- Call out anything a player has to do or will see once, such as a one-time migration or a new permission prompt.
+- Signing line: "Unsigned build: the first time, right-click Reload and choose Open" when the build is ad-hoc signed, otherwise "Signed and notarized".

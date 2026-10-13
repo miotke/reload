@@ -9,7 +9,7 @@ In Claude Code, `/release` does steps 1–2 as a PR, and `/release publish` does
 1. Bump the version in all three places: `CFBundleShortVersionString` in `App/project.yml` and `App/Reload/Info.plist`, and `AppInfo.version` in `Sources/AddonKit/Sources/Source.swift`. The release script refuses to build when they differ from the tag.
 2. Commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
 3. The **Release** workflow (`.github/workflows/release.yml`) runs `swift test`, builds with `scripts/release.sh` and creates a **draft** release with `Reload-<version>.dmg`, `Reload-<version>.zip` and a `.sha256` for each.
-4. Check the draft on GitHub, edit the notes, publish.
+4. Replace the generated notes with player-facing ones (what Reload is, what's new since the last published release, how to install: the template is in the skill), check the draft, publish.
 
 To try a build without releasing, run the workflow by hand (Actions ▸ Release ▸ Run workflow) with a version. The files are kept as a workflow artifact instead.
 
