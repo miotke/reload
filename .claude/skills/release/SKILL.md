@@ -7,11 +7,11 @@ disable-model-invocation: true
 
 # Release Reload
 
-Every change for a version lands on `release/vX.Y.Z`. Its pull request into `main` carries the release notes in its description. Merging that PR is the release: the merge commit is what gets tagged, built and published. Full background: `docs/app/releases.md`, [decision 0027](../../../docs/decisions/0027-release-branches.md).
+Every change for a version lands on `release/vX.Y.Z`. Its pull request into `main` carries the release notes in its description. Merging that PR is the release: a workflow tags, builds and publishes the merge commit. Full background: `docs/app/releases.md`, [decision 0027](../../../docs/decisions/0027-release-branches.md).
 
 - `/release start`, `/release start patch|minor|major` or `/release start 0.3.0`: open the next release branch and its PR.
 - `/release notes`: rewrite the PR description from what's on the branch.
-- `/release publish`: after the PR is merged, tag, build and publish.
+- `/release publish`: after the PR is merged, check the automatic release, or finish it by hand if the run failed.
 - `/release` with no argument: `notes` if a `release/v*` branch is open, otherwise `start`.
 
 The branch is `release/vX.Y.Z`, never `vX.Y.Z`: a branch and a tag with the same name make git refs ambiguous.
@@ -47,20 +47,18 @@ When `xcode-select -p` points at the Command Line Tools, set `DEVELOPER_DIR` to 
 
 ## Publish
 
+Merging the release PR publishes the release by itself: the Release workflow tests and builds the merge commit, tags it `vX.Y.Z`, publishes the release with the PR description as its notes, and deletes the branch. `/release publish` checks that it worked and recovers when it didn't.
+
 1. Find the release PR: `gh pr list --head release/vX.Y.Z --state merged`. Stop if it isn't merged yet; merging is the user's call, so don't merge it yourself unless they ask.
-2. `git switch main && git pull --ff-only`. Check `AppInfo.version` is X.Y.Z, `vX.Y.Z` doesn't exist, and `HEAD` is the PR's merge commit (`gh pr view <number> --json mergeCommit -q .mergeCommit.oid`).
-3. Check: `swift test`, `swift scripts/check-docs.swift`. Report any failure plainly, and stop.
-4. `git tag -m "Reload X.Y.Z" vX.Y.Z && git push origin vX.Y.Z`. The tag starts the Release workflow.
-5. Save the PR description as the notes: `gh pr view <number> --json body -q .body > build/release/notes-X.Y.Z.md`. Remove the PR attribution footer from that file.
-6. Watch the Release workflow: `gh run list --workflow release.yml -L 1`. If it failed, report why and build here:
-   ```sh
-   scripts/release.sh X.Y.Z
-   gh release create vX.Y.Z build/release/Reload-X.Y.Z.dmg* build/release/Reload-X.Y.Z.zip* \
-     --verify-tag --latest --title "Reload X.Y.Z" --notes-file build/release/notes-X.Y.Z.md
-   ```
-   If the workflow passed, it already drafted the release: `gh release edit vX.Y.Z --notes-file build/release/notes-X.Y.Z.md --draft=false --latest`.
-7. Check that `https://github.com/miotke/reload/releases/latest` redirects to `vX.Y.Z` and the DMG downloads. Delete the branch: `git push origin --delete release/vX.Y.Z && git branch -d release/vX.Y.Z`.
-8. Reply with the release link.
+2. Watch its run: `gh run list --workflow release.yml --event pull_request -L 1`, then `gh run watch <id>`.
+3. **If it passed:** check that `https://github.com/miotke/reload/releases/latest` redirects to `vX.Y.Z` and the DMG downloads. `git switch main && git pull --ff-only && git branch -d release/vX.Y.Z`. Reply with the release link.
+4. **If it failed,** report the failing step plainly, then publish from this Mac:
+   1. `git switch main && git pull --ff-only`. Check `AppInfo.version` is X.Y.Z and `HEAD` is the PR's merge commit (`gh pr view <number> --json mergeCommit -q .mergeCommit.oid`).
+   2. `swift test` and `swift scripts/check-docs.swift`. Stop on a failure.
+   3. If the run didn't get as far as tagging: `git tag -m "Reload X.Y.Z" vX.Y.Z && git push origin vX.Y.Z`. The tag starts a second run that drafts the release; let it, or build here with `scripts/release.sh X.Y.Z`.
+   4. Save the notes: `gh pr view <number> --json body -q .body | grep -v '^🤖 Generated with' > build/release/notes-X.Y.Z.md`.
+   5. Publish: `gh release edit vX.Y.Z --notes-file build/release/notes-X.Y.Z.md --draft=false --latest` if a draft exists, otherwise `gh release create vX.Y.Z build/release/Reload-X.Y.Z.dmg* build/release/Reload-X.Y.Z.zip* --verify-tag --latest --title "Reload X.Y.Z" --notes-file build/release/notes-X.Y.Z.md`.
+   6. Check `releases/latest` as in step 3, delete the branch (`git push origin --delete release/vX.Y.Z`), and reply with the release link.
 
 ## Release notes
 

@@ -1,9 +1,14 @@
-# Pushing a tag like v0.2.0 tests, builds and drafts a GitHub release with the app's DMG and zip
-# (docs/app/releases.md). Signing and notarization run only when the secrets exist;
-# without them the release is an unsigned build.
+# Merging a release/vX.Y.Z pull request into main is the release (docs/app/releases.md):
+# this tests and builds the merge commit, tags it vX.Y.Z and publishes the release with the
+# PR description as its notes. Pushing a v* tag by hand still builds a draft release, the
+# fallback when a merged run fails. Signing and notarization run only when the secrets
+# exist; without them the release is an unsigned build.
 name: Release
 
 on:
+  pull_request:
+    types: [closed]
+    branches: [main]
   push:
     tags: ["v*"]
   workflow_dispatch:
@@ -17,13 +22,35 @@ permissions:
 
 jobs:
   release:
+    # A closed PR only releases when it's a merged release branch from this repo.
+    if: >-
+      github.event_name != 'pull_request' || (
+        github.event.pull_request.merged &&
+        startsWith(github.event.pull_request.head.ref, 'release/v') &&
+        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: macos-26
     env:
-      VERSION: ${{ inputs.version || github.ref_name }}
       HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
       HAS_NOTARY: ${{ secrets.NOTARY_KEY_P8 != '' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+
+      # X.Y.Z without the v. release.sh checks it against Info.plist, project.yml and AppInfo.
+      - name: Work out the version
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          case $GITHUB_EVENT_NAME in
+            pull_request) v=${HEAD_REF#release/} ;;
+            workflow_dispatch) v=$INPUT_VERSION ;;
+            *) v=$GITHUB_REF_NAME ;;
+          esac
+          v=${v#v}
+          [[ $v =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Not a version: $v"; exit 1; }
+          echo "VERSION=$v" >> "$GITHUB_ENV"
 
       # The project needs Swift 6.2 and the macOS 26 SDK, so Xcode 26 or later.
       - name: Select Xcode
@@ -71,6 +98,30 @@ jobs:
       - name: Build
         run: scripts/release.sh "$VERSION"
 
+      # Tagged only after the build succeeds, so a failed run leaves no tag behind. A tag pushed
+      # with the workflow's token doesn't start this workflow again.
+      - name: Tag and publish the release
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          tag=v$VERSION
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "::error::$tag already exists"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Reload $VERSION"
+          git push origin "$tag"
+          # The notes are the PR description, minus the Claude Code attribution line.
+          printf '%s\n' "$BODY" | grep -v '^🤖 Generated with' > "$RUNNER_TEMP/notes.md"
+          gh release create "$tag" build/release/Reload-*.dmg* build/release/Reload-*.zip* \
+            --verify-tag --latest --title "Reload $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+          git push origin --delete "$HEAD_REF" || true
+
       - name: Draft the GitHub release
         if: github.event_name == 'push'
         env:
@@ -79,7 +130,7 @@ jobs:
           notes="Unsigned build: the first time, open Reload, then click Open Anyway in System Settings ▸ Privacy & Security."
           [[ $HAS_CERT == true && $HAS_NOTARY == true ]] && notes="Signed and notarized."
           gh release create "$GITHUB_REF_NAME" build/release/Reload-*.dmg* build/release/Reload-*.zip* \
-            --draft --title "Reload ${VERSION#v}" --generate-notes --notes "$notes"
+            --draft --title "Reload $VERSION" --generate-notes --notes "$notes"
 
       - name: Keep the build
         if: github.event_name == 'workflow_dispatch'
