@@ -18,7 +18,7 @@ The branch is `release/vX.Y.Z`, never `vX.Y.Z`: a branch and a tag with the same
 
 Signed tags need a message (`tag.gpgsign` is on), so always `git tag -m`. Commits get only the `Co-Authored-By` trailer, never a `Claude-Session` line. Commit subjects are lowercase, imperative, under 60 characters.
 
-When `xcode-select -p` points at the Command Line Tools, set `DEVELOPER_DIR` to the installed Xcode 27 (`ls -d /Applications/Xcode*.app`) for every build and test below.
+When `xcode-select -p` points at the Command Line Tools, set `DEVELOPER_DIR` to an installed Xcode 26 or later (`ls -d /Applications/Xcode*.app`) for every build and test below.
 
 ## Start
 
@@ -52,7 +52,7 @@ When `xcode-select -p` points at the Command Line Tools, set `DEVELOPER_DIR` to 
 3. Check: `swift test`, `swift scripts/check-docs.swift`. Report any failure plainly, and stop.
 4. `git tag -m "Reload X.Y.Z" vX.Y.Z && git push origin vX.Y.Z`. The tag starts the Release workflow.
 5. Save the PR description as the notes: `gh pr view <number> --json body -q .body > build/release/notes-X.Y.Z.md`. Remove the PR attribution footer from that file.
-6. GitHub's runners don't have Xcode 27 yet (see `docs/app/releases.md`). Watch the run with `gh run list --workflow release.yml -L 1`. If it failed at "Select Xcode 27", build here:
+6. Watch the Release workflow: `gh run list --workflow release.yml -L 1`. If it failed, report why and build here:
    ```sh
    scripts/release.sh X.Y.Z
    gh release create vX.Y.Z build/release/Reload-X.Y.Z.dmg* build/release/Reload-X.Y.Z.zip* \
@@ -75,7 +75,7 @@ Reload is a native macOS add-on manager for World of Warcraft: Forever: search, 
 
 ## Install
 
-Download `Reload-X.Y.Z.dmg`, open it and drag Reload into Applications. <signing line>. Requires macOS 27 on Apple silicon.
+Download `Reload-X.Y.Z.dmg`, open it and drag Reload into Applications. <signing line>. Requires macOS 26 or later on Apple silicon.
 ```
 
 - **What's new** compares against the last *published* release: `gh release list --exclude-drafts --limit 1 --json tagName -q '.[0].tagName'`, then `git log --oneline vPREV..HEAD`. If nothing has been published yet, say it's the first public release and list the main features from the README instead.

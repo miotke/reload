@@ -4,7 +4,7 @@ How to build and test Reload, how to run it without touching your real setup, an
 
 ## Requirements
 
-- macOS 27, Xcode 27 (Swift 6.4)
+- macOS 26 or later, Xcode 26 or later (Swift 6.2)
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`), only when changing `App/project.yml`
 
 If `xcode-select -p` points to the Command Line Tools, either run `sudo xcode-select -s /Applications/Xcode.app` or put `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` in front of each command below.

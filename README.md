@@ -23,12 +23,12 @@ A native macOS add-on manager for **World of Warcraft: Forever**, written in Swi
 3. Open Reload. Builds aren't signed yet, so macOS blocks it the first time.
 4. Open **System Settings ▸ Privacy & Security**, scroll to **Security**, and click **Open Anyway** next to "Reload" was blocked. Confirm with your password. You only need to do this once.
 
-Needs macOS 27 on Apple silicon. For the `reload` command, open Settings ▸ Command Line ▸ Install.
+Needs macOS 26 or later on Apple silicon. For the `reload` command, open Settings ▸ Command Line ▸ Install.
 
 ## Build requirements
 
-- macOS 27 or later
-- Xcode 27 or later (Swift 6.4)
+- macOS 26 or later
+- Xcode 26 or later (Swift 6.2)
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen), only if you change `App/project.yml`
 
 ## Build and run the app

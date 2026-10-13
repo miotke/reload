@@ -12,7 +12,7 @@ Why these settings: [decision 0005](../decisions/0005-swift-6-concurrency.md).
 | `Reload` app, app tests (`App/project.yml`) | The same, plus `SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor` |
 | `reload` built by Xcode | `SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated`, to match the package |
 
-Swift tools 6.4, minimum macOS 27.
+Swift tools 6.2, minimum macOS 26, Apple silicon only ([decision 0028](../decisions/0028-macos-26-minimum.md)).
 
 - `NonisolatedNonsendingByDefault` means a `nonisolated async` function runs on the caller's actor unless marked `@concurrent`.
 - In the app, everything is `@MainActor` unless it says otherwise. **Helpers that run off the main thread need `nonisolated`** (for example the Markdown parser and the screenshot decoder).

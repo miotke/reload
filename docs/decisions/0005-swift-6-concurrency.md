@@ -2,7 +2,7 @@
 
 Target the latest platform and language: macOS 27, Swift tools 6.4, Swift 6 strict concurrency with the approachable-concurrency features, the app on the main actor by default, and `Mutex` instead of locks.
 
-- **Status:** Accepted
+- **Status:** Accepted; the minimum macOS and Swift tools version are superseded by [0028](0028-macos-26-minimum.md)
 - **Date:** 2026-10-11
 
 ## Context
