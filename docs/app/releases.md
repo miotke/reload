@@ -4,12 +4,21 @@ How a version of Reload gets built and published on GitHub Releases. There's no 
 
 ## Cutting a release
 
-In Claude Code, `/release` does steps 1–2 as a PR, and `/release publish` does the tagging and drafting after it merges (`.claude/skills/release/SKILL.md`). By hand:
+Each version has a release branch, and merging it is the release ([decision 0027](../decisions/0027-release-branches.md)).
 
-1. Bump the version in all three places: `CFBundleShortVersionString` in `App/project.yml` and `App/Reload/Info.plist`, and `AppInfo.version` in `Sources/AddonKit/Sources/Source.swift`. The release script refuses to build when they differ from the tag.
-2. Commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
-3. The **Release** workflow (`.github/workflows/release.yml`) runs `swift test`, builds with `scripts/release.sh` and creates a **draft** release with `Reload-<version>.dmg`, `Reload-<version>.zip` and a `.sha256` for each.
-4. Replace the generated notes with player-facing ones (what Reload is, what's new since the last published release, how to install: the template is in the skill), check the draft, publish.
+```
+main ──●──────────────────────●  merge commit = vX.Y.Z: tagged, built, published
+        \                    /
+release/vX.Y.Z  ●──●──●──●──●    version bump first, then every change for the release
+                PR description = the release notes
+```
+
+1. **Start:** branch `release/vX.Y.Z` off `main`, bump the version in all three places (`CFBundleShortVersionString` in `App/project.yml` and `App/Reload/Info.plist`, `AppInfo.version` in `Sources/AddonKit/Sources/Source.swift`; the release script refuses to build when they differ from the tag), push, and open a draft PR into `main` titled "Reload X.Y.Z".
+2. **Work:** every change for the version lands on that branch. The PR description holds the player-facing notes: what Reload is, what's new since the last published release, how to install. Keep it current as changes land.
+3. **Merge** the PR when the version is ready. Only the owner merges into `main` (a ruleset requires a PR for everyone else).
+4. **Publish:** tag the merge commit `vX.Y.Z`. The tag starts the **Release** workflow (`.github/workflows/release.yml`), which runs `swift test`, builds with `scripts/release.sh` and drafts a release with `Reload-<version>.dmg`, `Reload-<version>.zip` and a `.sha256` for each. Until CI has Xcode 27 the build runs locally instead ([CI runner](#ci-runner)). The release is published with the PR description as its notes.
+
+In Claude Code, `/release start`, `/release notes` and `/release publish` do these steps (`.claude/skills/release/SKILL.md`). The branch is `release/vX.Y.Z`, not `vX.Y.Z`, because a branch and a tag with the same name make git refs ambiguous.
 
 To try a build without releasing, run the workflow by hand (Actions ▸ Release ▸ Run workflow) with a version. The files are kept as a workflow artifact instead.
 

@@ -87,5 +87,5 @@ Run the app and the tests before saying something works. Report failures plainly
 - One topic per file, about 40–150 lines, in the folders listed in [README.md](README.md). Every new file gets a line there.
 - Update the relevant doc in the same commit as the code change.
 - Run `swift scripts/check-docs.swift` before committing. It verifies links, the index, file sizes, doc paths in comments, and the "Where things live" tables.
-- After merging app changes into `main`, add [decision records](decisions/README.md) and update the numbers in [network/budget.md](network/budget.md) and [performance/measurements.md](performance/measurements.md).
+- After merging app changes into the release branch, add [decision records](decisions/README.md) and update the numbers in [network/budget.md](network/budget.md) and [performance/measurements.md](performance/measurements.md).
 - No READMEs in subfolders except `decisions/README.md`, the decision index.
