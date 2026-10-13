@@ -2,14 +2,16 @@ name: Reload
 options:
   bundleIdPrefix: io.github.miotke
   deploymentTarget:
-    macOS: "27.0"
+    macOS: "26.0"
   createIntermediateGroups: true
 settings:
   base:
     SWIFT_VERSION: "6"
     SWIFT_STRICT_CONCURRENCY: complete
     SWIFT_APPROACHABLE_CONCURRENCY: YES
-    MACOSX_DEPLOYMENT_TARGET: "27.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    # Apple silicon only (decision 0028). Without this, macOS 26 builds would include Intel.
+    ARCHS: arm64
 packages:
   AddonKit:
     path: ..

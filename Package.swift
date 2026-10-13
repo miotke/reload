@@ -1,4 +1,4 @@
-// swift-tools-version: 6.4
+// swift-tools-version: 6.2
 import PackageDescription
 
 /// Swift 6.2+ "approachable concurrency" behaviour for every target.
@@ -9,7 +9,7 @@ let modernConcurrency: [SwiftSetting] = [
 
 let package = Package(
     name: "Reload",
-    platforms: [.macOS(.v27)],
+    platforms: [.macOS(.v26)],
     products: [
         .library(name: "AddonKit", targets: ["AddonKit"]),
         .executable(name: "reload", targets: ["reload"]),

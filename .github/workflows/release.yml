@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-latest
+    runs-on: macos-26
     env:
       VERSION: ${{ inputs.version || github.ref_name }}
       HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
@@ -25,12 +25,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The deployment target is macOS 27, so the build needs the Xcode 27 SDK.
-      - name: Select Xcode 27
+      # The project needs Swift 6.2 and the macOS 26 SDK, so Xcode 26 or later.
+      - name: Select Xcode
         run: |
-          xcode=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          xcode=$(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | sort -V | tail -1)
           if [[ -z $xcode ]]; then
-            echo "::error::This runner has no Xcode 27. Installed: $(ls -d /Applications/Xcode*.app | xargs)"
+            echo "::error::This runner has no Xcode 26 or later. Installed: $(ls -d /Applications/Xcode*.app | xargs)"
             exit 1
           fi
           sudo xcode-select -s "$xcode"
