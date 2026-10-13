@@ -14,7 +14,9 @@
 #   RELOAD_NOTARY_ISSUER_ID   issuer ID
 #   RELOAD_KEYCHAIN           keychain holding the certificate (CI uses a temporary one)
 #
-# Output goes to build/release/: Reload-<version>.zip and its .sha256.
+# Output goes to build/release/: Reload-<version>.dmg (drag-to-Applications window) and
+# Reload-<version>.zip, each with a .sha256. The DMG is laid out by dmgbuild, installed into a
+# throwaway virtualenv in build/, so Finder is never scripted.
 set -euo pipefail
 
 version=${1:-}
@@ -29,6 +31,7 @@ out=$root/build/release
 archive=$out/Reload.xcarchive
 app=$out/Reload.app
 zip=$out/Reload-$version.zip
+dmg=$out/Reload-$version.dmg
 
 # One version in three places; the script checks rather than edits them, so a release
 # always matches a commit.
@@ -89,5 +92,25 @@ else
 fi
 
 ditto -c -k --keepParent "$app" "$zip"
-(cd "$out" && shasum -a 256 "${zip:t}" > "${zip:t}.sha256")
+
+echo "==> Building the disk image"
+venv=$root/build/dmgbuild-venv
+if [[ ! -x $venv/bin/dmgbuild ]]; then
+    python3 -m venv "$venv"
+    "$venv/bin/pip" install --quiet "dmgbuild==1.6.7"
+fi
+"$venv/bin/dmgbuild" -s "$root/scripts/dmg-settings.py" -D app="$app" \
+    -D background="$root/App/Design/dmg-background.tiff" "Reload" "$dmg"
+if [[ -n ${RELOAD_TEAM_ID:-} ]]; then
+    codesign --sign "Developer ID Application" --timestamp ${RELOAD_KEYCHAIN:+--keychain "$RELOAD_KEYCHAIN"} "$dmg"
+fi
+# The app inside is already stapled; the image gets its own ticket so it opens without a
+# network check too.
+if (( ${#notarize} )); then
+    xcrun notarytool submit "$dmg" "${notarize[@]}" --wait
+    xcrun stapler staple "$dmg"
+fi
+
+(cd "$out" && for file in "${zip:t}" "${dmg:t}"; do shasum -a 256 "$file" > "$file.sha256"; done)
+echo "==> $dmg"
 echo "==> $zip"

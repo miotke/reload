@@ -1,4 +1,4 @@
-# Pushing a tag like v0.2.0 tests, builds and drafts a GitHub release with the zipped app
+# Pushing a tag like v0.2.0 tests, builds and drafts a GitHub release with the app's DMG and zip
 # (docs/app/releases.md). Signing and notarization run only when the secrets exist;
 # without them the release is an unsigned build.
 name: Release
@@ -78,7 +78,7 @@ jobs:
         run: |
           notes="Unsigned build: right-click Reload.app and choose Open the first time."
           [[ $HAS_CERT == true && $HAS_NOTARY == true ]] && notes="Signed and notarized."
-          gh release create "$GITHUB_REF_NAME" build/release/Reload-*.zip build/release/Reload-*.zip.sha256 \
+          gh release create "$GITHUB_REF_NAME" build/release/Reload-*.dmg* build/release/Reload-*.zip* \
             --draft --title "Reload ${VERSION#v}" --generate-notes --notes "$notes"
 
       - name: Keep the build
@@ -86,7 +86,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Reload-${{ env.VERSION }}
-          path: build/release/Reload-*.zip*
+          path: |
+            build/release/Reload-*.dmg*
+            build/release/Reload-*.zip*
 
       - name: Clean up signing files
         if: always()
