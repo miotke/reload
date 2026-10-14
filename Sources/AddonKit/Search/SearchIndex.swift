@@ -5,18 +5,63 @@ import Foundation
 /// Tokenisation and folding shared by every local search layer (docs/features/search.md).
 enum SearchText {
     static func fold(_ s: some StringProtocol) -> String {
-        String(s).folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil).lowercased()
+        // For ASCII, folding only lower-cases, and `folding` costs ~15× more. Index builds fold
+        // every word of every catalogue row, nearly all of it ASCII.
+        if isASCII(s) { return s.lowercased() }
+        return String(s).folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil).lowercased()
     }
 
     /// Words split on non-alphanumerics (original case preserved).
     static func words(_ s: some StringProtocol) -> [Substring] {
         let string = Substring(s)
-        return string.split { !($0.isLetter || $0.isNumber) }
+        guard isASCII(string) else { return string.split { !($0.isLetter || $0.isNumber) } }
+        // ASCII is one byte per character, so walking bytes gives the same words without
+        // building a `Character` (and looking up its Unicode properties) per letter.
+        var out: [Substring] = []
+        var start: Substring.Index?
+        var index = string.startIndex
+        for byte in string.utf8 {
+            if isLetter(byte) || isDigit(byte) {
+                if start == nil { start = index }
+            } else if let wordStart = start {
+                out.append(string[wordStart..<index])
+                start = nil
+            }
+            string.utf8.formIndex(after: &index)
+        }
+        if let start { out.append(string[start...]) }
+        return out
     }
 
     /// Splits `DeadlyBossMods` → Deadly/Boss/Mods, `DBMVoice` → DBM/Voice,
     /// `WeakAuras2` → Weak/Auras/2.
     static func camelParts(_ word: Substring) -> [Substring] {
+        guard isASCII(word) else { return unicodeCamelParts(word) }
+        // The same rules as `unicodeCamelParts`, on bytes.
+        let bytes = Array(word.utf8)
+        guard bytes.count > 1 else { return [word] }
+        var parts: [Substring] = []
+        var start = word.startIndex
+        var index = word.utf8.index(after: word.startIndex)
+        for k in 1..<bytes.count {
+            let prev = bytes[k - 1], cur = bytes[k]
+            let next: UInt8? = k + 1 < bytes.count ? bytes[k + 1] : nil
+            var boundary = false
+            if isLower(prev) && isUpper(cur) { boundary = true }
+            else if isUpper(prev) && isUpper(cur), let next, isLower(next) { boundary = true }
+            else if isLetter(prev) && isDigit(cur) { boundary = true }
+            else if isDigit(prev) && isLetter(cur) { boundary = true }
+            if boundary {
+                parts.append(word[start..<index])
+                start = index
+            }
+            word.utf8.formIndex(after: &index)
+        }
+        parts.append(word[start...])
+        return parts
+    }
+
+    static func unicodeCamelParts(_ word: Substring) -> [Substring] {
         let chars = Array(word.indices)
         guard chars.count > 1 else { return [word] }
         var parts: [Substring] = []
@@ -37,6 +82,15 @@ enum SearchText {
         parts.append(word[start...])
         return parts
     }
+
+    private static func isASCII(_ s: some StringProtocol) -> Bool {
+        s.utf8.allSatisfy { $0 < 0x80 }
+    }
+
+    private static func isUpper(_ byte: UInt8) -> Bool { (UInt8(ascii: "A")...UInt8(ascii: "Z")).contains(byte) }
+    private static func isLower(_ byte: UInt8) -> Bool { (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte) }
+    private static func isLetter(_ byte: UInt8) -> Bool { isUpper(byte) || isLower(byte) }
+    private static func isDigit(_ byte: UInt8) -> Bool { (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) }
 
     /// Folded tokens for a field: each whole word plus its camelCase parts.
     static func tokens(_ s: some StringProtocol) -> [String] {

@@ -1,6 +1,6 @@
 # Performance measurements
 
-Timings and sizes for the app, the CLI and the core: the baseline from the first performance audit (`561937a`) next to the second audit (`05ba0ff`), both Release builds, and the third audit of Browse at 500 rows ([below](#browse-at-500-rows-d13a961)).
+Timings and sizes for the app, the CLI and the core: the baseline from the first performance audit (`561937a`) next to the second audit (`05ba0ff`), both Release builds, the third audit of Browse at 500 rows ([below](#browse-at-500-rows-d13a961)), and the fourth of sources at realistic sizes ([below](#sources-at-realistic-sizes)).
 
 Update these after merges that change hot paths (see `.claude/CLAUDE.md`). The rules that follow from them: [guidelines.md](guidelines.md).
 
@@ -92,6 +92,37 @@ Third audit, after the Browse lists grew from 20 to 500 rows and gained game bub
 - **Writes.** Flavors, stars, folders, rate limits and update states skip unchanged rows; a re-checked verdict still writes its `checked_at`, which is its TTL clock, and the Browse patch it triggers ends in an equality check that skips the rebuild. Transactions are synchronous closures, so none can span a network `await`.
 - **Row building.** Of the 3 ms to build 500 `BrowseRow`s, `GameBubblesModel` is 1.9 ms and `DayLabel` 0.9 ms. That's within a frame, at most twice a second during a refresh, so it stays.
 - Not re-measured: launch, idle memory, SwiftUI updates in a running app.
+
+## Sources at realistic sizes
+
+Fourth audit, after WoWInterface and Tukui (decision [0029](../decisions/0029-wowinterface-and-tukui-sources.md)) made the catalogue table ~4× bigger. Apple silicon, Release (`swift test -c release -Xswiftc -enable-testing --filter SourcesPerformanceTests`), over 2,400 GitHub rows (1,200 with verdicts, flavors and some stars) and a generated 5.5 MB, 8,200-file WoWInterface listing with every field the real one has. All of it runs off the main actor.
+
+| Operation | Before | After |
+|---|---|---|
+| `SearchIndex` build, 8,200 hosted rows | 107 ms | 26 ms |
+| `SearchIndex` build, all 10,600 rows (first search, after an import or a source toggle) | 192 ms | 42 ms |
+| `SearchIndex` build, 2,400 GitHub rows | 87 ms | 19 ms |
+| Listing parse (`@concurrent`) | 70 ms | same |
+| Listing import, first / unchanged (one transaction) | 31 / 23 ms | same |
+| Daily re-download: parse + unchanged import, WAL file | 99 ms | same |
+| `catalogueEntries()`, 8,200 hosted rows | 25 ms | same |
+| `enabledSources()` | <0.01 ms | same |
+| Search per keystroke, whole pipeline (`b`, `bag`, `raids`, `quest frames`) | 4.9–7.7 ms | same |
+| `browse(in:)`, both 500-row lists | 5.7 ms | same |
+
+- **The fix.** `SearchText` folded each word with `String.folding` (~450 ns a word) and split camelCase per `Character`, looking up Unicode properties for every letter. ASCII text now takes byte-level paths with the same rules (`SearchTextTests.asciiFastPathsMatchTheCharacterRules` checks they agree); anything else keeps the `Character` path. Debug builds gain less (266 → 157 ms for 8,200 rows).
+- **Checked, left alone.** The 23–31 ms import holds the database actor, so a search that lands during it waits that long, once a day. Search reads `enabledSources()` twice per query, which costs nothing measurable. Sharing one `JSONDecoder` for screenshot lists made no measurable difference to `catalogueEntries()`.
+
+## Network activity
+
+`NetworkActivityModel.flush()` on the main actor, Debug app tests (`NetworkActivityPerformanceTests`), so an upper bound. A first-launch refresh makes ~1,000 requests.
+
+| Operation | Before | After |
+|---|---|---|
+| One 100 ms batch during a refresh (30 starts, 30 finishes) into 1,000 rows | 6.3 ms | 0.95 ms |
+| Replaying 1,000 events (500 starts, 500 finishes) into an empty window | 50 ms | 8.3 ms |
+
+Each event looked up its row with `lastIndex(where:)`, a scan of up to 1,000 rows (88 ms for 1,000 events over 1,000 rows); now a binary search over rows kept in ID order. What's left is formatting each row once (~11 µs) and one filter-and-compare of the visible rows per flush (~0.2 ms).
 
 ## How to measure
 

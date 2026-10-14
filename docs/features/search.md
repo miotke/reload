@@ -71,7 +71,7 @@ Front ends ask `BrowseFilter.isHidden(_:for:isInstalled:)`, which also keeps ins
 
 ## Matching and ranking (`SearchIndex`)
 
-The in-memory `SearchIndex` is built from one `SELECT` of the catalogue table, and rebuilt only when the rows change. FTS5 is available in the system SQLite, but it can't reproduce these tiers or the aliases, and both take under 2 ms, so ranking stays in Swift ([decision 0008](../decisions/0008-sqlite-metadata-database.md)).
+The in-memory `SearchIndex` is built from one `SELECT` of the catalogue table, and rebuilt only when the rows or the enabled sources change: ~42 ms for 2,400 GitHub plus 8,200 WoWInterface rows, because ASCII text (nearly all of it) is split and folded byte by byte rather than per `Character`. FTS5 is available in the system SQLite, but it can't reproduce these tiers or the aliases, and both take under 2 ms, so ranking stays in Swift ([decision 0008](../decisions/0008-sqlite-metadata-database.md)).
 
 - **Matching:**
   - Case and accents are ignored.
