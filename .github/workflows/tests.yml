@@ -1,0 +1,106 @@
+# Every push, on every branch: the docs check, the core and CLI tests, and the app's tests,
+# each only when the push changed something it covers (docs/development.md#continuous-integration).
+# Nothing touches the network or a real WoW folder; live GitHub tests stay opt-in.
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch replaces a run still going.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Decides what the push needs on a cheap Linux runner. `test` must always report, since
+  # it's a required check for main: a skipped job counts as passed, a workflow that never
+  # ran (a `paths:` filter) would leave the check pending forever.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+      docs: ${{ steps.diff.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: diff
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # The push's own commits; for a new branch, everything since it left main. Anything
+          # unclear (a manual run, a force push past history we don't have) runs everything.
+          base=
+          if [[ $GITHUB_EVENT_NAME == push && -n $BEFORE && ! $BEFORE =~ ^0+$ ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            base=$BEFORE
+          elif [[ $GITHUB_EVENT_NAME == push && $GITHUB_REF != refs/heads/main ]]; then
+            base=$(git merge-base origin/main HEAD 2>/dev/null || true)
+          fi
+          if [[ -z $base ]]; then
+            echo "Running everything: no base to compare with."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "docs=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only "$base" HEAD)
+          echo "Changed since ${base:0:7}:"
+          echo "${files:-(nothing)}"
+          code=false
+          docs=false
+          # App, CLI and core code, their tests and the package; this workflow too, so a
+          # change to it proves itself.
+          if grep -qE '^(Sources|Tests|App)/|^Package\.(swift|resolved)$|^\.github/workflows/tests\.yml$' <<< "$files"; then
+            code=true
+          fi
+          # The docs check also covers code: every Swift file must be in a "Where things live"
+          # table, and doc paths in source comments must exist.
+          if [[ $code == true ]] || grep -qE '^docs/|^README\.md$|^\.claude/CLAUDE\.md$|^scripts/check-docs\.swift$' <<< "$files"; then
+            docs=true
+          fi
+          echo "code=$code docs=$docs"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "docs=$docs" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: macos-26
+    timeout-minutes: 45
+    # Timing budgets ×3 on shared runners; xcodebuild passes TEST_RUNNER_* on without the prefix.
+    env:
+      RELOAD_PERF_SLACK: "3"
+      TEST_RUNNER_RELOAD_PERF_SLACK: "3"
+    steps:
+      - uses: actions/checkout@v4
+
+      # The project needs Swift 6.2 and the macOS 26 SDK, so Xcode 26 or later.
+      - name: Select Xcode
+        run: |
+          xcode=$(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | sort -V | tail -1)
+          if [[ -z $xcode ]]; then
+            echo "::error::This runner has no Xcode 26 or later. Installed: $(ls -d /Applications/Xcode*.app | xargs)"
+            exit 1
+          fi
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
+      - name: Docs check
+        run: swift scripts/check-docs.swift
+
+      - name: Core and CLI tests
+        if: needs.changes.outputs.code == 'true'
+        run: swift test
+
+      - name: App tests
+        if: needs.changes.outputs.code == 'true'
+        run: |
+          set -o pipefail
+          xcodebuild -project App/Reload.xcodeproj -scheme Reload -configuration Debug \
+            -destination 'platform=macOS' -derivedDataPath build/DerivedData test \
+            | grep -v 'CUICatalog'

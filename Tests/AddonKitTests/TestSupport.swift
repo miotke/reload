@@ -11,6 +11,12 @@ func fixtureData(_ path: String) throws -> Data {
     try Data(contentsOf: fixtureURL(path))
 }
 
+/// A timing budget scaled by `RELOAD_PERF_SLACK` (1 when unset). CI sets 3: shared runners
+/// are slower, and the budgets are there to catch O(n²) work, not a slow machine.
+func budget(_ duration: Duration) -> Duration {
+    duration * (Double(ProcessInfo.processInfo.environment["RELOAD_PERF_SLACK"] ?? "") ?? 1)
+}
+
 /// A fresh empty directory under the system temp dir, removed by the caller (or the OS).
 func makeTempDirectory() throws -> URL {
     let url = FileManager.default.temporaryDirectory.appending(path: "AddonKitTests-\(UUID().uuidString)", directoryHint: .isDirectory)
