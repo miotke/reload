@@ -54,7 +54,7 @@ Merging the release PR publishes the release by itself: the Release workflow tes
 3. **If it passed:** check that `https://github.com/miotke/reload/releases/latest` redirects to `vX.Y.Z` and the DMG downloads. `git switch main && git pull --ff-only && git branch -d release/vX.Y.Z`. Reply with the release link.
 4. **If it failed,** report the failing step plainly, then publish from this Mac:
    1. `git switch main && git pull --ff-only`. Check `AppInfo.version` is X.Y.Z and `HEAD` is the PR's merge commit (`gh pr view <number> --json mergeCommit -q .mergeCommit.oid`).
-   2. `swift test` and `swift scripts/check-docs.swift`. Stop on a failure.
+   2. `swift test`, `swift scripts/check-docs.swift` and the app tests (`xcodebuild … test`). Stop on a failure.
    3. If the run didn't get as far as tagging: `git tag -m "Reload X.Y.Z" vX.Y.Z && git push origin vX.Y.Z`. The tag starts a second run that drafts the release; let it, or build here with `scripts/release.sh X.Y.Z`.
    4. Save the notes: `gh pr view <number> --json body -q .body | grep -v '^🤖 Generated with' > build/release/notes-X.Y.Z.md`.
    5. Publish: `gh release edit vX.Y.Z --notes-file build/release/notes-X.Y.Z.md --draft=false --latest` if a draft exists, otherwise `gh release create vX.Y.Z build/release/Reload-X.Y.Z.dmg* build/release/Reload-X.Y.Z.zip* --verify-tag --latest --title "Reload X.Y.Z" --notes-file build/release/notes-X.Y.Z.md`.
