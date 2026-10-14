@@ -124,21 +124,32 @@ func pngData(width: Int, height: Int) throws -> Data {
         await #expect(throws: ScreenshotLoader.Failure.notAnImage) { _ = try await loader(directory).bytes(at: html) }
     }
 
+    /// How many decodes run at once, and the most there ever were. A class, so the task
+    /// group's closures capture one `Sendable` reference: Xcode 26's compiler rejects
+    /// sending a closure that captures the `Mutex` itself from main-actor code.
+    nonisolated final class Concurrency: Sendable {
+        private let state = Mutex((running: 0, peak: 0))
+
+        func enter() { state.withLock { $0.running += 1; $0.peak = max($0.peak, $0.running) } }
+        func leave() { state.withLock { $0.running -= 1 } }
+        var peak: Int { state.withLock { $0.peak } }
+    }
+
     @Test func decodeSlotsCapConcurrency() async {
         let slots = DecodeSlots(count: 3)
-        let state = Mutex((running: 0, peak: 0))
+        let concurrency = Concurrency()
         await withTaskGroup(of: Void.self) { group in
             for _ in 0..<10 {
                 group.addTask {
                     await slots.acquire()
-                    state.withLock { $0.running += 1; $0.peak = max($0.peak, $0.running) }
+                    concurrency.enter()
                     try? await Task.sleep(for: .milliseconds(20))
-                    state.withLock { $0.running -= 1 }
+                    concurrency.leave()
                     await slots.release()
                 }
             }
         }
-        #expect(state.withLock { $0.peak } == 3)
+        #expect(concurrency.peak == 3)
     }
 }
 
