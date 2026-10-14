@@ -16,6 +16,22 @@ A native macOS add-on manager for **World of Warcraft: Forever**, written in Swi
 - **Adopt** add-ons you installed by hand.
 - **No API keys needed.** Add-ons come from GitHub Releases. You can add your own GitHub token in Settings to raise rate limits.
 
+## Screenshots
+
+Browse the catalogue by category, with the games each add-on supports:
+
+<p>
+  <img src="Screenshots/browse-light.png" width="49%" alt="Browse view in light mode, listing popular add-ons with Retail, Forever and Classic badges, and Itemwatch's details and read me on the right">
+  <img src="Screenshots/browse-dark.png" width="49%" alt="The same Browse view in dark mode">
+</p>
+
+Each add-on's details show its screenshots, release channel, folders, changelog and read me:
+
+<p>
+  <img src="Screenshots/details-light.png" width="49%" alt="Details for the installed BetterBags add-on in light mode: version, screenshots, channel picker, pin toggle, folders and changelog">
+  <img src="Screenshots/details-dark.png" width="49%" alt="The same BetterBags details in dark mode">
+</p>
+
 ## Install
 
 1. Download `Reload-<version>.dmg` from the [latest release](https://github.com/miotke/reload/releases/latest).
