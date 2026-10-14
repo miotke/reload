@@ -14,6 +14,8 @@ public actor AddonManager: AddonManaging {
     /// Catalogue, support verdicts, details and refresh state (docs/architecture/core.md).
     public nonisolated let database: MetadataDatabase
     let catalogue: CatalogueSource
+    /// WoWInterface and Tukui listings and latest files (docs/features/sources.md).
+    let hosted: HostedCatalogue
     let supportCache: SupportCache
     let github: GitHub
     let githubSearch: GitHubSearchProvider
@@ -50,7 +52,9 @@ public actor AddonManager: AddonManaging {
         // If the file can't be opened (disk full, permissions), work from memory this session.
         let database = (try? MetadataDatabase(directories: directories)) ?? (try! MetadataDatabase.inMemory())
         self.database = database
-        self.catalogue = CatalogueSource(http: http, database: database)
+        let catalogue = CatalogueSource(http: http, database: database)
+        self.catalogue = catalogue
+        self.hosted = HostedCatalogue(http: http, database: database, catalogue: catalogue)
         let supportCache = SupportCache(database: database)
         self.supportCache = supportCache
 
@@ -62,7 +66,7 @@ public actor AddonManager: AddonManaging {
             archiveURL: { downloader.archiveURL(for: $0) }
         )
         self.githubSearch = GitHubSearchProvider(http: http, database: database, tokenProvider: tokenProvider)
-        self.searchCoordinator = SearchCoordinator(catalogue: catalogue, github: githubSearch, supportCache: supportCache)
+        self.searchCoordinator = SearchCoordinator(catalogue: catalogue, github: githubSearch, supportCache: supportCache, hosted: hosted)
     }
 
     /// `RELOAD_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (docs/architecture/core.md).
@@ -90,5 +94,6 @@ public actor AddonManager: AddonManaging {
     func setClock(_ clock: @escaping @Sendable () -> Date) async {
         now = clock
         await github.setClock(clock)
+        await hosted.setClock(clock)
     }
 }

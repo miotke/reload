@@ -83,7 +83,9 @@ extension AddonManager {
             return release
         }
         do {
-            guard addon.id.source == .github else { return (.failed("Unsupported source"), nil) }
+            guard addon.id.source == .github else {
+                return (await hostedUpdateState(of: addon, in: installation, policy: policy), nil)
+            }
             // Stable channel: the latest release (the same lookup support checks use) settles
             // most add-ons. An unchanged tag is up to date, with no release.json needed; a new
             // tag whose release.json has the flavor is the update. Only when neither decides

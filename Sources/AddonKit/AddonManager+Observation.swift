@@ -9,7 +9,7 @@ extension AddonManager {
                 for await change in await database.changes() {
                     continuation.yield(MetadataChange(
                         kinds: Self.kinds(for: change.tables),
-                        refs: Set(change.repos.map { AddonRef(source: .github, identifier: $0) })
+                        refs: Set(change.repos.map { AddonRef(key: $0) })
                     ))
                 }
                 continuation.finish()
@@ -21,7 +21,7 @@ extension AddonManager {
     static func kinds(for tables: Set<String>) -> Set<MetadataChange.Kind> {
         var kinds = Set<MetadataChange.Kind>()
         if !tables.isDisjoint(with: ["support", "repo_meta", "release_json"]) { kinds.insert(.support) }
-        if tables.contains("catalogue") { kinds.insert(.catalogue) }
+        if !tables.isDisjoint(with: ["catalogue", "source_settings"]) { kinds.insert(.catalogue) }
         if tables.contains("details") { kinds.insert(.details) }
         return kinds
     }
@@ -36,7 +36,7 @@ extension AddonManager {
         let stored = await supportCache.storedAvailability(for: refs, flavor: installation.flavor)
         var result: [AddonRef: StoredAvailability] = [:]
         for ref in refs {
-            let answer = stored[ref.identifier.lowercased()]
+            let answer = stored[ref.key.lowercased()]
             result[ref] = StoredAvailability(support: answer?.support, availableFlavors: answer?.flavors)
         }
         return result

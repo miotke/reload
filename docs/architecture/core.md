@@ -48,7 +48,7 @@ Sources/AddonKit/
 ├── AddonManaging.swift      the façade's protocol
 ├── Model/                   flavors, game families, refs, installs, releases, search models, errors
 ├── Parsing/                 TOC, release.json, .build.info (pure, no I/O)
-├── Sources/                 Source/HTTPClient protocols
+├── Sources/                 Source/HTTPClient protocols, WoWInterface and Tukui, source settings
 ├── GitHub/                  LatestReleaseStore, GitHubReleaseResolver, API and web clients, ReadmeFetcher
 ├── Selection/               ReleaseSelector, ZipInspector, AdoptionIndex
 ├── Install/                 Downloader, ZipExtractor, Installer, InstallationLocator
@@ -82,6 +82,9 @@ Sources/reload/            the CLI (docs/cli/)
 | The GitHub pieces wired together | `Sources/AddonKit/GitHub/GitHub.swift` |
 | GitHub API models (releases, assets) | `Sources/AddonKit/GitHub/GitHubModels.swift` |
 | `Source` and `HTTPClient` protocols, the URL session, the User-Agent | `Sources/AddonKit/Sources/Source.swift` |
+| Source settings, hosted resolve, update checks, details and notes | `Sources/AddonKit/AddonManager+Sources.swift` |
+| `HostedSource`, `HostedFile`, ref parsing; WoWInterface and Tukui APIs | `Sources/AddonKit/Sources/HostedSource.swift`, `Sources/AddonKit/Sources/WoWInterface.swift`, `Sources/AddonKit/Sources/Tukui.swift` |
+| Hosted listings and latest files (the hosted cache owner); on/off storage | `Sources/AddonKit/Sources/HostedCatalogue.swift`, `Sources/AddonKit/Sources/SourceSettings.swift` |
 | Flavors, `FlavorRules`, interface ranges | `Sources/AddonKit/Model/Flavor.swift` |
 | Game families, family filtering, availability sentence | `Sources/AddonKit/Model/GameFamily.swift` |
 | Refs, installations, installed add-ons, releases, update states, operation events | `Sources/AddonKit/Model/Models.swift` |
@@ -89,7 +92,7 @@ Sources/reload/            the CLI (docs/cli/)
 | Decisions front ends display: `InstallAction`, `UpdateOffer`, `BrowseFilter`, `AddonRef(parsing:)` | `Sources/AddonKit/Model/InstallAction.swift` |
 | Unmanaged folders, TOC hints, adoption candidates and previews | `Sources/AddonKit/Model/Adoption.swift` |
 | `AddonError` | `Sources/AddonKit/Model/AddonError.swift` |
-| TOC, `release.json` and `.build.info` parsing | `Sources/AddonKit/Parsing/` |
+| TOC, `release.json`, `.build.info` and WoWInterface BBCode parsing | `Sources/AddonKit/Parsing/` |
 | Release selection (pure) | `Sources/AddonKit/Selection/ReleaseSelector.swift` |
 | Zip and folder flavor inspection | `Sources/AddonKit/Selection/ZipInspector.swift` |
 | Adoption suggestions and folder grouping | `Sources/AddonKit/Selection/AdoptionIndex.swift` |
@@ -97,8 +100,7 @@ Sources/reload/            the CLI (docs/cli/)
 | Zip validation and extraction | `Sources/AddonKit/Install/ZipExtractor.swift` |
 | Install, uninstall, remove unmanaged folders | `Sources/AddonKit/Install/Installer.swift` |
 | Finding WoW installations | `Sources/AddonKit/Install/InstallationLocator.swift` |
-| Install store and its lock | `Sources/AddonKit/Store/InstallStore.swift` |
-| App data directories | `Sources/AddonKit/Store/AppDirectories.swift` |
+| Install store and its lock; app data directories | `Sources/AddonKit/Store/InstallStore.swift`, `Sources/AddonKit/Store/AppDirectories.swift` |
 | Moving ForeverAddons-era data to Reload (decision 0024) | `Sources/AddonKit/Store/LegacyDataMigration.swift` |
 | SQLite schema, migrations, change stream | `Sources/AddonKit/Store/MetadataDatabase.swift` |
 | Catalogue download and storage | `Sources/AddonKit/Search/CatalogueSource.swift` |
@@ -129,10 +131,9 @@ Sources/reload/            the CLI (docs/cli/)
 | Search | `search(_:in:)` and `search(_:in:installed:)` → `AsyncStream<[SearchResult]>`, `searchUpdates(_:in:installed:)` → `AsyncStream<SearchUpdate>`, `browse(in:)`, `catalogueEntry(for:)` |
 | Install | `resolve(_:for:channel:)`, `resolve(_:for:channel:allowFamilyFallback:)`, `install(_:into:channel:force:allowFamilyFallback:progress:)` (the Retail build on Forever, [release-selection.md](../features/release-selection.md#retail-build-on-forever)) |
 | Unmanaged folders | `adoptionCandidates(folder:in:)` (local), `adoptionPreview(for:folders:in:)`, `adopt(_:in:)`, `adopt(folder:as:in:)`, `removeUnmanaged(folders:from:)` ([installing.md](../features/installing.md#adopting-unmanaged-folders)) |
-| Updates | `checkForUpdates(in:)`, `update(_:in:)` and `update(releases:in:)` → `AsyncStream<OperationEvent>` |
-| Changes | `uninstall`, `rollback`, `setPinned`, `setChannel` |
+| Updates and changes | `checkForUpdates(in:)`, `update(_:in:)` and `update(releases:in:)` → `AsyncStream<OperationEvent>`; `uninstall`, `rollback`, `setPinned`, `setChannel` |
 | Metadata | `refresh(in:force:)` → `AsyncStream<RefreshProgress>`, `lastRefresh(in:)` ([refresh.md](../features/refresh.md)), `checkVisible(_:in:)` ([visible rows](../features/refresh.md#visible-row-checks)), `details(for:in:)` ([details](../features/details-and-screenshots.md)), `availableFlavors(for:)` (stored, local) |
-| Misc | `tokenDidChange()`, `gitHubStatus()` ([quota status](../network/budget.md#quota-status)), `rateLimit()`, `clearCaches()`, `database.changes()` ([change stream](data-storage.md#change-stream)) |
+| Misc | `sources()`, `setSource(_:enabled:)` ([sources.md](../features/sources.md)), `tokenDidChange()`, `gitHubStatus()` ([quota status](../network/budget.md#quota-status)), `rateLimit()`, `clearCaches()`, `database.changes()` ([change stream](data-storage.md#change-stream)) |
 
 ### Behaviour worth knowing
 
@@ -143,6 +144,6 @@ Sources/reload/            the CLI (docs/cli/)
 - **Rollback** reinstalls `previousRelease` from the download cache (the last 2 zips per add-on) and **pins** the add-on so the next update doesn't undo it.
 - **Update checks are mostly quota-free.** For the stable channel, the latest tag comes from github.com: an unchanged tag is up to date, and a new tag whose `release.json` has the flavor is the update, both without an API call. Only when neither decides, or for the prerelease channel, does the API resolve run (with the stored ETag). See [release-selection.md](../features/release-selection.md#quota-free-resolve-stable-channel).
 - **Updating.** `update([])` checks every add-on as above and installs only available updates; pinned and up-to-date ones come back `.skipped`. `update(releases:in:)` installs releases the caller already resolved (the app's `.available(release)` states); an empty list does nothing. Up to 4 at once; one failure doesn't stop the others.
-- **`lookup` order:** a GitHub ref or URL first, then an installed add-on's name, repo or folder, then an exact catalogue name. More than one result means the input was ambiguous.
+- **`lookup` order:** a ref or URL first (GitHub, WoWInterface or Tukui, `AddonRef(parsing:)`), then an installed add-on's name, repo or folder, then an exact catalogue name. More than one result means the input was ambiguous.
 - **GitHub token:** `RELOAD_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (`KeychainStore`, service `io.github.miotke.Reload`, account `github-token`, shared by the app and CLI). It's read on the first API call, so launch never waits on a Keychain prompt. `tokenDidChange()` swaps it in place, keeping ETags, `release.json` files and the rate-limit state.
 - **One URL session** for the core, with the app's User-Agent and no HTTP cache ([github-endpoints.md](../network/github-endpoints.md#headers)).

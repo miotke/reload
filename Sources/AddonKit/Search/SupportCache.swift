@@ -102,7 +102,7 @@ public actor SupportCache {
     public func record(for ref: AddonRef, flavor: Flavor) async -> SupportRecord? {
         let rows = (try? await database.query(
             "SELECT full_name, status, version, tag, checked_at FROM support WHERE full_name = ? AND flavor = ? AND status IS NOT NULL",
-            ref.identifier, flavor.rawValue)) ?? []
+            ref.key, flavor.rawValue)) ?? []
         return rows.first.flatMap(Self.record)
     }
 
@@ -113,7 +113,7 @@ public actor SupportCache {
     func storedSupport(for ref: AddonRef, flavor: Flavor) async -> StoredSupport? {
         guard let row = try? await database.query(
             "SELECT status, version, tag, checked_at, error_at, retry_after FROM support WHERE full_name = ? AND flavor = ?",
-            ref.identifier, flavor.rawValue).first else { return nil }
+            ref.key, flavor.rawValue).first else { return nil }
         return StoredSupport(
             status: row.string(0).flatMap { Self.status(kind: $0, version: row.string(1)) },
             tag: row.string(2), checkedAt: row.date(3), errorAt: row.date(4), retryAfter: row.date(5))
@@ -154,7 +154,7 @@ public actor SupportCache {
         var flavorRows: [[SQLValue]] = []
         var changed: Set<String> = []
         for record in records {
-            let name = SQLValue.text(record.ref.identifier)
+            let name = SQLValue.text(record.ref.key)
             if let available = record.availableFlavors {
                 flavorRows.append([name, .text(available.storageValue), record.tag.sqlValue, .text(StoredFlavors.Source.releaseJSON.rawValue)])
             }
@@ -164,7 +164,7 @@ public actor SupportCache {
                 continue
             }
             guard let kind = Self.kind(record.status) else { continue }
-            changed.insert(record.ref.identifier)
+            changed.insert(record.ref.key)
             verdicts.append([name, flavorName, .text(kind), Self.version(record.status).sqlValue,
                              record.tag.sqlValue, record.checkedAt.sqlValue])
             // A verdict with a tag also tells us the latest tag; a negative one, that there's none.
@@ -238,7 +238,7 @@ public actor SupportCache {
     /// What `ref`'s latest release ships, as stored; nil when nobody has looked.
     public func storedFlavors(for ref: AddonRef) async -> StoredFlavors? {
         guard let row = try? await database.query(
-            "SELECT available_flavors, flavors_tag, flavors_source FROM repo_meta WHERE full_name = ?", ref.identifier).first,
+            "SELECT available_flavors, flavors_tag, flavors_source FROM repo_meta WHERE full_name = ?", ref.key).first,
             let text = row.string(0), let source = row.string(2).flatMap(StoredFlavors.Source.init(rawValue:)) else { return nil }
         return StoredFlavors(flavors: Set(storageValue: text), tag: row.string(1), source: source)
     }
@@ -251,7 +251,7 @@ public actor SupportCache {
     /// query: Browse patches up to 500 rows at a time, and two lookups per row cost ~6×
     /// as much. Keyed by lower-cased `owner/repo`; repos with neither are left out.
     func storedAvailability(for refs: [AddonRef], flavor: Flavor) async -> [String: (support: SupportStatus?, flavors: Set<Flavor>?)] {
-        let names = Array(Set(refs.map { $0.identifier.lowercased() }))
+        let names = Array(Set(refs.map { $0.key.lowercased() }))
         guard !names.isEmpty, let list = try? JSONEncoder().encode(names) else { return [:] }
         let rows = (try? await database.query("""
             SELECT r.value, s.status, s.version, s.checked_at, m.available_flavors, m.flavors_source
@@ -287,15 +287,15 @@ public actor SupportCache {
     public func setAvailableFlavors(_ flavors: Set<Flavor>?, tag: String?, source: StoredFlavors.Source, for ref: AddonRef) async {
         let changed: Int
         if let flavors {
-            changed = (try? await database.execute(Self.upsertFlavorsSQL, ref.identifier, flavors.storageValue, tag, source.rawValue)) ?? 0
+            changed = (try? await database.execute(Self.upsertFlavorsSQL, ref.key, flavors.storageValue, tag, source.rawValue)) ?? 0
         } else {
             guard source == .releaseJSON else { return }
             changed = (try? await database.execute("""
                 UPDATE repo_meta SET available_flavors = NULL, flavors_tag = NULL, flavors_source = NULL
                 WHERE full_name = ? AND flavors_source = 'release_json'
-                """, ref.identifier)) ?? 0
+                """, ref.key)) ?? 0
         }
-        if changed > 0 { await database.notify(["repo_meta"], repos: [ref.identifier]) }
+        if changed > 0 { await database.notify(["repo_meta"], repos: [ref.key]) }
     }
 
     // MARK: - Repo metadata
@@ -303,7 +303,7 @@ public actor SupportCache {
     /// The latest release tag last seen for `ref`, and when.
     public func latestTag(for ref: AddonRef) async -> (tag: String?, checkedAt: Date)? {
         guard let row = try? await database.query(
-            "SELECT latest_tag, tag_checked_at FROM repo_meta WHERE full_name = ?", ref.identifier).first,
+            "SELECT latest_tag, tag_checked_at FROM repo_meta WHERE full_name = ?", ref.key).first,
             let checked = row.date(1) else { return nil }
         return (row.string(0), checked)
     }
@@ -317,20 +317,20 @@ public actor SupportCache {
                     THEN coalesce(excluded.latest_published_at, repo_meta.latest_published_at)
                     ELSE excluded.latest_published_at END,
                 latest_tag = excluded.latest_tag, tag_checked_at = excluded.tag_checked_at
-            """, ref.identifier, tag, now(), publishedAt)
+            """, ref.key, tag, now(), publishedAt)
     }
 
     /// Records when the stored latest tag was published, once an API call reveals it. Never
     /// changes the tag itself: that's `LatestReleaseStore.check`'s job.
     public func setPublishedAt(_ date: Date, ifLatestTagIs tag: String, for ref: AddonRef) async {
         _ = try? await database.execute(
-            "UPDATE repo_meta SET latest_published_at = ? WHERE full_name = ? AND latest_tag = ?", date, ref.identifier, tag)
+            "UPDATE repo_meta SET latest_published_at = ? WHERE full_name = ? AND latest_tag = ?", date, ref.key, tag)
     }
 
     /// Publish date of the stored latest tag, from an API call or the upload date of its
     /// release.json.
     public func latestPublishedAt(for ref: AddonRef) async -> Date? {
-        try? await database.query("SELECT latest_published_at FROM repo_meta WHERE full_name = ?", ref.identifier).first?.date(0)
+        try? await database.query("SELECT latest_published_at FROM repo_meta WHERE full_name = ?", ref.key).first?.date(0)
     }
 
     /// Every known latest-release date, keyed by lower-cased `owner/repo`.
@@ -346,7 +346,7 @@ public actor SupportCache {
     /// never expire; `removeAll` clears them.
     func releaseJSON(for ref: AddonRef, tag: String) async -> ReleaseJSON?? {
         guard let row = try? await database.query(
-            "SELECT json FROM release_json WHERE full_name = ? AND tag = ?", ref.identifier, tag).first else { return nil }
+            "SELECT json FROM release_json WHERE full_name = ? AND tag = ?", ref.key, tag).first else { return nil }
         guard let text = row.string(0) else { return .some(nil) }
         // An undecodable row is as good as missing: it's fetched again.
         return (try? ReleaseJSON(data: Data(text.utf8))).map { .some($0) }
@@ -357,13 +357,13 @@ public actor SupportCache {
         _ = try? await database.execute("""
             INSERT INTO release_json(full_name, tag, json, fetched_at) VALUES (?, ?, ?, ?)
             ON CONFLICT(full_name, tag) DO UPDATE SET json = excluded.json, fetched_at = excluded.fetched_at
-            """, ref.identifier, tag, text, now())
+            """, ref.key, tag, text, now())
     }
 
     /// When the API was last asked about `ref`'s releases, and the latest stable tag known then.
     func apiCheck(for ref: AddonRef) async -> (at: Date, latestTag: String?)? {
         guard let row = try? await database.query(
-            "SELECT api_checked_at, api_checked_tag FROM repo_meta WHERE full_name = ?", ref.identifier).first,
+            "SELECT api_checked_at, api_checked_tag FROM repo_meta WHERE full_name = ?", ref.key).first,
             let at = row.date(0) else { return nil }
         return (at, row.string(1))
     }
@@ -373,7 +373,7 @@ public actor SupportCache {
         _ = try? await database.execute("""
             INSERT INTO repo_meta(full_name, api_checked_at) VALUES (?, ?)
             ON CONFLICT(full_name) DO UPDATE SET api_checked_at = excluded.api_checked_at, api_checked_tag = repo_meta.latest_tag
-            """, ref.identifier, date)
+            """, ref.key, date)
     }
 
     /// Star counts seen in live GitHub results, keyed by lower-cased `owner/repo`.
@@ -386,7 +386,7 @@ public actor SupportCache {
 
     public func setStars(_ stars: [AddonRef: Int]) async {
         guard !stars.isEmpty else { return }
-        let pairs = stars.map { ($0.key.identifier, $0.value) }
+        let pairs = stars.map { ($0.key.key, $0.value) }
         _ = try? await database.transaction { db in
             for (name, count) in pairs {
                 try db.execute("""
@@ -428,6 +428,6 @@ public actor SupportCache {
     static func record(_ row: SQLRow) -> SupportRecord? {
         guard let name = row.string(0), let kind = row.string(1),
               let status = status(kind: kind, version: row.string(2)), let checked = row.date(4) else { return nil }
-        return SupportRecord(ref: AddonRef(source: .github, identifier: name), status: status, tag: row.string(3), checkedAt: checked)
+        return SupportRecord(ref: AddonRef(key: name), status: status, tag: row.string(3), checkedAt: checked)
     }
 }

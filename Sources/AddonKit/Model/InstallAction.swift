@@ -94,10 +94,11 @@ extension AdoptionPreview {
 }
 
 extension AddonRef {
-    /// A GitHub ref from user input: `owner/repo`, `github:owner/repo` or a `github.com` URL,
-    /// the same rules as `lookup` (`GitHubReleaseResolver.parse`).
+    /// A ref from user input, the same rules as `lookup`: `owner/repo`, `github:owner/repo` or a
+    /// `github.com` URL (`GitHubReleaseResolver.parse`); `wowinterface:3826` or a WoWInterface
+    /// page; `tukui:elvui` or a tukui.org page (docs/features/sources.md).
     public init?(parsing input: String) {
-        guard let ref = GitHubReleaseResolver.parseRef(input) else { return nil }
+        guard let ref = GitHubReleaseResolver.parseRef(input) ?? HostedSources.parse(input) else { return nil }
         self = ref
     }
 

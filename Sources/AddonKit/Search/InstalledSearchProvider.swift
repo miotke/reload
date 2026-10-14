@@ -60,8 +60,10 @@ public struct InstalledSearchProvider: SearchProvider {
             .map(\.0)
     }
 
+    /// The repo owner; hosted refs carry no author, so theirs is empty.
     static func owner(of ref: AddonRef) -> String {
-        String(ref.identifier.split(separator: "/").first ?? Substring(ref.identifier))
+        guard ref.source == .github else { return "" }
+        return String(ref.identifier.split(separator: "/").first ?? Substring(ref.identifier))
     }
 
     private static func nonEmpty(_ s: String) -> String? {

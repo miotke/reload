@@ -73,6 +73,14 @@ public protocol AddonManaging: Sendable {
     /// Call after the GitHub token in the Keychain changes.
     func tokenDidChange() async
 
+    /// Every add-on source in display order, with whether search and Browse use it
+    /// (docs/features/sources.md). Has a default that reports every source on.
+    func sources() async -> [SourceSetting]
+    /// Turns a source's search and Browse results on or off; installed add-ons from it keep
+    /// their update checks. Shared with `reload`. Reported as a `.catalogue` change. Has a
+    /// default that does nothing.
+    func setSource(_ source: SourceID, enabled: Bool) async throws
+
     /// API quota, search quota and github.com pause state, from stored state only (no
     /// network). Has a default that reports nothing known.
     func gitHubStatus() async -> GitHubStatus
@@ -148,6 +156,12 @@ extension AddonManaging {
     public func checkVisible(_ refs: [AddonRef], in installation: Installation) async -> [AddonRef] { [] }
 
     public func gitHubStatus() async -> GitHubStatus { GitHubStatus() }
+
+    public func sources() async -> [SourceSetting] {
+        SourceID.allCases.map { SourceSetting(source: $0, isEnabled: true) }
+    }
+
+    public func setSource(_ source: SourceID, enabled: Bool) async throws {}
 }
 
 /// GitHub quota and backoff state, as last reported by GitHub. Nil fields mean unknown.

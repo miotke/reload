@@ -50,7 +50,10 @@ extension AddonManager {
 
         // 1. Catalogue: revalidated when older than 24 h, or now when forced.
         reporter.send(RefreshProgress(phase: .catalogue, completed: 0, total: 1, message: "Downloading the add-on catalogue…"), force: true)
-        let diff = (try? await catalogue.refresh(force: force)) ?? CatalogueDiff()
+        // Sources that are off download nothing (docs/features/sources.md).
+        let enabled = await database.enabledSources()
+        let diff = enabled.contains(.github) ? (try? await catalogue.refresh(force: force)) ?? CatalogueDiff() : CatalogueDiff()
+        await refreshHostedListings(force: force)
         reporter.send(RefreshProgress(phase: .catalogue, completed: 1, total: 1, message: "Catalogue ready"), force: true)
         guard !Task.isCancelled else { return }
 
@@ -68,7 +71,10 @@ extension AddonManager {
         guard !Task.isCancelled else { return }
 
         // 3. Support verdicts.
-        let targets = await supportTargets(installation: installation, installed: installed.map(\.id), diff: diff, seed: firstRefresh)
+        // With GitHub off, only installed GitHub add-ons are checked.
+        let targets = enabled.contains(.github)
+            ? await supportTargets(installation: installation, installed: installed.map(\.id), diff: diff, seed: firstRefresh)
+            : installed.map(\.id).filter { $0.source == .github }
         reporter.send(RefreshProgress(phase: .support, completed: 0, total: targets.count, message: "Checking \(installation.flavor.displayName) support…"), force: true)
         await checkSupport(targets, flavor: installation.flavor, reporter: reporter)
         guard !Task.isCancelled else { return }
@@ -95,7 +101,8 @@ extension AddonManager {
         let flavor = installation.flavor.rawValue
         var names: [String] = []
         // Installed add-ons are always targets; `check` decides whether that needs a request.
-        names += installed.map(\.identifier)
+        // Hosted add-ons have no verdicts to check: their updates come from `checkForUpdates`.
+        names += installed.filter { $0.source == .github }.map(\.identifier)
         if seed {
             let seededBefore = (try? await database.query(
                 "SELECT count(*) FROM refresh_state WHERE installation_id != ? AND last_refresh_at IS NOT NULL", installation.id

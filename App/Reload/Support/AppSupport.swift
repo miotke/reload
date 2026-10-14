@@ -68,20 +68,7 @@ extension Channel {
 }
 
 extension AddonRef {
-    var webURL: URL? {
-        switch source {
-        case .github: URL(string: "https://github.com/\(identifier)")
-        case .wowinterface, .tukui: nil
-        }
-    }
-
-    var sourceName: String {
-        switch source {
-        case .github: "GitHub"
-        case .wowinterface: "WoWInterface"
-        case .tukui: "Tukui"
-        }
-    }
+    var sourceName: String { source.displayName }
 }
 
 extension Installation {

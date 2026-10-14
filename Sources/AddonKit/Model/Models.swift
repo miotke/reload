@@ -44,15 +44,24 @@ public struct Installation: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
+/// Where an add-on comes from (docs/features/sources.md).
 public enum SourceID: String, Codable, Sendable, CaseIterable {
     case github
     case wowinterface
     case tukui
+
+    public var displayName: String {
+        switch self {
+        case .github: "GitHub"
+        case .wowinterface: "WoWInterface"
+        case .tukui: "Tukui"
+        }
+    }
 }
 
 public struct AddonRef: Codable, Hashable, Sendable, CustomStringConvertible {
     public var source: SourceID
-    /// `owner/repo` for GitHub.
+    /// `owner/repo` for GitHub, the file ID for WoWInterface (`3826`), the slug for Tukui (`elvui`).
     public var identifier: String
 
     public init(source: SourceID, identifier: String) {
@@ -61,6 +70,20 @@ public struct AddonRef: Codable, Hashable, Sendable, CustomStringConvertible {
     }
 
     public var description: String { "\(source.rawValue):\(identifier)" }
+
+    /// `owner/repo` for GitHub, `wowinterface:3826` for the others: the key the metadata
+    /// database stores the ref under, and the short form messages and tables show. GitHub
+    /// names can't contain a colon, so the two forms never collide.
+    public var key: String { source == .github ? identifier : description }
+
+    /// Reverses `key`.
+    public init(key: String) {
+        if let colon = key.firstIndex(of: ":"), let source = SourceID(rawValue: String(key[..<colon])), source != .github {
+            self.init(source: source, identifier: String(key[key.index(after: colon)...]))
+        } else {
+            self.init(source: .github, identifier: key)
+        }
+    }
 }
 
 public enum Channel: String, Codable, Sendable, CaseIterable {

@@ -544,6 +544,29 @@ public actor MetadataDatabase {
             SELECT 1 FROM release_json r
             WHERE r.full_name = repo_meta.full_name AND r.tag = repo_meta.latest_tag AND r.json IS NOT NULL);
         """,
+        // 6: add-on sources (docs/features/sources.md). WoWInterface and Tukui rows live in
+        // `catalogue` under `AddonRef.key` with `source` naming the host; `source_state` is
+        // each host listing's fetch state, `source_settings` which sources search and
+        // Browse use (no row = on), and `hosted_files` each hosted add-on's latest file.
+        """
+        ALTER TABLE catalogue ADD COLUMN author TEXT;
+        ALTER TABLE catalogue ADD COLUMN screenshots_json TEXT;
+        CREATE TABLE source_state (
+            source TEXT PRIMARY KEY,
+            etag TEXT,
+            fetched_at REAL,
+            failed_at REAL
+        ) WITHOUT ROWID;
+        CREATE TABLE source_settings (
+            source TEXT PRIMARY KEY,
+            enabled INTEGER NOT NULL
+        ) WITHOUT ROWID;
+        CREATE TABLE hosted_files (
+            full_name TEXT PRIMARY KEY COLLATE NOCASE,
+            json TEXT NOT NULL,
+            fetched_at REAL NOT NULL
+        ) WITHOUT ROWID;
+        """,
     ]
 }
 

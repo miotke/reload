@@ -72,6 +72,7 @@
 		8D2744B07B362F163135FC0A /* Selection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B389DAC69C5DC5F998EE1B /* Selection.swift */; };
 		95D5B27D711447C760AF9354 /* BrowseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3853E6374E7C1FF51F9075F3 /* BrowseModel.swift */; };
 		9C542FA8AE10FA9A12D75035 /* AppearanceSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6497BF03C99F4D71F1074364 /* AppearanceSettings.swift */; };
+		9FBC977405A9A6D9B629DECB /* SourcesCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96AFB1D60F4DEE4DF61A119 /* SourcesCommand.swift */; };
 		A1A36296DEBB8B8F59489585 /* UpdateQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = C061E55B427340186C94FBB0 /* UpdateQueue.swift */; };
 		A20ECAEA88115C65846A9B9D /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2504A08A69EBE9D5E526EB5 /* AppModel.swift */; };
 		A5FE41CF4DD565CE3E60998B /* AddonWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 897C147D4DE0A99BDDC16ADB /* AddonWindow.swift */; };
@@ -205,6 +206,7 @@
 		B3F064D924D2683B3928C5AE /* SnapshotFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotFixtures.swift; sourceTree = "<group>"; };
 		B6C91C5F665F6A5404D0B799 /* InstallCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallCommands.swift; sourceTree = "<group>"; };
 		B872A098FA69660BDFC06C28 /* InstalledModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstalledModel.swift; sourceTree = "<group>"; };
+		B96AFB1D60F4DEE4DF61A119 /* SourcesCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcesCommand.swift; sourceTree = "<group>"; };
 		BB79FC5563BFEB84C57497A8 /* Reload.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Reload.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFD5308B2C9FEFA7F4D6101F /* SettingsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSupport.swift; sourceTree = "<group>"; };
 		C01242C458AF6DB6D65D271B /* InstallationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationModel.swift; sourceTree = "<group>"; };
@@ -272,6 +274,7 @@
 				F8FA5D9A23DC0C5E85E91A7E /* ListCommands.swift */,
 				96EE1C8128597C72A96985EC /* RefreshCommand.swift */,
 				F4C40F9D186E204007EBD3B9 /* SearchCommand.swift */,
+				B96AFB1D60F4DEE4DF61A119 /* SourcesCommand.swift */,
 			);
 			path = Commands;
 			sourceTree = "<group>";
@@ -690,6 +693,7 @@
 				C87C83A202567338D7483C9D /* ReloadCLI.swift in Sources */,
 				7C07FDF3392CE0E6D5E5D3DC /* SearchCommand.swift in Sources */,
 				8D2744B07B362F163135FC0A /* Selection.swift in Sources */,
+				9FBC977405A9A6D9B629DECB /* SourcesCommand.swift in Sources */,
 				140C5173DFC2C2C6455EED32 /* Table.swift in Sources */,
 				22AB0AD9D292806C1E649CB1 /* Terminal.swift in Sources */,
 			);

@@ -44,6 +44,7 @@ flowchart LR
 | [finding-wow.md](features/finding-wow.md) | WoW isn't detected, or you're changing installation detection, folder mappings or IDs |
 | [search.md](features/search.md) | you're changing search layers, ranking, aliases, the GitHub fallback, catalogue import or Browse |
 | [refresh.md](features/refresh.md) | you're changing the background refresh: its phases, targets, politeness or progress |
+| [sources.md](features/sources.md) | you're working on GitHub, WoWInterface or Tukui as sources, hosted listings, `AddonRef.key`, or turning sources on and off |
 | [details-and-screenshots.md](features/details-and-screenshots.md) | you're working on the inspector, where its details come from, README fetching and rendering, or screenshots |
 
 ## network/
