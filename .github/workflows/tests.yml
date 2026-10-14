@@ -72,6 +72,10 @@ jobs:
     if: needs.changes.outputs.docs == 'true'
     runs-on: macos-26
     timeout-minutes: 45
+    # Timing budgets ×3 on shared runners; xcodebuild passes TEST_RUNNER_* on without the prefix.
+    env:
+      RELOAD_PERF_SLACK: "3"
+      TEST_RUNNER_RELOAD_PERF_SLACK: "3"
     steps:
       - uses: actions/checkout@v4
 

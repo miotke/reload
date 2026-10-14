@@ -178,8 +178,8 @@ func catalogueEntry(_ fullName: String, name: String? = nil, description: String
         }
         let queried = ContinuousClock.now
         #expect(entries.count == 2_440)
-        #expect(built - start < .seconds(1))
-        #expect((queried - built) / 6 < .milliseconds(50))
+        #expect(built - start < budget(.seconds(1)))
+        #expect((queried - built) / 6 < budget(.milliseconds(50)))
     }
 
     @Test func recentlyUpdated() {
