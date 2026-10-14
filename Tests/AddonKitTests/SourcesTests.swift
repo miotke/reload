@@ -184,6 +184,50 @@ import Testing
         #expect(updated?.version == "2.1")
     }
 
+    /// File `id` at `version`: its details JSON object, with its zip stubbed for download.
+    func file(_ h: ManagerHarness, _ id: String, version: String) throws -> String {
+        let folder = "Addon\(id)"
+        let download = "https://cdn.wowinterface.com/downloads/getfile.php?id=\(id)&v=\(version)"
+        let zip = try makeTestZip([
+            .directory(folder),
+            .file("\(folder)/\(folder).toc", "## Interface: 16001\n## Title: \(folder)\n"),
+        ], named: "\(id)-\(version).zip", in: makeTempDirectory())
+        h.transport.stub(URL(string: download)!, try Data(contentsOf: zip))
+        return #"{"UID":"\#(id)","UIName":"\#(folder)","UIVersion":"\#(version)","UIDate":"1790000000000","UIFileName":"\#(folder).zip","UIDownload":"\#(download)"}"#
+    }
+
+    @Test func bulkChecksAskForEveryHostedAddonAtOnce() async throws {
+        let h = try await ManagerHarness()
+        let base = "https://api.mmoui.com/v3/game/WOW/filedetails/"
+        let refs = ["101", "102"].map { AddonRef(source: .wowinterface, identifier: $0) }
+        for id in ["101", "102"] {
+            h.http.stub(base + "\(id).json", text: "[\(try file(h, id, version: "1.0"))]")
+            try await h.manager.install(AddonRef(source: .wowinterface, identifier: id), into: h.installation)
+        }
+
+        // Both have a new version: one request answers both checks.
+        h.http.stub(base + "101,102.json", text: "[\(try file(h, "101", version: "2.0")),\(try file(h, "102", version: "2.0"))]")
+        h.http.reset()
+        let states = try await h.manager.checkForUpdates(in: h.installation)
+        #expect(h.http.urls.filter { $0.hasPrefix(base) } == [base + "101,102.json"])
+        for ref in refs {
+            guard case .available(let release) = states[ref] else {
+                Issue.record("expected an update for \(ref)")
+                continue
+            }
+            #expect(release.version == "2.0")
+        }
+
+        // Update All asks once too, then installs both.
+        h.http.reset()
+        var done: [String] = []
+        for await event in h.manager.update([], in: h.installation) {
+            if case .done(let addon) = event { done.append(addon.version) }
+        }
+        #expect(h.http.urls.filter { $0.hasPrefix(base) } == [base + "101,102.json"])
+        #expect(done == ["2.0", "2.0"])
+    }
+
     @Test func zipDecidesForeverSupport() async throws {
         let h = try await ManagerHarness()
         // A Retail-only zip: no Forever build, but the Retail build installs on request.
