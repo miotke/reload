@@ -30,7 +30,8 @@ extension AddonManager {
     /// Stable channel: tries the quota-free route first (latest tag + release.json), and
     /// uses the API only when that can't decide.
     func resolve(_ ref: AddonRef, flavor: Flavor, channel: Channel) async throws -> ResolvedRelease {
-        guard ref.source == .github else { throw AddonError.invalidReference(ref.description) }
+        // Hosts have no prereleases: both channels get the latest file.
+        guard ref.source == .github else { return try await resolveHosted(ref, flavor: flavor, policy: .forceRevalidate) }
         if channel == .stable, let release = await github.latest.quotaFreeResolve(ref, flavor: flavor, policy: .forceRevalidate) {
             return release
         }
@@ -72,8 +73,8 @@ extension AddonManager {
         // Extraction is the slow part; it runs before the lock the CLI and app wait on, and
         // off this actor. Only the ownership check, the swap and the store write are locked.
         let (prepared, shipped) = try await Self.prepare(installer, archive: archive, into: installation)
-        await database.setReleaseFolders(prepared.folders, tag: release.version, for: release.ref.identifier, at: now())
-        if release.ref.source == .github, !shipped.isEmpty {
+        await database.setReleaseFolders(prepared.folders, tag: release.version, for: release.ref.key, at: now())
+        if !shipped.isEmpty {
             await supportCache.setAvailableFlavors(shipped, tag: release.version, source: .inspection, for: release.ref)
         }
         do {
@@ -140,7 +141,7 @@ extension AddonManager {
         let release = try await resolve(ref, for: installation, channel: .stable)
         let archive = try await downloader.download(release, progress: { _ in })
         let shipped = try await Self.topLevelFolders(archive)
-        await database.setReleaseFolders(shipped, tag: release.version, for: ref.identifier, at: now())
+        await database.setReleaseFolders(shipped, tag: release.version, for: ref.key, at: now())
 
         let managed = try await store.addons(in: installation)
         var replaces: [String] = [], adds: [String] = [], conflicts: [String: AddonRef] = [:]

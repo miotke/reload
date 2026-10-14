@@ -1,10 +1,12 @@
 import Foundation
 
-/// One row of `github-wow-addon-catalogue/addons.csv`.
+/// One row of the `catalogue` table: a repo from `github-wow-addon-catalogue/addons.csv` or a
+/// live GitHub search, or an add-on from a WoWInterface or Tukui listing (docs/features/sources.md).
 public struct CatalogueEntry: Codable, Sendable, Hashable, Identifiable {
-    public var id: String          // catalogue `id`
+    public var id: String          // catalogue `id`, or the host's own ID
     public var name: String
-    public var fullName: String    // owner/repo
+    /// `owner/repo` for GitHub, else `AddonRef.key` (`wowinterface:3826`).
+    public var fullName: String
     public var url: URL
     public var description: String?
     public var lastUpdated: Date?
@@ -16,12 +18,21 @@ public struct CatalogueEntry: Codable, Sendable, Hashable, Identifiable {
     /// Found by a live GitHub search rather than listed in the catalogue, so
     /// `hasReleaseJSON` says nothing about it.
     public var fromLiveSearch: Bool = false
+    public var source: SourceID
+    /// The listing's author, for hosted add-ons; GitHub rows use the repo owner.
+    public var author: String?
+    /// Images from a host's listing. GitHub rows have none: their README supplies them.
+    public var screenshots: [URL]?
 
     public init(
         id: String, name: String, fullName: String, url: URL, description: String? = nil,
         lastUpdated: Date? = nil, flavors: [String] = [], curseID: Int? = nil, wagoID: String? = nil,
-        wowiID: Int? = nil, hasReleaseJSON: Bool = false, fromLiveSearch: Bool = false
+        wowiID: Int? = nil, hasReleaseJSON: Bool = false, fromLiveSearch: Bool = false,
+        source: SourceID = .github, author: String? = nil, screenshots: [URL] = []
     ) {
+        self.source = source
+        self.author = author
+        self.screenshots = screenshots.isEmpty ? nil : screenshots
         self.fromLiveSearch = fromLiveSearch
         self.id = id
         self.name = name
@@ -36,7 +47,14 @@ public struct CatalogueEntry: Codable, Sendable, Hashable, Identifiable {
         self.hasReleaseJSON = hasReleaseJSON
     }
 
-    public var ref: AddonRef { AddonRef(source: .github, identifier: fullName) }
+    public var ref: AddonRef { source == .github ? AddonRef(source: .github, identifier: fullName) : AddonRef(key: fullName) }
+
+    /// Game versions the host's listing claims, for hosted add-ons; nil for GitHub rows,
+    /// whose catalogue `flavors` column under-reports Forever and isn't used.
+    var listedFlavors: Set<Flavor>? {
+        guard source != .github, !flavors.isEmpty else { return nil }
+        return Set(flavors.compactMap(Flavor.init(rawValue:)))
+    }
 }
 
 public struct SearchQuery: Sendable, Hashable {

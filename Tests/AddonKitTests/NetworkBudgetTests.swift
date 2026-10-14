@@ -20,6 +20,8 @@ import Testing
     func installTwenty(_ h: ManagerHarness) async throws {
         let repos = (0..<20).map { "Owner\($0)/Addon\($0)" }
         h.http.stub(CatalogueSource.defaultURL.absoluteString, text: catalogueCSV(repos.map { ($0, $0, "2026-09-01T00:00:00Z", true) }))
+        h.http.stub(HostedSourceManagerTests.listing, body: try fixtureData("sources/wowinterface-filelist.json"))
+        h.http.stub(HostedSourceManagerTests.tukui, body: try fixtureData("sources/tukui-addons.json"))
         for (i, repo) in repos.enumerated() {
             try h.publish(repo, [("v1", Int64(i + 1), 1)])
             try await h.manager.install(AddonRef(source: .github, identifier: repo), into: h.installation)
@@ -46,12 +48,13 @@ import Testing
         #expect(heads(h) == 20)
         #expect(h.http.requests.count == 20)
 
-        // ⌘R in a new process: the same HEADs plus the catalogue revalidation.
+        // ⌘R in a new process: the same HEADs plus the catalogue revalidation and the
+        // WoWInterface and Tukui listings.
         h.http.reset()
         await refresh(await h.reopen(), h.installation, force: true)
         #expect(h.http.apiRequests.isEmpty)
         #expect(releaseJSONs(h) == 0)
-        #expect(h.http.requests.count == 21)
+        #expect(h.http.requests.count == 23)
     }
 
     @Test func aNewTagFetchesItsReleaseJSONOnce() async throws {
@@ -83,6 +86,8 @@ import Testing
         let h = try await ManagerHarness()
         let repos = (0..<10).map { "Owner\($0)/Repo\($0)" }
         h.http.stub(CatalogueSource.defaultURL.absoluteString, text: catalogueCSV(repos.map { ($0, $0, "2026-09-01T00:00:00Z", true) }))
+        h.http.stub(HostedSourceManagerTests.listing, body: try fixtureData("sources/wowinterface-filelist.json"))
+        h.http.stub(HostedSourceManagerTests.tukui, body: try fixtureData("sources/tukui-addons.json"))
         for (i, repo) in repos.enumerated() {
             h.http.publishLatest(repo, tag: "v\(i)", flavors: i.isMultiple(of: 2) ? ["forever", "mainline"] : ["forever"])
         }
@@ -117,6 +122,8 @@ import Testing
         let h = try await ManagerHarness()
         let repos = (0..<150).map { "O/R\($0)" }
         h.http.stub(CatalogueSource.defaultURL.absoluteString, text: catalogueCSV(repos.map { ($0, $0, "2026-09-01T00:00:00Z", true) }))
+        h.http.stub(HostedSourceManagerTests.listing, body: try fixtureData("sources/wowinterface-filelist.json"))
+        h.http.stub(HostedSourceManagerTests.tukui, body: try fixtureData("sources/tukui-addons.json"))
         _ = try await h.manager.catalogue.refresh(force: true)
         let first = await h.manager.supportTargets(installation: h.installation, installed: [], diff: CatalogueDiff(), seed: true)
         #expect(first.count == 150)

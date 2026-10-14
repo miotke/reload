@@ -9,7 +9,7 @@ import Foundation
 final class LiveMetadata {
     private weak var browse: BrowseModel?
     private let manager: any AddonManaging
-    /// Lower-cased `owner/repo` of rows changed since the last patch.
+    /// Lower-cased `AddonRef.key` of rows changed since the last patch.
     private var changedRepos: Set<String> = []
     private var needsBrowseReload = false
     private var patchTask: Task<Void, Never>?
@@ -33,8 +33,9 @@ final class LiveMetadata {
         guard !change.kinds.isDisjoint(with: [.support, .catalogue]) else { return }
         if change.refs.isEmpty {
             needsBrowseReload = true
+            if change.kinds.contains(.catalogue) { browse?.catalogueDidChange() }
         } else {
-            let repos = Set(change.refs.map { $0.identifier.lowercased() })
+            let repos = Set(change.refs.map { $0.key.lowercased() })
             changedRepos.formUnion(repos)
             // Names, summaries and dates come from the catalogue; re-read the home lists if
             // one of their rows changed. Search results already carry fresh catalogue data.
@@ -45,7 +46,7 @@ final class LiveMetadata {
 
     private var homeRepos: Set<String> {
         let content = browse?.content
-        return Set(((content?.popular ?? []) + (content?.recent ?? [])).map { $0.id.identifier.lowercased() })
+        return Set(((content?.popular ?? []) + (content?.recent ?? [])).map { $0.id.key.lowercased() })
     }
 
     /// Applies pending changes now if the last patch was long enough ago, else when it is.
@@ -70,10 +71,10 @@ final class LiveMetadata {
     }
 
     /// Re-reads the stored verdicts and available flavors of listed rows in `repos`
-    /// (lower-cased `owner/repo`), including those `checkVisible` just wrote.
+    /// (lower-cased `AddonRef.key`), including those `checkVisible` just wrote.
     func patchSupport(for repos: Set<String>) async {
         guard let browse, !repos.isEmpty else { return }
-        let refs = browse.listedRefs.filter { repos.contains($0.identifier.lowercased()) }
+        let refs = browse.listedRefs.filter { repos.contains($0.key.lowercased()) }
         guard !refs.isEmpty else { return }
         let stored = await manager.storedAvailability(for: Array(refs), in: browse.installation)
         let answers = stored.filter { $0.value.support != nil || $0.value.availableFlavors != nil }

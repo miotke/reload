@@ -40,6 +40,11 @@ struct SearchCommand: ContextCommand {
         let text = query.joined(separator: " ")
         let searchQuery = SearchQuery(text: text, flavor: installation.flavor, hideIncompatible: !all, includeLiveGitHub: github)
 
+        // A terminal waits anyway, so a source's first listing downloads here, with a spinner.
+        let listingSpinner = Spinner(enabled: context.showsProgress)
+        await context.manager.downloadMissingListings { listingSpinner.start("Downloading the \($0.displayName) add-on list…") }
+        listingSpinner.stop()
+
         let spinner = Spinner(enabled: context.showsProgress)
         let updates = context.manager.searchUpdates(searchQuery, in: installation, installed: installed)
         var (latest, searchedGitHub) = await Self.collect(updates) { spinner.start("Searching GitHub…") }

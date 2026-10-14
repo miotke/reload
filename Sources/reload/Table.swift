@@ -72,7 +72,7 @@ enum Format {
 
     /// Display name for a ref: `owner/repo` for GitHub, `source:id` otherwise.
     static func ref(_ ref: AddonRef) -> String {
-        ref.source == .github ? ref.identifier : ref.description
+        ref.key
     }
 
     static func bytes(_ count: Int64) -> String {

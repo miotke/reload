@@ -9,6 +9,7 @@ extension AddonManager {
     public static let detailsTTL: TimeInterval = 24 * 60 * 60
 
     public func details(for ref: AddonRef, in installation: Installation) async throws -> AddonDetails {
+        guard ref.source == .github else { return try await hostedDetails(for: ref, in: installation) }
         let (owner, repo) = try GitHubReleaseResolver.split(ref)
         let flavor = installation.flavor
         let entry = await catalogue.entry(for: ref)
@@ -55,6 +56,7 @@ extension AddonManager {
     /// tag, else one API call (`GitHubAPIClient.releaseNotes`, no zips), then stored by tag.
     /// Nil when the repo has no releases.
     public func releaseNotes(for ref: AddonRef, in installation: Installation) async throws -> (version: String, publishedAt: Date?, markdown: String)? {
+        guard ref.source == .github else { return try await hostedReleaseNotes(for: ref) }
         let flavor = installation.flavor
         let tag = await github.latest.latestRelease(for: ref, flavor: flavor, policy: .preferStored).tag
         if let stored = await storedDetails(ref, flavor: flavor), let notes = Self.notes(in: stored, tag: tag) {

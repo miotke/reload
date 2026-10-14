@@ -52,7 +52,7 @@ extension AddonManager {
     /// folder, or an exact catalogue name. More than one result means the input is ambiguous.
     public func lookup(_ input: String, in installation: Installation) async throws -> [AddonRef] {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let ref = github.source.parse(text) { return [ref] }
+        if let ref = AddonRef(parsing: text) { return [ref] }
 
         let installed = try await store.addons(in: installation)
         let installedMatches = installed.filter { addon in

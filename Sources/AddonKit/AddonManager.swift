@@ -6,6 +6,8 @@ public actor AddonManager: AddonManaging {
     public nonisolated let store: InstallStore
 
     let http: any HTTPClient
+    /// Every request and download, for the Network Activity window (docs/app/network-activity.md).
+    public nonisolated let activity: NetworkActivityLog
     let locator: InstallationLocator
     let installer: Installer
     let downloader: Downloader
@@ -14,6 +16,8 @@ public actor AddonManager: AddonManaging {
     /// Catalogue, support verdicts, details and refresh state (docs/architecture/core.md).
     public nonisolated let database: MetadataDatabase
     let catalogue: CatalogueSource
+    /// WoWInterface and Tukui listings and latest files (docs/features/sources.md).
+    let hosted: HostedCatalogue
     let supportCache: SupportCache
     let github: GitHub
     let githubSearch: GitHubSearchProvider
@@ -39,6 +43,11 @@ public actor AddonManager: AddonManaging {
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) {
         self.directories = directories
+        // Every request goes through these two, so recording here sees all of them.
+        let activity = NetworkActivityLog()
+        self.activity = activity
+        let http: any HTTPClient = RecordingHTTPClient(base: http, log: activity)
+        let downloadTransport: any DownloadTransport = RecordingDownloadTransport(base: downloadTransport, log: activity)
         self.http = http
         self.locator = locator
         self.installer = installer
@@ -50,7 +59,9 @@ public actor AddonManager: AddonManaging {
         // If the file can't be opened (disk full, permissions), work from memory this session.
         let database = (try? MetadataDatabase(directories: directories)) ?? (try! MetadataDatabase.inMemory())
         self.database = database
-        self.catalogue = CatalogueSource(http: http, database: database)
+        let catalogue = CatalogueSource(http: http, database: database)
+        self.catalogue = catalogue
+        self.hosted = HostedCatalogue(http: http, database: database, catalogue: catalogue)
         let supportCache = SupportCache(database: database)
         self.supportCache = supportCache
 
@@ -90,5 +101,6 @@ public actor AddonManager: AddonManaging {
     func setClock(_ clock: @escaping @Sendable () -> Date) async {
         now = clock
         await github.setClock(clock)
+        await hosted.setClock(clock)
     }
 }

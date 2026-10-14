@@ -8,8 +8,8 @@ struct ReloadCLI: AsyncParsableCommand {
         commandName: "reload",
         abstract: "Manage World of Warcraft Forever add-ons.",
         discussion: """
-            <ref> can be owner/repo, a GitHub URL, github:owner/repo, or the name of an \
-            installed or catalogued add-on.
+            <ref> can be owner/repo, a GitHub URL, github:owner/repo, wowinterface:<id>, a \
+            WoWInterface URL, tukui:<slug>, or the name of an installed or catalogued add-on.
 
             Exit codes: 0 ok, 1 error, 2 usage, 3 partial failure, 4 rate limited, \
             5 conflict/unmanaged folder (retry with --force), 10 outdated.
@@ -19,7 +19,7 @@ struct ReloadCLI: AsyncParsableCommand {
             UpdateCommand.self, OutdatedCommand.self, ListCommand.self, PinCommand.self,
             UnpinCommand.self, ChannelCommand.self, RollbackCommand.self, AdoptCommand.self,
             ResolveCommand.self, InstallsCommand.self, ExportCommand.self, ImportCommand.self,
-            RefreshCommand.self, ConfigCommand.self, CacheCommand.self, DoctorCommand.self,
+            RefreshCommand.self, SourcesCommand.self, ConfigCommand.self, CacheCommand.self, DoctorCommand.self,
         ]
     )
 

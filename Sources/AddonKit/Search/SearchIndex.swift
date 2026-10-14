@@ -157,7 +157,7 @@ public struct SearchIndex: Sendable {
     public let entries: [CatalogueEntry]
     private let documents: [SearchDocument]
     private let positions: [String: Int]
-    /// Lower-cased `owner/repo` per entry, the final tie-break, computed once.
+    /// Lower-cased `fullName` per entry, the final tie-break, computed once.
     private let sortKeys: [String]
     /// Entries with a date, newest first, computed once for Browse.
     private let recentOrder: [Int]
@@ -174,6 +174,9 @@ public struct SearchIndex: Sendable {
         }
         self.positions = positions
         self.documents = entries.map { entry in
+            guard entry.source == .github else {
+                return SearchDocument(name: entry.name, otherFields: [entry.author, entry.description])
+            }
             let parts = entry.fullName.split(separator: "/", maxSplits: 1)
             return SearchDocument(
                 name: entry.name,
@@ -216,11 +219,11 @@ public struct SearchIndex: Sendable {
     }
 
     public func entry(for ref: AddonRef) -> CatalogueEntry? {
-        guard ref.source == .github, let i = positions[ref.identifier.lowercased()] else { return nil }
+        guard let i = positions[ref.key.lowercased()] else { return nil }
         return entries[i]
     }
 }
 
 extension CatalogueEntry {
-    var owner: String { String(fullName.split(separator: "/").first ?? "") }
+    var owner: String { source == .github ? String(fullName.split(separator: "/").first ?? "") : author ?? "" }
 }

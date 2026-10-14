@@ -134,7 +134,11 @@ final class Spinner: Sendable {
                 try? await Task.sleep(for: .milliseconds(80))
             }
         }
-        task.withLock { $0 = newTask }
+        // A new message replaces the running one rather than drawing over it.
+        task.withLock { running in
+            running?.cancel()
+            running = newTask
+        }
     }
 
     func stop() {

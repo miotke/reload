@@ -24,8 +24,9 @@ flowchart LR
 | ⌘R, toolbar, menu bar extra | The same refresh, forced: installed add-ons re-checked with `.forceRevalidate`, catalogue revalidated; never re-seeds |
 | Opening an add-on's details | 2–4 quota-free requests for that repo, only if stale; no API calls, no zips. Release notes are one API call, on demand ([details](../features/details-and-screenshots.md#release-notes)) |
 | Install, update, adopt | That add-on's latest tag, `release.json` and zip (quota-free on the stable channel); the API release list otherwise |
+| Refresh with WoWInterface or Tukui on | Their listings when older than 24 h, or on ⌘R: one request each (WoWInterface ~5.6 MB). A hosted add-on's latest file at most hourly; a new version's zip once ([sources.md](../features/sources.md)) |
 | Rollback | Nothing: it reinstalls from the download cache and pins, no re-check |
-| Search, browse, sort, categories | Nothing, except the automatic [GitHub fallback](../features/search.md#github-fallback) |
+| Search, browse, sort, categories | Nothing, except the automatic [GitHub fallback](../features/search.md#github-fallback). A hosted listing never downloaded is left to the refresh ([sources.md](../features/sources.md#freshness)) |
 | Browse rows on screen, ~1 s after scrolling stops | [Visible-row checks](../features/refresh.md#visible-row-checks): for up to 20 rows without a fresh answer, `HEAD releases/latest` plus a new tag's `release.json`. Quota-free, 4 at a time; never during a refresh, on Low Data Mode or while github.com is pushing back |
 | Store-watcher reload, activation reload | Nothing |
 
@@ -44,6 +45,7 @@ Automatic refreshes can be turned off in Settings (**Check for updates automatic
 
 ## Related
 
+- [app/network-activity.md](../app/network-activity.md): watch every request live (Window ▸ Network Activity)
 - [github-endpoints.md](github-endpoints.md): every URL, headers and error mapping
 - [caching.md](caching.md): TTLs, ETags, negative caching
 - [budget.md](budget.md): requests per user action, measured

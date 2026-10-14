@@ -32,8 +32,8 @@ extension AddonManager {
         guard !refs.isEmpty else { return [:] }
         let stored = await supportCache.allAvailableFlavors()
         var out: [AddonRef: Set<Flavor>] = [:]
-        for ref in refs where ref.source == .github {
-            if let flavors = stored[ref.identifier.lowercased()] { out[ref] = flavors }
+        for ref in refs {
+            if let flavors = stored[ref.key.lowercased()] { out[ref] = flavors }
         }
         return out
     }

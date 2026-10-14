@@ -136,7 +136,7 @@ struct InfoCommand: ContextCommand {
     }
 
     static func webURL(_ ref: AddonRef) -> URL? {
-        ref.source == .github ? URL(string: "https://github.com/\(ref.identifier)") : nil
+        ref.webURL
     }
 
     /// The stable channel's state from stored details: an unchanged version is up to date,

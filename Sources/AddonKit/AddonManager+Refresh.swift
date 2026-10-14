@@ -40,18 +40,25 @@ extension AddonManager {
 
     private func performRefresh(_ installation: Installation, force: Bool, continuation: AsyncStream<RefreshProgress>.Continuation) async {
         let last = await lastRefresh(in: installation)
+        let reporter = ProgressReporter(continuation: continuation, interval: Self.progressInterval)
         if !force, let last, now().timeIntervalSince(last) < Self.refreshInterval {
+            // Too soon for a refresh, but a source just turned on (or never downloaded) still
+            // gets its listing, with progress, so search has its add-ons.
+            let missing = await missingListings()
+            if !missing.isEmpty {
+                await downloadListings(missing, force: false, githubFirst: false, reporter: reporter)
+            }
             let updates = await storedUpdates(in: installation)
             continuation.yield(RefreshProgress(phase: .finished, completed: 1, total: 1, message: "Up to date", updates: updates))
             return
         }
         let firstRefresh = last == nil
-        let reporter = ProgressReporter(continuation: continuation, interval: Self.progressInterval)
 
-        // 1. Catalogue: revalidated when older than 24 h, or now when forced.
-        reporter.send(RefreshProgress(phase: .catalogue, completed: 0, total: 1, message: "Downloading the add-on catalogue…"), force: true)
-        let diff = (try? await catalogue.refresh(force: force)) ?? CatalogueDiff()
-        reporter.send(RefreshProgress(phase: .catalogue, completed: 1, total: 1, message: "Catalogue ready"), force: true)
+        // 1. Catalogues: revalidated when older than 24 h, or now when forced. Sources that
+        // are off download nothing (docs/features/sources.md).
+        let enabled = await database.enabledSources()
+        let diff = await downloadListings(
+            await enabledHostedSources(), force: force, githubFirst: enabled.contains(.github), reporter: reporter)
         guard !Task.isCancelled else { return }
 
         // 2. Installed add-ons.
@@ -68,7 +75,10 @@ extension AddonManager {
         guard !Task.isCancelled else { return }
 
         // 3. Support verdicts.
-        let targets = await supportTargets(installation: installation, installed: installed.map(\.id), diff: diff, seed: firstRefresh)
+        // With GitHub off, only installed GitHub add-ons are checked.
+        let targets = enabled.contains(.github)
+            ? await supportTargets(installation: installation, installed: installed.map(\.id), diff: diff, seed: firstRefresh)
+            : installed.map(\.id).filter { $0.source == .github }
         reporter.send(RefreshProgress(phase: .support, completed: 0, total: targets.count, message: "Checking \(installation.flavor.displayName) support…"), force: true)
         await checkSupport(targets, flavor: installation.flavor, reporter: reporter)
         guard !Task.isCancelled else { return }
@@ -83,6 +93,28 @@ extension AddonManager {
         continuation.yield(RefreshProgress(phase: .finished, completed: targets.count, total: targets.count, message: "Done", updates: updates))
     }
 
+    /// The catalogue phase: the GitHub catalogue (when `githubFirst`), then each hosted
+    /// listing in `hosted`, one progress step each.
+    @discardableResult
+    private func downloadListings(_ hosted: [SourceID], force: Bool, githubFirst: Bool, reporter: ProgressReporter) async -> CatalogueDiff {
+        let total = hosted.count + (githubFirst ? 1 : 0)
+        var done = 0
+        var diff = CatalogueDiff()
+        if githubFirst {
+            reporter.send(RefreshProgress(phase: .catalogue, completed: 0, total: total, message: "Downloading the add-on catalogue…"), force: true)
+            diff = (try? await catalogue.refresh(force: force)) ?? CatalogueDiff()
+            done += 1
+        }
+        await refreshHostedListings(hosted, force: force) { source in
+            reporter.send(RefreshProgress(
+                phase: .catalogue, completed: done, total: total,
+                message: "Downloading the \(source.displayName) add-on list…"), force: true)
+            done += 1
+        }
+        reporter.send(RefreshProgress(phase: .catalogue, completed: total, total: total, message: "Catalogue ready"), force: true)
+        return diff
+    }
+
     /// Repos to check, most useful first:
     /// - installed add-ons (`check` skips those with fresh answers);
     /// - on the first refresh, the `seedCount` most recently updated catalogue repos with a
@@ -95,7 +127,8 @@ extension AddonManager {
         let flavor = installation.flavor.rawValue
         var names: [String] = []
         // Installed add-ons are always targets; `check` decides whether that needs a request.
-        names += installed.map(\.identifier)
+        // Hosted add-ons have no verdicts to check: their updates come from `checkForUpdates`.
+        names += installed.filter { $0.source == .github }.map(\.identifier)
         if seed {
             let seededBefore = (try? await database.query(
                 "SELECT count(*) FROM refresh_state WHERE installation_id != ? AND last_refresh_at IS NOT NULL", installation.id

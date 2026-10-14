@@ -115,7 +115,9 @@ struct AddonDetailView: View {
         let flavor = state.installation.flavor
         return VStack(alignment: .leading, spacing: 6) {
             Text(name).font((style == .window ? Font.largeTitle : .title2).weight(.semibold)).textSelection(.enabled)
-            if let owner { Text("by \(owner)").foregroundStyle(.secondary).font(.callout) }
+            if let byline = AddonByline.text(owner: owner ?? "", source: ref.source) {
+                Text(byline).foregroundStyle(.secondary).font(.callout)
+            }
             HStack(spacing: 8) {
                 GameBubbles(model: GameBubblesModel(availableFlavors: availableFlavors, flavor: flavor, support: support))
                 Text(GameAvailability.sentence(availableFlavors: availableFlavors, for: flavor))

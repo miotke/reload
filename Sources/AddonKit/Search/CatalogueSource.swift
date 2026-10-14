@@ -41,7 +41,7 @@ public actor CatalogueSource {
         didSet { if cached == nil { generation += 1 } }
     }
     private var generation = 0
-    private var index: (generation: Int, value: SearchIndex)?
+    private var index: (generation: Int, sources: Set<SourceID>, value: SearchIndex)?
     private var inFlight: Task<CatalogueDiff, any Error>?
 
     public init(
@@ -97,15 +97,21 @@ public actor CatalogueSource {
         return entries
     }
 
-    /// A search index over `entries()`, rebuilt only when the rows change.
+    /// A search index over `entries()` from the sources turned on in Settings, rebuilt only
+    /// when the rows or the sources change.
     public func searchIndex() async throws -> SearchIndex {
         let entries = try await entries()
-        return index(for: entries)
+        return index(for: entries, sources: await database.enabledSources())
     }
 
     /// A search index over what's stored, without touching the network.
     public func localSearchIndex() async throws -> SearchIndex {
-        index(for: try await localEntries())
+        index(for: try await localEntries(), sources: await database.enabledSources())
+    }
+
+    /// Forgets the rows read so far, after a hosted listing was imported.
+    func invalidate() {
+        cached = nil
     }
 
     /// Lookups by CurseForge, Wago and WoWInterface ID and by name over what's stored, for
@@ -113,24 +119,24 @@ public actor CatalogueSource {
     public func adoptionIndex() async -> AdoptionIndex {
         let entries = (try? await localEntries()) ?? []
         if let adoption, adoption.generation == generation { return adoption.value }
-        let built = AdoptionIndex(entries: entries)
+        // Suggestions are GitHub repos only; hosted rows would match by name too loosely.
+        let built = AdoptionIndex(entries: entries.filter { $0.source == .github })
         adoption = (generation, built)
         return built
     }
 
     private var adoption: (generation: Int, value: AdoptionIndex)?
 
-    private func index(for entries: [CatalogueEntry]) -> SearchIndex {
-        if let index, index.generation == generation { return index.value }
-        let built = SearchIndex(entries: entries)
-        index = (generation, built)
+    private func index(for entries: [CatalogueEntry], sources: Set<SourceID>) -> SearchIndex {
+        if let index, index.generation == generation, index.sources == sources { return index.value }
+        let built = SearchIndex(entries: entries.filter { sources.contains($0.source) })
+        index = (generation, sources, built)
         return built
     }
 
     /// The stored row for `ref`, without touching the network.
     public func entry(for ref: AddonRef) async -> CatalogueEntry? {
-        guard ref.source == .github else { return nil }
-        return try? await database.catalogueEntry(fullName: ref.identifier)
+        try? await database.catalogueEntry(fullName: ref.key)
     }
 
     /// When the stored copy was last confirmed with the server, if ever.
@@ -224,6 +230,8 @@ extension MetadataDatabase {
     static let catalogueColumns = """
         full_name, id, name, description, url, last_updated, flavors, curse_id, wago_id, wowi_id, has_release_json, source
         """
+    /// `catalogueColumns` plus the columns only hosted rows fill.
+    static let catalogueReadColumns = catalogueColumns + ", author, screenshots_json"
 
     func catalogueState() throws -> CatalogueState {
         guard let row = try query("SELECT etag, fetched_at, failed_at FROM catalogue_state WHERE id = 1").first else {
@@ -240,22 +248,27 @@ extension MetadataDatabase {
     }
 
     func catalogueEntries() throws -> [CatalogueEntry] {
-        try query("SELECT \(Self.catalogueColumns) FROM catalogue ORDER BY full_name").compactMap(Self.entry)
+        try query("SELECT \(Self.catalogueReadColumns) FROM catalogue ORDER BY full_name").compactMap(Self.entry)
     }
 
     func catalogueEntry(fullName: String) throws -> CatalogueEntry? {
-        try query("SELECT \(Self.catalogueColumns) FROM catalogue WHERE full_name = ?", fullName).first.flatMap(Self.entry)
+        try query("SELECT \(Self.catalogueReadColumns) FROM catalogue WHERE full_name = ?", fullName).first.flatMap(Self.entry)
     }
 
     static func entry(_ row: SQLRow) -> CatalogueEntry? {
         guard let fullName = row.string(0), let id = row.string(1), let name = row.string(2),
               let url = row.string(4).flatMap(URL.init(string:)) else { return nil }
+        // `source` is `catalogue` or `github_search` for GitHub rows, else the host.
+        let source = row.string(11).flatMap(SourceID.init(rawValue:)) ?? .github
+        let screenshots = (row.string(13).flatMap { try? JSONDecoder().decode([String].self, from: Data($0.utf8)) } ?? [])
+            .compactMap(URL.init(string:))
         return CatalogueEntry(
             id: id, name: name, fullName: fullName, url: url, description: row.string(3),
             lastUpdated: row.date(5),
             flavors: (row.string(6) ?? "").split(separator: ",").map(String.init),
             curseID: row.int(7), wagoID: row.string(8), wowiID: row.int(9),
-            hasReleaseJSON: row.bool(10), fromLiveSearch: row.string(11) == "github_search"
+            hasReleaseJSON: row.bool(10), fromLiveSearch: row.string(11) == "github_search",
+            source: source, author: row.string(12), screenshots: screenshots
         )
     }
 

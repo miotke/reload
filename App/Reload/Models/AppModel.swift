@@ -16,6 +16,8 @@ final class AppModel {
     let manager: any AddonManaging
     /// Installing the bundled `reload` (first-launch offer and Settings).
     let commandLineTool: CommandLineToolModel
+    /// Window ▸ Network Activity, following the core from launch.
+    let activity = NetworkActivityModel()
 
     private(set) var installations: [Installation] = []
     var selectedInstallationID: Installation.ID? {
@@ -59,6 +61,39 @@ final class AppModel {
             case .managed(let addon): await state.queue.uninstall(addon.id)
             case .unmanaged(let folder): await state.queue.removeUnmanaged(folder.folders, id: request.id)
             }
+        }
+    }
+
+    /// Every add-on source and whether search and Browse use it (Settings ▸ Sources).
+    private(set) var sources: [SourceSetting] = []
+
+    /// The sources that are on; Browse re-runs a search when it changes.
+    var enabledSources: Set<SourceID> {
+        Set(sources.filter(\.isEnabled).map(\.source))
+    }
+
+    func loadSources() async {
+        let loaded = await manager.sources()
+        if loaded != sources { sources = loaded }
+    }
+
+    /// Turns a source on or off. Browse's home lists reload through the `.catalogue` change
+    /// this reports; a search re-runs because `enabledSources` changed. Turning one on starts
+    /// a background refresh, which downloads its listing if it has none, with progress in
+    /// the sidebar; search never waits for it.
+    func setSource(_ source: SourceID, enabled: Bool) {
+        Task {
+            do {
+                try await manager.setSource(source, enabled: enabled)
+            } catch {
+                showError("Couldn't change \(source.displayName): \(error.localizedDescription)")
+            }
+            await loadSources()
+            guard enabled, let queue = current?.queue else { return }
+            // A refresh already running may be past its catalogue phase; the next one, inside
+            // the 2-hour window, only fetches missing listings.
+            await queue.startRefresh(force: false).value
+            if await !manager.missingListings().isEmpty { queue.startRefresh(force: false) }
         }
     }
 
@@ -129,7 +164,9 @@ final class AppModel {
     func initialLoad() async {
         guard !didInitialLoad else { return }
         didInitialLoad = true
+        activity.start(manager)
         lastDataVersion = await dataVersion()
+        await loadSources()
         await loadInstallations()
         watchStore()
         scheduleAutoRefresh()
@@ -262,6 +299,8 @@ final class AppModel {
         let previous = lastDataVersion
         lastDataVersion = version
         guard let previous, previous != version else { return }
+        // `reload sources` may have changed them.
+        await loadSources()
         for model in models.values { await model.browse.reloadMetadata() }
     }
 

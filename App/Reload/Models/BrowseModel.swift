@@ -45,6 +45,14 @@ final class BrowseModel {
     /// How long scrolling must pause before the rows on screen are checked.
     static let visibleCheckDelay: Duration = .seconds(1)
 
+    /// Bumped when many catalogue rows changed at once (a listing arrived, a source was
+    /// turned on or off), so Browse re-runs the current search.
+    private(set) var catalogueVersion = 0
+
+    func catalogueDidChange() {
+        catalogueVersion += 1
+    }
+
     /// Patches rows from the app's own metadata writes. Set once in `init`.
     @ObservationIgnored private var live: LiveMetadata?
 
@@ -177,7 +185,7 @@ final class BrowseModel {
     /// Re-reads Browse after another process (`reload`) changed the metadata database.
     func reloadMetadata() async {
         if content != nil { await loadBrowse() }
-        await live?.patchSupport(for: Set(searchResults.map { $0.id.identifier.lowercased() }))
+        await live?.patchSupport(for: Set(searchResults.map { $0.id.key.lowercased() }))
     }
 
     // MARK: Visible rows

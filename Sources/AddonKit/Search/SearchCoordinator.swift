@@ -79,6 +79,8 @@ public actor SearchCoordinator {
             return
         }
         var session = Session(flavor: query.flavor, hideIncompatible: query.hideIncompatible)
+        // Sources that are off add no results; installed add-ons from them still show.
+        let enabled = await supportCache.database.enabledSources()
         let statuses = await keyed(supportCache.statuses(flavor: query.flavor))
         let flavors = await supportCache.allAvailableFlavors()
         let stars = await supportCache.stars()
@@ -90,10 +92,10 @@ public actor SearchCoordinator {
         }
 
         // 1. Direct reference.
-        let direct = Self.directReference(text)
+        let direct = (Self.directReference(text) ?? HostedSources.parse(text)).flatMap { enabled.contains($0.source) ? $0 : nil }
         if let direct {
             session.merge(SearchResult(
-                id: direct, name: String(direct.identifier.split(separator: "/").last ?? ""),
+                id: direct, name: Self.shortName(of: direct),
                 owner: InstalledSearchProvider.owner(of: direct), origin: [.direct]
             ))
         }
@@ -104,7 +106,7 @@ public actor SearchCoordinator {
         }
 
         // 3. Catalogue, from the database. Only a never-downloaded catalogue is fetched here.
-        let index = await localIndex()
+        let index = await localIndex(githubEnabled: enabled.contains(.github))
         let matches = index?.search(text, limit: Self.catalogueLimit) { statuses[Session.key($0)] } ?? []
         for entry in matches {
             session.merge(Self.result(for: entry, origin: entry.fromLiveSearch ? .github : .catalogue, stars: stars))
@@ -120,7 +122,7 @@ public actor SearchCoordinator {
         // 4. GitHub live search, when asked or when the database can't answer.
         let explicit = query.includeLiveGitHub
         let automatic = direct == nil && session.count < Self.liveSearchThreshold && text.count >= Self.minimumLiveQueryLength
-        guard let github, explicit || automatic else {
+        guard let github, enabled.contains(.github), explicit || automatic else {
             continuation.yield(SearchUpdate(results: session.visible, isComplete: true))
             return
         }
@@ -149,11 +151,17 @@ public actor SearchCoordinator {
         Dictionary(statuses.map { (Session.key($0.key), $0.value) }, uniquingKeysWith: { first, _ in first })
     }
 
-    /// The stored catalogue's index. Downloads the catalogue only if it has never been fetched.
-    private func localIndex() async -> SearchIndex? {
+    /// The stored catalogue's index over the sources that are on. Downloads the GitHub
+    /// catalogue only if it has never been fetched and GitHub is on.
+    private func localIndex(githubEnabled: Bool) async -> SearchIndex? {
         if let index = try? await catalogue.localSearchIndex(), index.count > 0 { return index }
-        guard await catalogue.lastFetched() == nil else { return nil }
+        guard githubEnabled, await catalogue.lastFetched() == nil else { return nil }
         return try? await catalogue.searchIndex()
+    }
+
+    /// `owner/repo` → `repo`; a hosted ref's identifier as is.
+    static func shortName(of ref: AddonRef) -> String {
+        String(ref.identifier.split(separator: "/").last ?? "")
     }
 
     private static func liveCacheKey(_ text: String, explicit: Bool) -> String {
@@ -211,8 +219,10 @@ public actor SearchCoordinator {
             stars: stars[entry.fullName.lowercased()], lastUpdated: entry.lastUpdated, origin: [origin]
         )
         // The catalogue knows which repos ship a release.json; without one, confirming
-        // support needs a zip download, so there's nothing cheaper to check.
+        // support needs a zip download, so there's nothing cheaper to check. Hosted add-ons
+        // never have one, and show the games their listing claims until a zip says more.
         if !entry.fromLiveSearch, !entry.hasReleaseJSON { result.support = .needsDownload }
+        result.availableFlavors = entry.listedFlavors
         return result
     }
 
@@ -225,23 +235,25 @@ public actor SearchCoordinator {
         let stars = await supportCache.stars()
         let flavors = await supportCache.allAvailableFlavors()
         let released = await supportCache.latestPublishedDates()
-        let index = await localIndex()
+        let enabled = await supportCache.database.enabledSources()
+        let index = await localIndex(githubEnabled: enabled.contains(.github))
 
+        // Verdicts are GitHub's only, so Popular is empty with GitHub off.
         var popular: [SearchResult] = []
-        for (ref, status) in statuses {
+        for (ref, status) in statuses where enabled.contains(ref.source) {
             guard case .supported = status else { continue }
             var result: SearchResult
             if let entry = index?.entry(for: ref) {
                 result = Self.result(for: entry, origin: .catalogue, stars: stars)
             } else {
                 result = SearchResult(
-                    id: ref, name: String(ref.identifier.split(separator: "/").last ?? ""),
-                    owner: InstalledSearchProvider.owner(of: ref), stars: stars[ref.identifier.lowercased()], origin: []
+                    id: ref, name: Self.shortName(of: ref),
+                    owner: InstalledSearchProvider.owner(of: ref), stars: stars[ref.key.lowercased()], origin: []
                 )
             }
             result.support = status
-            result.availableFlavors = flavors[ref.identifier.lowercased()]
-            result.lastUpdated = released[ref.identifier.lowercased()] ?? result.lastUpdated
+            result.availableFlavors = flavors[ref.key.lowercased()]
+            result.lastUpdated = released[ref.key.lowercased()] ?? result.lastUpdated
             popular.append(result)
         }
         popular.sort { a, b in
@@ -256,7 +268,7 @@ public actor SearchCoordinator {
         for entry in index?.recentlyUpdated(limit: Self.browseLimit * 2) ?? [] {
             var result = Self.result(for: entry, origin: .catalogue, stars: stars)
             if let status = keyedStatuses[Session.key(entry.ref)] { result.support = status }
-            result.availableFlavors = flavors[entry.fullName.lowercased()]
+            result.availableFlavors = flavors[entry.fullName.lowercased()] ?? result.availableFlavors
             result.lastUpdated = released[entry.fullName.lowercased()] ?? result.lastUpdated
             if flavor.hidesAsIncompatible(families: result.families, support: result.support) { continue }
             recent.append(result)
@@ -360,12 +372,12 @@ private struct Session {
 
     /// Stored verdicts win over the catalogue's release.json hint, and the stored latest
     /// release date over the catalogue's. `flavors` and `released` are keyed by lower-cased
-    /// `owner/repo`.
+    /// `AddonRef.key`.
     mutating func apply(_ statuses: [String: SupportStatus], flavors: [String: Set<Flavor>], released: [String: Date] = [:]) {
         for i in results.indices {
             if let status = statuses[Self.key(results[i].id)] { results[i].support = status }
-            if let available = flavors[results[i].id.identifier.lowercased()] { results[i].availableFlavors = available }
-            if let date = released[results[i].id.identifier.lowercased()] { results[i].lastUpdated = date }
+            if let available = flavors[results[i].id.key.lowercased()] { results[i].availableFlavors = available }
+            if let date = released[results[i].id.key.lowercased()] { results[i].lastUpdated = date }
         }
     }
 

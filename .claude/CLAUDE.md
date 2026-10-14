@@ -82,7 +82,8 @@ Read `docs/performance/` before changing hot paths or UI lists.
 
 ## Git & agents
 
-- **Work lands on the open release branch, `release/vX.Y.Z`, not `main`.** Commit small and often there, and push after changes are verified. `main` only takes release merges ([docs/app/releases.md](../docs/app/releases.md)); `/release start` opens the next branch if none is open.
+- **Work lands on the open release branch, `release/vX.Y.Z`, not `main`.** Commit small and often there, and push after changes are verified. `main` only takes release merges ([docs/app/releases.md](../docs/app/releases.md)).
+- **If no release branch exists, create one for the next release** (`/release start`) before starting work.
 - After a change a player would notice, update the release PR's notes (`/release notes`).
 - Commit subjects: imperative, lowercase, under about 60 characters.
 - **Split work into core and UI tasks.** A feature that needs new behaviour is two tasks:

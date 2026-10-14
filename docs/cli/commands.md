@@ -29,6 +29,7 @@ Every `reload` command, how `<ref>` arguments are resolved, and how the installa
 | `export [-o file]` | | Writes [`addons.json`](config.md#addonsjson) to stdout or a file |
 | `import <file\|->` | | Installs every entry not already installed; for installed ones it only syncs channel and pin. `--force` |
 | `config get\|set\|unset <key>` | | [Config keys](config.md#config-keys) |
+| `sources [list]`, `sources enable\|disable <source>` | | Which [sources](../features/sources.md) (`github`, `wowinterface`, `tukui`) search and browse use; installed add-ons keep updating either way. Shared with the app |
 | `refresh [--force]` | | Refresh the catalogue, update checks and support verdicts, like the app's 2-hour refresh ([maintenance.md](maintenance.md#refresh)) |
 | `cache info\|clear` | | Sizes of caches and the metadata database; `clear` empties Caches, `clear --metadata` also empties the database ([maintenance.md](maintenance.md#cache)) |
 | `doctor` | | Installations, `AddOns` folders, store integrity, the metadata database, refresh state, GitHub quota, token source, whether WoW is running. Exit 1 if any check fails ([maintenance.md](maintenance.md#doctor)) |
@@ -62,6 +63,7 @@ Accepted forms:
 - `owner/repo`
 - `https://github.com/owner/repo` (also `/releases…`, `.git`)
 - `github:owner/repo`
+- `wowinterface:3826` or a `wowinterface.com/downloads/…` URL, `tukui:elvui` or `tukui.org/elvui` ([sources.md](../features/sources.md))
 - a name
 
 Names go through `AddonManager.lookup`: installed add-ons first (name, repo name or folder, case-insensitive), then an exact catalogue name.

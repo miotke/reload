@@ -26,6 +26,8 @@ From the network audits. Unauthenticated, 20 installed add-ons. Each cell is **c
 | Offline, 5 searches | 5 failed fetches | 1 (15 min backoff) |
 | 2nd installation's first refresh | n/a | 0/0/343 |
 
+Since 0.1.4, a forced refresh with WoWInterface and Tukui on adds their two listings: ⌘R is 0/0/23 in `NetworkBudgetTests`. Refreshes within 24 h add nothing ([sources.md](../features/sources.md)).
+
 The catalogue is one 186 KB download (609 KB uncompressed, 2,421 rows), cached 24 h with an ETag.
 
 At the baseline, one launch, one search and one category click added up to 56 of the 60 calls allowed per hour.
