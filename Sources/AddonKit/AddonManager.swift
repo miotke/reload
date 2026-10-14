@@ -6,6 +6,8 @@ public actor AddonManager: AddonManaging {
     public nonisolated let store: InstallStore
 
     let http: any HTTPClient
+    /// Every request and download, for the Network Activity window (docs/app/network-activity.md).
+    public nonisolated let activity: NetworkActivityLog
     let locator: InstallationLocator
     let installer: Installer
     let downloader: Downloader
@@ -41,6 +43,11 @@ public actor AddonManager: AddonManaging {
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) {
         self.directories = directories
+        // Every request goes through these two, so recording here sees all of them.
+        let activity = NetworkActivityLog()
+        self.activity = activity
+        let http: any HTTPClient = RecordingHTTPClient(base: http, log: activity)
+        let downloadTransport: any DownloadTransport = RecordingDownloadTransport(base: downloadTransport, log: activity)
         self.http = http
         self.locator = locator
         self.installer = installer

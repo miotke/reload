@@ -55,7 +55,7 @@ Sources/AddonKit/
 ├── Store/                   InstallStore, AppDirectories, MetadataDatabase
 ├── Search/                  catalogue, index, providers, SupportCache, SearchCoordinator
 ├── Details/                 ReadmeImages (screenshot URLs from a README)
-└── Support/                 KeychainStore
+└── Support/                 KeychainStore, NetworkActivity (the request log)
 Sources/reload/            the CLI (docs/cli/)
 ```
 
@@ -112,7 +112,7 @@ Sources/reload/            the CLI (docs/cli/)
 | Installed-add-on search layer | `Sources/AddonKit/Search/InstalledSearchProvider.swift` |
 | Live GitHub search and its rate limit | `Sources/AddonKit/Search/GitHubSearchProvider.swift` |
 | Screenshot URLs from a README | `Sources/AddonKit/Details/ReadmeImages.swift` |
-| GitHub token in the Keychain | `Sources/AddonKit/Support/KeychainStore.swift` |
+| GitHub token in the Keychain; the network activity log and its recording wrappers | `Sources/AddonKit/Support/KeychainStore.swift`, `Sources/AddonKit/Support/NetworkActivity.swift` |
 | CLI entry point and command list | `Sources/reload/ReloadCLI.swift` |
 | CLI commands, one file per group | `Sources/reload/Commands/` |
 | CLI options, context, installation choice | `Sources/reload/Context.swift`, `Sources/reload/Selection.swift` |
@@ -133,7 +133,7 @@ Sources/reload/            the CLI (docs/cli/)
 | Unmanaged folders | `adoptionCandidates(folder:in:)` (local), `adoptionPreview(for:folders:in:)`, `adopt(_:in:)`, `adopt(folder:as:in:)`, `removeUnmanaged(folders:from:)` ([installing.md](../features/installing.md#adopting-unmanaged-folders)) |
 | Updates and changes | `checkForUpdates(in:)`, `update(_:in:)` and `update(releases:in:)` → `AsyncStream<OperationEvent>`; `uninstall`, `rollback`, `setPinned`, `setChannel` |
 | Metadata | `refresh(in:force:)` → `AsyncStream<RefreshProgress>`, `lastRefresh(in:)` ([refresh.md](../features/refresh.md)), `checkVisible(_:in:)` ([visible rows](../features/refresh.md#visible-row-checks)), `details(for:in:)` ([details](../features/details-and-screenshots.md)), `availableFlavors(for:)` (stored, local) |
-| Misc | `sources()`, `setSource(_:enabled:)` ([sources.md](../features/sources.md)), `tokenDidChange()`, `gitHubStatus()` ([quota status](../network/budget.md#quota-status)), `rateLimit()`, `clearCaches()`, `database.changes()` ([change stream](data-storage.md#change-stream)) |
+| Misc | `sources()`, `setSource(_:enabled:)`, `missingListings()` ([sources.md](../features/sources.md)), `networkActivity()` ([network-activity.md](../app/network-activity.md)), `tokenDidChange()`, `gitHubStatus()` ([quota status](../network/budget.md#quota-status)), `rateLimit()`, `clearCaches()`, `database.changes()` ([change stream](data-storage.md#change-stream)) |
 
 ### Behaviour worth knowing
 

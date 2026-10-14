@@ -84,6 +84,7 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | Settings ▸ Appearance: appearance cards, app icon grid | `App/Reload/Views/AppearanceSettings.swift` |
 | Settings ▸ GitHub: token field, token source, rate-limit rows | `App/Reload/Views/GitHubSettings.swift` |
 | Settings ▸ Sources: one switch per add-on source | `App/Reload/Views/SourcesSettings.swift` |
+| Window ▸ Network Activity: rows, batching, filter; the table and toolbar | `App/Reload/Models/NetworkActivityModel.swift`, `App/Reload/Views/NetworkActivityView.swift` |
 | GitHub rate-limit status: reload loop and display formatting | `App/Reload/Models/GitHubStatusModel.swift` |
 | CLI offer sheet, Settings ▸ Command Line tab and section | `App/Reload/Views/CommandLineToolViews.swift` |
 | Shared views: game bubbles and legend, activity, errors, refresh bar, banner | `App/Reload/Views/Components.swift` |

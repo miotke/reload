@@ -74,6 +74,7 @@ flowchart LR
 | [first-launch.md](app/first-launch.md) | you're touching the seeding sheet, refresh progress or the 2-hour auto refresh |
 | [live-data.md](app/live-data.md) | you're changing how the app follows database changes, CLI writes or the install store |
 | [settings.md](app/settings.md) | you're changing the Settings window, a setting's key, or the app icon picker |
+| [network-activity.md](app/network-activity.md) | you're working on Window ▸ Network Activity, or how the core records requests and downloads |
 | [cli-install.md](app/cli-install.md) | you're changing how the app installs `reload` into `/usr/local/bin` |
 
 ## cli/

@@ -68,6 +68,13 @@ struct ReloadApp: App {
         }
         .defaultSize(width: 900, height: 800)
 
+        // A single-instance window: SwiftUI lists it in the Window menu.
+        Window("Network Activity", id: NetworkActivityView.windowID) {
+            NetworkActivityView(activity: model.activity)
+        }
+        .defaultSize(width: 980, height: 520)
+        .keyboardShortcut("a", modifiers: [.command, .option])
+
         Settings {
             SettingsView()
                 .environment(model)

@@ -26,6 +26,10 @@ extension AddonManager {
         return kinds
     }
 
+    public nonisolated func networkActivity() -> AsyncStream<NetworkEvent> {
+        activity.events()
+    }
+
     public func metadataVersion() async -> Int64? {
         try? await database.dataVersion()
     }

@@ -16,6 +16,8 @@ final class AppModel {
     let manager: any AddonManaging
     /// Installing the bundled `reload` (first-launch offer and Settings).
     let commandLineTool: CommandLineToolModel
+    /// Window ▸ Network Activity, following the core from launch.
+    let activity = NetworkActivityModel()
 
     private(set) var installations: [Installation] = []
     var selectedInstallationID: Installation.ID? {
@@ -162,6 +164,7 @@ final class AppModel {
     func initialLoad() async {
         guard !didInitialLoad else { return }
         didInitialLoad = true
+        activity.start(manager)
         lastDataVersion = await dataVersion()
         await loadSources()
         await loadInstallations()

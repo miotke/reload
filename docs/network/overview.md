@@ -45,6 +45,7 @@ Automatic refreshes can be turned off in Settings (**Check for updates automatic
 
 ## Related
 
+- [app/network-activity.md](../app/network-activity.md): watch every request live (Window ▸ Network Activity)
 - [github-endpoints.md](github-endpoints.md): every URL, headers and error mapping
 - [caching.md](caching.md): TTLs, ETags, negative caching
 - [budget.md](budget.md): requests per user action, measured
