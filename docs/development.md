@@ -51,7 +51,7 @@ Run the app and the tests before saying something works. Report failures plainly
 | only `docs/`, `README.md`, `.claude/CLAUDE.md`, `scripts/check-docs.swift` | yes | no |
 | anything else | no | no |
 
-The docs check runs with code changes because it checks code too (the "Where things live" tables, doc paths in comments). A manual run, or a push it can't diff, runs everything. CI sets `RELOAD_PERF_SLACK=3`, which triples the performance tests' timing budgets (`budget(_:)`): shared runners are slower, and the budgets catch O(n²) work, not a slow machine. A newer push to the same branch cancels a run still going. The release workflow runs `swift test` again on the merge commit ([app/releases.md](app/releases.md)).
+The docs check runs with code changes because it checks code too (the "Where things live" tables, doc paths in comments). A manual run, or a push it can't diff, runs everything. CI sets `RELOAD_PERF_SLACK=3`, which triples the performance tests' timing budgets (`budget(_:)`): shared runners are slower, and the budgets catch O(n²) work, not a slow machine. A newer push to the same branch cancels a run still going. The release workflow runs all of them again on the merge commit and stops before building if any fail ([app/releases.md](app/releases.md)).
 
 The **require tests** ruleset makes the `test` job a required check for merging into `main`, with no bypass: a release PR can't merge until its branch's latest run passes. When nothing needed testing, `test` is skipped, which GitHub counts as passed. Don't move the filter into `on: push: paths:`: a workflow that doesn't run never reports, and the check would block the merge.
 

@@ -32,6 +32,10 @@ jobs:
     env:
       HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
       HAS_NOTARY: ${{ secrets.NOTARY_KEY_P8 != '' }}
+      # Timing budgets ×3 on shared runners, as in tests.yml; xcodebuild passes TEST_RUNNER_*
+      # on without the prefix.
+      RELOAD_PERF_SLACK: "3"
+      TEST_RUNNER_RELOAD_PERF_SLACK: "3"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,8 +67,20 @@ jobs:
           sudo xcode-select -s "$xcode"
           xcodebuild -version
 
-      - name: Test
+      # The same checks as tests.yml, on the merge commit itself. Any failure stops the job
+      # here: nothing is built, tagged or published.
+      - name: Docs check
+        run: swift scripts/check-docs.swift
+
+      - name: Core and CLI tests
         run: swift test
+
+      - name: App tests
+        run: |
+          set -o pipefail
+          xcodebuild -project App/Reload.xcodeproj -scheme Reload -configuration Debug \
+            -destination 'platform=macOS' -derivedDataPath build/DerivedData test \
+            | grep -v 'CUICatalog'
 
       - name: Import the Developer ID certificate
         if: env.HAS_CERT == 'true'
