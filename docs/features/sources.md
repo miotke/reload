@@ -40,7 +40,7 @@ Hosts don't say whether a file supports Forever. WoWInterface lists the game ver
 | A latest file | 1 h (`fileTTL`), like a GitHub verdict | `.revalidateIfStale` asks again; `.forceRevalidate` always asks; `.preferStored` uses any stored file |
 | Details | 24 h (`detailsTTL`), like a README | The latest file is asked for again |
 
-- A listing that's on but was never downloaded is fetched by the first search or Browse that needs it, like the GitHub catalogue.
+- **Search never waits for a listing.** One that's on but was never downloaded (`missingListings`, outside the 15-minute failure backoff) is fetched by the next `refresh`, even inside its 2-hour window, as a catalogue phase step ("Downloading the WoWInterface add-on list…") that the sidebar's progress shows. Turning a source on in the app starts that refresh; when the rows land, Browse re-runs the search. The CLI's `search` downloads it first, behind a spinner, since a terminal waits anyway.
 - Tukui's file lookup is the listing itself, so one request stores both add-ons' files.
 
 ## Updates

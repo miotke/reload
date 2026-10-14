@@ -76,7 +76,9 @@ final class AppModel {
     }
 
     /// Turns a source on or off. Browse's home lists reload through the `.catalogue` change
-    /// this reports; a search re-runs because `enabledSources` changed.
+    /// this reports; a search re-runs because `enabledSources` changed. Turning one on starts
+    /// a background refresh, which downloads its listing if it has none, with progress in
+    /// the sidebar; search never waits for it.
     func setSource(_ source: SourceID, enabled: Bool) {
         Task {
             do {
@@ -85,6 +87,11 @@ final class AppModel {
                 showError("Couldn't change \(source.displayName): \(error.localizedDescription)")
             }
             await loadSources()
+            guard enabled, let queue = current?.queue else { return }
+            // A refresh already running may be past its catalogue phase; the next one, inside
+            // the 2-hour window, only fetches missing listings.
+            await queue.startRefresh(force: false).value
+            if await !manager.missingListings().isEmpty { queue.startRefresh(force: false) }
         }
     }
 

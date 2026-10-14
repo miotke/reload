@@ -66,7 +66,7 @@ public actor AddonManager: AddonManaging {
             archiveURL: { downloader.archiveURL(for: $0) }
         )
         self.githubSearch = GitHubSearchProvider(http: http, database: database, tokenProvider: tokenProvider)
-        self.searchCoordinator = SearchCoordinator(catalogue: catalogue, github: githubSearch, supportCache: supportCache, hosted: hosted)
+        self.searchCoordinator = SearchCoordinator(catalogue: catalogue, github: githubSearch, supportCache: supportCache)
     }
 
     /// `RELOAD_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then the Keychain (docs/architecture/core.md).

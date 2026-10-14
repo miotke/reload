@@ -33,6 +33,7 @@ final class LiveMetadata {
         guard !change.kinds.isDisjoint(with: [.support, .catalogue]) else { return }
         if change.refs.isEmpty {
             needsBrowseReload = true
+            if change.kinds.contains(.catalogue) { browse?.catalogueDidChange() }
         } else {
             let repos = Set(change.refs.map { $0.key.lowercased() })
             changedRepos.formUnion(repos)

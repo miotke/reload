@@ -29,6 +29,7 @@ struct BrowseView: View {
         var includeLiveGitHub: Bool
         var installationID: String
         var sources: Set<SourceID>
+        var catalogueVersion: Int
     }
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -62,7 +63,8 @@ struct BrowseView: View {
         .onChange(of: options, initial: true) { browse.options = options }
         // `.task(id:)` cancels the previous search whenever the query changes; the sleep is the debounce.
         .task(id: QueryKey(text: trimmedQuery, hideIncompatible: hideIncompatible, includeLiveGitHub: includeLiveGitHub,
-                           installationID: browse.installation.id, sources: model.enabledSources)) {
+                           installationID: browse.installation.id, sources: model.enabledSources,
+                           catalogueVersion: browse.catalogueVersion)) {
             let text = trimmedQuery
             guard !text.isEmpty else {
                 browse.clearSearch()

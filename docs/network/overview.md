@@ -26,7 +26,7 @@ flowchart LR
 | Install, update, adopt | That add-on's latest tag, `release.json` and zip (quota-free on the stable channel); the API release list otherwise |
 | Refresh with WoWInterface or Tukui on | Their listings when older than 24 h, or on ⌘R: one request each (WoWInterface ~5.6 MB). A hosted add-on's latest file at most hourly; a new version's zip once ([sources.md](../features/sources.md)) |
 | Rollback | Nothing: it reinstalls from the download cache and pins, no re-check |
-| Search, browse, sort, categories | Nothing, except the automatic [GitHub fallback](../features/search.md#github-fallback) and a hosted listing that's on but never downloaded |
+| Search, browse, sort, categories | Nothing, except the automatic [GitHub fallback](../features/search.md#github-fallback). A hosted listing never downloaded is left to the refresh ([sources.md](../features/sources.md#freshness)) |
 | Browse rows on screen, ~1 s after scrolling stops | [Visible-row checks](../features/refresh.md#visible-row-checks): for up to 20 rows without a fresh answer, `HEAD releases/latest` plus a new tag's `release.json`. Quota-free, 4 at a time; never during a refresh, on Low Data Mode or while github.com is pushing back |
 | Store-watcher reload, activation reload | Nothing |
 

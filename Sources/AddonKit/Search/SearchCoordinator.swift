@@ -23,7 +23,6 @@ public actor SearchCoordinator {
     public static let emptyLiveCacheTTL: TimeInterval = 60 * 60
 
     private let catalogue: CatalogueSource
-    private let hosted: HostedCatalogue?
     private let github: GitHubSearchProvider?
     private let supportCache: SupportCache
     private let now: @Sendable () -> Date
@@ -31,10 +30,9 @@ public actor SearchCoordinator {
 
     public init(
         catalogue: CatalogueSource, github: GitHubSearchProvider?, supportCache: SupportCache,
-        hosted: HostedCatalogue? = nil, now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.catalogue = catalogue
-        self.hosted = hosted
         self.github = github
         self.supportCache = supportCache
         self.now = now
@@ -156,20 +154,9 @@ public actor SearchCoordinator {
     /// The stored catalogue's index over the sources that are on. Downloads the GitHub
     /// catalogue only if it has never been fetched and GitHub is on.
     private func localIndex(githubEnabled: Bool) async -> SearchIndex? {
-        await fetchMissingListings()
         if let index = try? await catalogue.localSearchIndex(), index.count > 0 { return index }
         guard githubEnabled, await catalogue.lastFetched() == nil else { return nil }
         return try? await catalogue.searchIndex()
-    }
-
-    /// Like the GitHub catalogue, a hosted listing that's on but was never downloaded is
-    /// fetched here, once (the failure backoff applies). The refresh keeps it current.
-    private func fetchMissingListings() async {
-        guard let hosted else { return }
-        let enabled = await supportCache.database.enabledSources()
-        for source in HostedSources.all where enabled.contains(source.id) {
-            if await hosted.lastFetched(source.id) == nil { _ = try? await hosted.refresh(source.id) }
-        }
     }
 
     /// `owner/repo` → `repo`; a hosted ref's identifier as is.

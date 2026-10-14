@@ -136,6 +136,26 @@ import Testing
         #expect(await results(h, "quest ledger").contains { $0.id == Self.ledger })
     }
 
+    @Test func searchNeverDownloadsAListingTheRefreshDoes() async throws {
+        let h = try await ManagerHarness()
+        try stub(h)
+        await refresh(h)
+        // A refresh just finished, so the next one is inside its 2-hour window. Turning
+        // Tukui off and on again with its rows gone stands in for a never-downloaded listing.
+        _ = try await h.manager.database.execute("DELETE FROM source_state WHERE source = 'tukui'")
+        #expect(await h.manager.missingListings() == [.tukui])
+        h.http.reset()
+        _ = await results(h, "elvui")
+        #expect(!h.http.urls.contains(Self.tukui))
+
+        h.http.reset()
+        var messages: [String] = []
+        for await progress in h.manager.refresh(in: h.installation, force: false) { messages.append(progress.message) }
+        #expect(h.http.urls == [Self.tukui])
+        #expect(messages.contains("Downloading the Tukui add-on list…"))
+        #expect(await h.manager.missingListings().isEmpty)
+    }
+
     @Test func installUpdateAndSourceOff() async throws {
         let h = try await ManagerHarness()
         try stub(h)

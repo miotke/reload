@@ -19,13 +19,37 @@ extension AddonManager {
 
     // MARK: - Listings
 
-    /// Downloads the listings of the hosted sources that are on, when older than 24 h (or
-    /// always with `force`). Failures are skipped: the stored rows keep working.
-    func refreshHostedListings(force: Bool) async {
+    /// Hosted sources that are on but whose listing was never downloaded (and didn't just
+    /// fail to). Search doesn't
+    /// download them (it never waits on the network for a listing); the refresh does.
+    public func missingListings() async -> [SourceID] {
         let enabled = await database.enabledSources()
+        var missing: [SourceID] = []
         for source in HostedSources.all where enabled.contains(source.id) {
-            _ = try? await hosted.refresh(source.id, force: force)
+            if await hosted.isMissing(source.id) { missing.append(source.id) }
         }
+        return missing
+    }
+
+    /// Downloads the listings `missingListings` names, calling `starting` before each. For
+    /// front ends that wait anyway (the CLI); the app leaves it to the background refresh.
+    public func downloadMissingListings(starting: (SourceID) -> Void = { _ in }) async {
+        await refreshHostedListings(await missingListings(), force: false, starting: starting)
+    }
+
+    /// Downloads the listings of `sources` when older than 24 h (or always with `force`),
+    /// calling `starting` before each. Failures are skipped: the stored rows keep working.
+    func refreshHostedListings(_ sources: [SourceID], force: Bool, starting: (SourceID) -> Void = { _ in }) async {
+        for source in sources {
+            starting(source)
+            _ = try? await hosted.refresh(source, force: force)
+        }
+    }
+
+    /// The hosted sources that are on.
+    func enabledHostedSources() async -> [SourceID] {
+        let enabled = await database.enabledSources()
+        return HostedSources.all.map(\.id).filter(enabled.contains)
     }
 
     // MARK: - Resolving

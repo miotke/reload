@@ -80,6 +80,9 @@ public protocol AddonManaging: Sendable {
     /// their update checks. Shared with `reload`. Reported as a `.catalogue` change. Has a
     /// default that does nothing.
     func setSource(_ source: SourceID, enabled: Bool) async throws
+    /// Hosted sources that are on but have no listing yet. Search never downloads one; the
+    /// next `refresh`, even inside its 2-hour window, does. Has a default that reports none.
+    func missingListings() async -> [SourceID]
 
     /// API quota, search quota and github.com pause state, from stored state only (no
     /// network). Has a default that reports nothing known.
@@ -162,6 +165,8 @@ extension AddonManaging {
     }
 
     public func setSource(_ source: SourceID, enabled: Bool) async throws {}
+
+    public func missingListings() async -> [SourceID] { [] }
 }
 
 /// GitHub quota and backoff state, as last reported by GitHub. Nil fields mean unknown.

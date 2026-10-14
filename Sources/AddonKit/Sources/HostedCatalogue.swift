@@ -58,6 +58,14 @@ public actor HostedCatalogue {
         return try await task.value
     }
 
+    /// True when `id`'s listing has never been downloaded and no failed attempt is within
+    /// the 15-minute backoff, so a refresh would try it now.
+    public func isMissing(_ id: SourceID) async -> Bool {
+        guard let state = try? await database.sourceState(id), state.fetchedAt == nil else { return false }
+        guard let failed = state.failedAt else { return true }
+        return now().timeIntervalSince(failed) >= Self.failureBackoff
+    }
+
     /// When `id`'s listing was last downloaded, if ever.
     public func lastFetched(_ id: SourceID) async -> Date? {
         try? await database.sourceState(id).fetchedAt
