@@ -93,8 +93,8 @@ import Testing
             for await _ in manager.search(SearchQuery(text: "addon1", flavor: .forever), in: h.installation, installed: []) {}
         }
         print("browse: \(Self.ms(browse)), search: \(Self.ms(search))")
-        #expect(browse < .milliseconds(150), "browse took \(browse)")
-        #expect(search < .milliseconds(150), "search took \(search)")
+        #expect(browse < budget(.milliseconds(150)), "browse took \(browse)")
+        #expect(search < budget(.milliseconds(150)), "search took \(search)")
     }
 
     /// A Browse list's patch after a refresh touched every row: one read, not two per row.
@@ -124,7 +124,7 @@ import Testing
         #expect(mixed[failed]?.support == nil && mixed[failed]?.availableFlavors == nil)
         #expect(mixed[never]?.support == nil && mixed[never]?.availableFlavors == nil)
         print("storedAvailability(500): \(Self.ms(time))")
-        #expect(time < .milliseconds(30), "storedAvailability took \(time)")
+        #expect(time < budget(.milliseconds(30)), "storedAvailability took \(time)")
     }
 
     @Test func refreshTargetsAndOtherReadsStayFast() async throws {
@@ -138,9 +138,9 @@ import Testing
         }
         let folders = await Self.median { _ = await manager.database.releaseFolders() }
         print("supportTargets seed: \(Self.ms(seed)), later: \(Self.ms(later)), releaseFolders: \(Self.ms(folders))")
-        #expect(seed < .milliseconds(100), "seed targets took \(seed)")
-        #expect(later < .milliseconds(100), "later targets took \(later)")
-        #expect(folders < .milliseconds(20), "release folders took \(folders)")
+        #expect(seed < budget(.milliseconds(100)), "seed targets took \(seed)")
+        #expect(later < budget(.milliseconds(100)), "later targets took \(later)")
+        #expect(folders < budget(.milliseconds(20)), "release folders took \(folders)")
     }
 
     /// Every hot query is answered from an index or a primary key, never by scanning a table

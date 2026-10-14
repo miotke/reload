@@ -5,6 +5,12 @@ import Testing
 /// Main-actor time budgets for the Browse table at its full 500 rows per list
 /// (docs/performance/measurements.md#app). Budgets are generous; they catch per-row
 /// formatting or O(n²) work, not a slow machine.
+/// A timing budget scaled by `RELOAD_PERF_SLACK` (1 when unset). CI sets 3: shared runners
+/// are slower, and the budgets are there to catch O(n²) work, not a slow machine.
+func budget(_ duration: Duration) -> Duration {
+    duration * (Double(ProcessInfo.processInfo.environment["RELOAD_PERF_SLACK"] ?? "") ?? 1)
+}
+
 @Suite(.serialized) struct BrowsePerformanceTests {
     static let count = 500
 
@@ -51,9 +57,9 @@ import Testing
         browse.options.sort = ColumnSort(BrowseColumn.games)
         let byGames = await Self.median { browse.rebuildRows() }
         print("Browse rebuild (500 rows): unsorted \(Self.ms(rebuild)), by name \(Self.ms(byName)), by games \(Self.ms(byGames))")
-        #expect(rebuild < .milliseconds(16), "rebuild took \(rebuild)")
-        #expect(byName < .milliseconds(30), "sorting by name took \(byName)")
-        #expect(byGames < .milliseconds(16), "sorting by games took \(byGames)")
+        #expect(rebuild < budget(.milliseconds(16)), "rebuild took \(rebuild)")
+        #expect(byName < budget(.milliseconds(30)), "sorting by name took \(byName)")
+        #expect(byGames < budget(.milliseconds(16)), "sorting by games took \(byGames)")
     }
 
     /// A live patch from a refresh (every row's verdict changed): one rebuild, within a frame.
@@ -69,6 +75,6 @@ import Testing
             browse.applyStored(answers)
         }
         print("Browse patch (500 rows): \(Self.ms(patch))")
-        #expect(patch < .milliseconds(16), "patch took \(patch)")
+        #expect(patch < budget(.milliseconds(16)), "patch took \(patch)")
     }
 }
