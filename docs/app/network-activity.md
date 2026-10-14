@@ -33,7 +33,7 @@ Every request already goes through two choke points, so recording happens there 
 A refresh starts hundreds of requests, so the model never touches the table per event:
 - Arrivals are queued and applied at most every 100 ms (`interval`), as one array change.
 - Rows are formatted once when their event arrives (`ActivityRow`); cells only read strings.
-- At most 1,000 rows are kept; the oldest go first.
+- At most 1,000 rows are kept, sorted by ID; the oldest go first. An event finds its row by binary search, not a scan: a 1,000-event replay took 50 ms with the scan, 8 ms now ([measurements](../performance/measurements.md#network-activity)).
 - Filtering happens in the model when the switch or the rows change, never in `body`.
 
 ## Not done yet
