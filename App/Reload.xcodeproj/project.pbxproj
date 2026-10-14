@@ -31,6 +31,7 @@
 		23741E9BE522B3EE88961B56 /* InstalledView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE1884C6132232B97B59EEF9 /* InstalledView.swift */; };
 		2425C14E33287A8BF79206E6 /* InstallationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01242C458AF6DB6D65D271B /* InstallationModel.swift */; };
 		24C7E46C8C5F91D07A2D7049 /* GitHubSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA35EF66B6F2F50011332010 /* GitHubSettings.swift */; };
+		25EEF55F961CA7021F495F16 /* SourcesSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CDDF60B99630170DEAD5BB /* SourcesSettings.swift */; };
 		293E4C4818EF5A6D3677DAE2 /* UnmanagedInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FD1852E8AF6E0F1F159540F /* UnmanagedInspector.swift */; };
 		2C91D0DC1BEE8A935DBB335F /* DirectoryWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5816D0310480827C1B6AF4 /* DirectoryWatcher.swift */; };
 		2D33235C2648D6210EFEA98E /* AddonFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0527B2F5E7D98E237E6574EB /* AddonFormatting.swift */; };
@@ -84,6 +85,7 @@
 		AE89CC6F425EDB43F23F5DEE /* AddonKit in Frameworks */ = {isa = PBXBuildFile; productRef = 40B41283208B25DAFFCC3E44 /* AddonKit */; };
 		B13709F4F031F7118312D8FE /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5810D8B586B2F2BAE723AA26 /* SidebarView.swift */; };
 		B149235FF2DE8881E605D979 /* AddonInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 982CB76919B7A5682B31FD6B /* AddonInspectorView.swift */; };
+		B8DC97A1662DBF28713D773A /* SourcesSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CDDF60B99630170DEAD5BB /* SourcesSettings.swift */; };
 		B966B7EBAE57E9DC5B583C9D /* TableRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34C446D3738F8E9CB0A6BD33 /* TableRows.swift */; };
 		B995FE32735E76363D1C1BBC /* MarkdownBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0FA53BF8F18774F2F7CDBE /* MarkdownBlocks.swift */; };
 		BB334854E4EE42317C94824E /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 926606054110532ECF54FDC6 /* AppSupport.swift */; };
@@ -161,6 +163,7 @@
 		2B9FDCEF148BA0768FE52E92 /* CommandLineToolModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolModel.swift; sourceTree = "<group>"; };
 		2D1A9F705F4EB7A588663162 /* ReloadApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReloadApp.swift; sourceTree = "<group>"; };
 		2FD1852E8AF6E0F1F159540F /* UnmanagedInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnmanagedInspector.swift; sourceTree = "<group>"; };
+		30CDDF60B99630170DEAD5BB /* SourcesSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcesSettings.swift; sourceTree = "<group>"; };
 		33CB0F5B266DA96A7CFC7709 /* Environment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Environment.swift; sourceTree = "<group>"; };
 		3473899258C70FB200B81D01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		34C446D3738F8E9CB0A6BD33 /* TableRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableRows.swift; sourceTree = "<group>"; };
@@ -406,6 +409,7 @@
 				C9C09D0F18EED2CA6215CF45 /* SeedingSheet.swift */,
 				C2977E694E0F8024B14029D9 /* SettingsView.swift */,
 				5810D8B586B2F2BAE723AA26 /* SidebarView.swift */,
+				30CDDF60B99630170DEAD5BB /* SourcesSettings.swift */,
 				2FD1852E8AF6E0F1F159540F /* UnmanagedInspector.swift */,
 			);
 			path = Views;
@@ -605,6 +609,7 @@
 				304F4E3AAAC8F02FD955AC4F /* SettingsView.swift in Sources */,
 				1B14D5225C608A626D6C9E7E /* SidebarSections.swift in Sources */,
 				B13709F4F031F7118312D8FE /* SidebarView.swift in Sources */,
+				B8DC97A1662DBF28713D773A /* SourcesSettings.swift in Sources */,
 				B966B7EBAE57E9DC5B583C9D /* TableRows.swift in Sources */,
 				1D78F545E83E3EC4D53F163D /* TableSorting.swift in Sources */,
 				293E4C4818EF5A6D3677DAE2 /* UnmanagedInspector.swift in Sources */,
@@ -661,6 +666,7 @@
 				1162640673B2BC7829466522 /* SidebarView.swift in Sources */,
 				E1819EC76CC77C7E9F02060A /* SnapshotFixtures.swift in Sources */,
 				5BF5FC0F5E07BFCB6152D89E /* SnapshotTests.swift in Sources */,
+				25EEF55F961CA7021F495F16 /* SourcesSettings.swift in Sources */,
 				12D7AEF1A73E1ABD4FD1E8B0 /* TableRows.swift in Sources */,
 				FCF2F6415C9507EDEF2849E8 /* TableSorting.swift in Sources */,
 				1387E68547B84AF668F89D98 /* UnmanagedAndActionTests.swift in Sources */,

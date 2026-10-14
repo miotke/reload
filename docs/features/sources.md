@@ -61,6 +61,12 @@ A source that's **off**:
 
 `hostedDetails`: name and author from the listing or file, the description as the README (WoWInterface's BBCode turned into Markdown by `BBCode.markdown`; Tukui's is Markdown), screenshots from the listing (WoWInterface) or the gallery (Tukui), the changelog as release notes, and the host's page as the website. No stars or topics.
 
+## In the app
+
+- Browse rows and the inspector name a hosted add-on's source under its name: "by Elv · Tukui" (`AddonByline`). GitHub rows keep "by owner".
+- The inspector's link goes to the host's page, labelled with the source.
+- Changing Settings ▸ Sources re-runs the current search (`AppModel.enabledSources` is part of Browse's query key) and reloads the home lists.
+
 ## Not done yet
 
 - WoWInterface's `UIMD5` isn't checked against the download.

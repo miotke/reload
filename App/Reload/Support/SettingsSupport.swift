@@ -4,7 +4,7 @@ import Observation
 
 /// The Settings window's tabs, in order. Remembered under `SettingsKey.settingsTab`.
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, appearance, github, commandLine, advanced
+    case general, appearance, sources, github, commandLine, advanced
 
     var id: Self { self }
 
@@ -12,6 +12,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: "General"
         case .appearance: "Appearance"
+        case .sources: "Sources"
         case .github: "GitHub"
         case .commandLine: "Command Line"
         case .advanced: "Advanced"
@@ -22,6 +23,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: "gearshape"
         case .appearance: "paintpalette"
+        case .sources: "shippingbox"
         case .github: "person.badge.key"
         case .commandLine: "terminal"
         case .advanced: "gearshape.2"

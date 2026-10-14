@@ -214,6 +214,17 @@ import UniformTypeIdentifiers
         }
     }
 
+    @Test func settingsSources() throws {
+        let sources = [
+            SourceSetting(source: .github, isEnabled: true),
+            SourceSetting(source: .wowinterface, isEnabled: true),
+            SourceSetting(source: .tukui, isEnabled: false),
+        ]
+        try Snapshot.render("settings-sources", width: SettingsLayout.width) {
+            SourcesSettingsTab(sources: sources, setSource: { _, _ in }, load: {})
+        }
+    }
+
     @Test func settingsGitHub() throws {
         let keychain = GitHubTokenModel(keychain: nil, environment: [:])
         keychain.token = "ghp_snapshotexample"

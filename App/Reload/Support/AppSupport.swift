@@ -71,6 +71,15 @@ extension AddonRef {
     var sourceName: String { source.displayName }
 }
 
+/// The line under an add-on's name: who made it, and where it's from unless that's GitHub,
+/// the source most add-ons come from.
+nonisolated enum AddonByline {
+    static func text(owner: String, source: SourceID) -> String? {
+        let parts = [owner.isEmpty ? nil : "by \(owner)", source == .github ? nil : source.displayName].compactMap(\.self)
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
 extension Installation {
     var displayName: String {
         switch (flavor, root.lastPathComponent) {

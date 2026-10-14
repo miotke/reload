@@ -62,6 +62,32 @@ final class AppModel {
         }
     }
 
+    /// Every add-on source and whether search and Browse use it (Settings ▸ Sources).
+    private(set) var sources: [SourceSetting] = []
+
+    /// The sources that are on; Browse re-runs a search when it changes.
+    var enabledSources: Set<SourceID> {
+        Set(sources.filter(\.isEnabled).map(\.source))
+    }
+
+    func loadSources() async {
+        let loaded = await manager.sources()
+        if loaded != sources { sources = loaded }
+    }
+
+    /// Turns a source on or off. Browse's home lists reload through the `.catalogue` change
+    /// this reports; a search re-runs because `enabledSources` changed.
+    func setSource(_ source: SourceID, enabled: Bool) {
+        Task {
+            do {
+                try await manager.setSource(source, enabled: enabled)
+            } catch {
+                showError("Couldn't change \(source.displayName): \(error.localizedDescription)")
+            }
+            await loadSources()
+        }
+    }
+
     /// The first-launch "Gathering add-on details" sheet.
     var isSeedingPresented = false
     private(set) var seeding: InstallationModel?
@@ -130,6 +156,7 @@ final class AppModel {
         guard !didInitialLoad else { return }
         didInitialLoad = true
         lastDataVersion = await dataVersion()
+        await loadSources()
         await loadInstallations()
         watchStore()
         scheduleAutoRefresh()
@@ -262,6 +289,8 @@ final class AppModel {
         let previous = lastDataVersion
         lastDataVersion = version
         guard let previous, previous != version else { return }
+        // `reload sources` may have changed them.
+        await loadSources()
         for model in models.values { await model.browse.reloadMetadata() }
     }
 

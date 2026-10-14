@@ -20,6 +20,9 @@ struct SettingsView: View {
             Tab(SettingsTab.appearance.title, systemImage: SettingsTab.appearance.systemImage, value: .appearance) {
                 AppearanceSettingsTab()
             }
+            Tab(SettingsTab.sources.title, systemImage: SettingsTab.sources.systemImage, value: .sources) {
+                SourcesSettingsTab(sources: model.sources, setSource: model.setSource, load: model.loadSources)
+            }
             Tab(SettingsTab.github.title, systemImage: SettingsTab.github.systemImage, value: .github) {
                 let manager = model.manager
                 GitHubSettingsTab(token: github, status: gitHubStatus,

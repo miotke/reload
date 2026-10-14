@@ -177,7 +177,7 @@ final class BrowseModel {
     /// Re-reads Browse after another process (`reload`) changed the metadata database.
     func reloadMetadata() async {
         if content != nil { await loadBrowse() }
-        await live?.patchSupport(for: Set(searchResults.map { $0.id.identifier.lowercased() }))
+        await live?.patchSupport(for: Set(searchResults.map { $0.id.key.lowercased() }))
     }
 
     // MARK: Visible rows

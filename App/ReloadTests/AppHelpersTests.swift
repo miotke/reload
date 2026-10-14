@@ -276,3 +276,15 @@ import Testing
         #expect(!targets.contains { $0.identifier == "o/r29" }, "only rows on screen")
     }
 }
+
+@Suite struct AddonBylineTests {
+    @Test func githubShowsOnlyTheOwner() {
+        #expect(AddonByline.text(owner: "BigWigsMods", source: .github) == "by BigWigsMods")
+    }
+
+    @Test func otherSourcesAreNamed() {
+        #expect(AddonByline.text(owner: "Elv", source: .tukui) == "by Elv · Tukui")
+        #expect(AddonByline.text(owner: "", source: .wowinterface) == "WoWInterface")
+        #expect(AddonByline.text(owner: "", source: .github) == nil)
+    }
+}

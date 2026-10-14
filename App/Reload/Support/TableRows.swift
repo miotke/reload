@@ -35,6 +35,8 @@ nonisolated struct BrowseRow: Identifiable, Hashable, Sendable {
     var ref: AddonRef
     var name: String
     var owner: String
+    /// "by Elv · Tukui": the owner, and the source when it isn't GitHub.
+    var byline: String?
     var summary: String?
     var support: SupportStatus
     var availableFlavors: Set<Flavor>?
@@ -58,6 +60,7 @@ nonisolated struct BrowseRow: Identifiable, Hashable, Sendable {
         ref = result.id
         name = result.name
         owner = result.owner
+        byline = AddonByline.text(owner: result.owner, source: result.id.source)
         summary = result.summary
         support = result.support
         availableFlavors = result.availableFlavors

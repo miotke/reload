@@ -2,7 +2,7 @@
 
 The Settings window's tabs, what each stores and where, and how the alternate app icon works (and why Finder never shows it).
 
-Code: `App/Reload/Views/SettingsView.swift` (scene root, General and Advanced), `Views/AppearanceSettings.swift`, `Views/GitHubSettings.swift`, `Models/GitHubStatusModel.swift`, `Views/CommandLineToolViews.swift`, `Support/SettingsSupport.swift`. Why: [decision 0022](../decisions/0022-mac-style-settings-and-alternate-icons.md).
+Code: `App/Reload/Views/SettingsView.swift` (scene root, General and Advanced), `Views/AppearanceSettings.swift`, `Views/SourcesSettings.swift`, `Views/GitHubSettings.swift`, `Models/GitHubStatusModel.swift`, `Views/CommandLineToolViews.swift`, `Support/SettingsSupport.swift`. Why: [decision 0022](../decisions/0022-mac-style-settings-and-alternate-icons.md).
 
 ## Layout
 
@@ -15,13 +15,14 @@ Code: `App/Reload/Views/SettingsView.swift` (scene root, General and Advanced), 
 |---|---|---|
 | General | `gearshape` | default channel, check for updates automatically, default installation (only with more than one), update count in the menu bar |
 | Appearance | `paintpalette` | Light / Dark / System cards, app icon grid |
+| Sources | `shippingbox` | a switch per source (GitHub, WoWInterface, Tukui) for search and Browse ([sources.md](../features/sources.md)) |
 | GitHub | `person.badge.key` | token field with Save and Remove, which token is in use, rate limits, links about tokens |
 | Command Line | `terminal` | `reload` status with Install / Repair / Uninstall ([cli-install.md](cli-install.md)), example commands |
 | Advanced | `gearshape.2` | show the data and caches folders in Finder, reset first-launch steps |
 
 ## Keys
 
-All in the app's user defaults (`SettingsKey`), except the token.
+All in the app's user defaults (`SettingsKey`), except the token and the sources.
 
 | Setting | Key / storage |
 |---|---|
@@ -33,6 +34,7 @@ All in the app's user defaults (`SettingsKey`), except the token.
 | App icon | `appIcon` (`AppIconChoice`) |
 | Selected tab | `settingsTab` |
 | GitHub token | Keychain, never in the JSON store |
+| Sources | `source_settings` in the metadata database, shared with `reload sources`; `AppModel.sources` re-reads it on launch, when the tab opens and on activation after another process wrote |
 
 ## GitHub
 
@@ -86,4 +88,4 @@ Changing that would mean writing into the bundle or calling `NSWorkspace.setIcon
 
 ## Snapshots
 
-`settings-general`, `settings-appearance` (icon placeholders), `settings-github`, `settings-github-environment`, `settings-command-line` and `settings-advanced`, light and dark ([development.md](../development.md#snapshots)). The window chrome and tab bar aren't drawn offscreen.
+`settings-general`, `settings-appearance` (icon placeholders), `settings-sources`, `settings-github`, `settings-github-environment`, `settings-command-line` and `settings-advanced`, light and dark ([development.md](../development.md#snapshots)). The window chrome and tab bar aren't drawn offscreen.

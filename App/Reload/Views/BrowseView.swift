@@ -28,6 +28,7 @@ struct BrowseView: View {
         var hideIncompatible: Bool
         var includeLiveGitHub: Bool
         var installationID: String
+        var sources: Set<SourceID>
     }
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -61,7 +62,7 @@ struct BrowseView: View {
         .onChange(of: options, initial: true) { browse.options = options }
         // `.task(id:)` cancels the previous search whenever the query changes; the sleep is the debounce.
         .task(id: QueryKey(text: trimmedQuery, hideIncompatible: hideIncompatible, includeLiveGitHub: includeLiveGitHub,
-                           installationID: browse.installation.id)) {
+                           installationID: browse.installation.id, sources: model.enabledSources)) {
             let text = trimmedQuery
             guard !text.isEmpty else {
                 browse.clearSearch()
@@ -259,7 +260,9 @@ struct BrowseNameCell: View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 4) {
                 Text(row.name).fontWeight(.medium).lineLimit(1).layoutPriority(1)
-                Text("by \(row.owner)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if let byline = row.byline {
+                    Text(byline).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
                 if row.isFromGitHub {
                     Image(systemName: "globe").font(.caption).foregroundStyle(.secondary)
                         .help("Found by live GitHub search")
