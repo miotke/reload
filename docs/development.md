@@ -41,6 +41,10 @@ Or open `App/Reload.xcodeproj` in Xcode, choose the **Reload** scheme and **My M
 
 Run the app and the tests before saying something works. Report failures plainly.
 
+### Continuous integration
+
+`.github/workflows/tests.yml` runs on every push to any branch: the docs check, `swift test`, then the app tests, on `macos-26` with the newest Xcode 26 or later. A newer push to the same branch cancels a run still going. The release workflow runs `swift test` again on the merge commit ([app/releases.md](app/releases.md)).
+
 ## Snapshots
 
 `scripts/snapshots.sh` renders the app's key views to `build/snapshots/<name>-<light|dark>.png` (gitignored), so you can see the UI without launching the app. It runs `SnapshotTests` (`xcodebuild test -only-testing:ReloadTests/SnapshotTests`).
