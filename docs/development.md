@@ -45,6 +45,8 @@ Run the app and the tests before saying something works. Report failures plainly
 
 `.github/workflows/tests.yml` runs on every push to any branch: the docs check, `swift test`, then the app tests, on `macos-26` with the newest Xcode 26 or later. A newer push to the same branch cancels a run still going. The release workflow runs `swift test` again on the merge commit ([app/releases.md](app/releases.md)).
 
+The **require tests** ruleset makes the `test` job a required check for merging into `main`, with no bypass: a release PR can't merge until its branch's latest run passes.
+
 ## Snapshots
 
 `scripts/snapshots.sh` renders the app's key views to `build/snapshots/<name>-<light|dark>.png` (gitignored), so you can see the UI without launching the app. It runs `SnapshotTests` (`xcodebuild test -only-testing:ReloadTests/SnapshotTests`).
