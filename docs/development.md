@@ -21,6 +21,9 @@ App/project.yml          XcodeGen spec for the app (app/project.md)
 App/Reload/       SwiftUI app
 App/ReloadTests/  app unit tests
 docs/                    all documentation (README.md is the index)
+scripts/                 release build, snapshots, the docs check
+scripts/ci/              the steps the GitHub workflows run (below)
+.github/workflows/       tests.yml (every push), release.yml (merging a release PR)
 ```
 
 ## Build and test
@@ -50,6 +53,8 @@ Run the app and the tests before saying something works. Report failures plainly
 | `Sources/`, `Tests/`, `App/`, `Package.swift`/`.resolved`, `tests.yml` | yes | yes |
 | only `docs/`, `README.md`, `.claude/CLAUDE.md`, `scripts/check-docs.swift` | yes | no |
 | anything else | no | no |
+
+The workflows stay short: each step calls a script in `scripts/ci/` (`changed-areas.sh`, `select-xcode.sh`, `test.sh docs|core|app`, and the release steps), so a step can be run or read on its own. `scripts/ci/test.sh` runs locally too. Changing `scripts/ci/` counts as a code change, so it's tested in full.
 
 The docs check runs with code changes because it checks code too (the "Where things live" tables, doc paths in comments). A manual run, or a push it can't diff, runs everything. CI sets `RELOAD_PERF_SLACK=3`, which triples the performance tests' timing budgets (`budget(_:)`): shared runners are slower, and the budgets catch O(n²) work, not a slow machine. A newer push to the same branch cancels a run still going. The release workflow runs all of them again on the merge commit and stops before building if any fail ([app/releases.md](app/releases.md)).
 

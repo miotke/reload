@@ -2,7 +2,7 @@
 # this tests and builds the merge commit, tags it vX.Y.Z and publishes the release with the
 # PR description as its notes. Pushing a v* tag by hand still builds a draft release, the
 # fallback when a merged run fails. Signing and notarization run only when the secrets
-# exist; without them the release is an unsigned build.
+# exist; without them the release is an unsigned build. The steps live in scripts/ci/.
 name: Release
 
 on:
@@ -32,121 +32,63 @@ jobs:
     env:
       HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
       HAS_NOTARY: ${{ secrets.NOTARY_KEY_P8 != '' }}
-      # Timing budgets ×3 on shared runners, as in tests.yml; xcodebuild passes TEST_RUNNER_*
-      # on without the prefix.
+      # Timing budgets ×3 on shared runners, as in tests.yml.
       RELOAD_PERF_SLACK: "3"
-      TEST_RUNNER_RELOAD_PERF_SLACK: "3"
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
-      # X.Y.Z without the v. release.sh checks it against Info.plist, project.yml and AppInfo.
       - name: Work out the version
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           INPUT_VERSION: ${{ inputs.version }}
-        run: |
-          case $GITHUB_EVENT_NAME in
-            pull_request) v=${HEAD_REF#release/} ;;
-            workflow_dispatch) v=$INPUT_VERSION ;;
-            *) v=$GITHUB_REF_NAME ;;
-          esac
-          v=${v#v}
-          [[ $v =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Not a version: $v"; exit 1; }
-          echo "VERSION=$v" >> "$GITHUB_ENV"
+        run: scripts/ci/release-version.sh
 
-      # The project needs Swift 6.2 and the macOS 26 SDK, so Xcode 26 or later.
       - name: Select Xcode
-        run: |
-          xcode=$(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | sort -V | tail -1)
-          if [[ -z $xcode ]]; then
-            echo "::error::This runner has no Xcode 26 or later. Installed: $(ls -d /Applications/Xcode*.app | xargs)"
-            exit 1
-          fi
-          sudo xcode-select -s "$xcode"
-          xcodebuild -version
+        run: scripts/ci/select-xcode.sh
 
       # The same checks as tests.yml, on the merge commit itself. Any failure stops the job
       # here: nothing is built, tagged or published.
       - name: Docs check
-        run: swift scripts/check-docs.swift
-
+        run: scripts/ci/test.sh docs
       - name: Core and CLI tests
-        run: swift test
-
+        run: scripts/ci/test.sh core
       - name: App tests
-        run: |
-          set -o pipefail
-          xcodebuild -project App/Reload.xcodeproj -scheme Reload -configuration Debug \
-            -destination 'platform=macOS' -derivedDataPath build/DerivedData test \
-            | grep -v 'CUICatalog'
+        run: scripts/ci/test.sh app
 
       - name: Import the Developer ID certificate
         if: env.HAS_CERT == 'true'
         env:
           P12: ${{ secrets.DEVELOPER_ID_P12 }}
           P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
-        run: |
-          keychain=$RUNNER_TEMP/signing.keychain-db
-          password=$(uuidgen)
-          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p "$password" "$keychain"
-          security set-keychain-settings -lut 3600 "$keychain"
-          security unlock-keychain -p "$password" "$keychain"
-          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -k "$password" "$keychain"
-          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | xargs)
-          rm "$RUNNER_TEMP/cert.p12"
-          echo "RELOAD_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
-          echo "RELOAD_TEAM_ID=${{ secrets.TEAM_ID }}" >> "$GITHUB_ENV"
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: scripts/ci/import-certificate.sh
 
       - name: Prepare the notarization key
         if: env.HAS_NOTARY == 'true' && env.HAS_CERT == 'true'
         env:
           P8: ${{ secrets.NOTARY_KEY_P8 }}
-        run: |
-          echo "$P8" > "$RUNNER_TEMP/notary.p8"
-          echo "RELOAD_NOTARY_KEY_PATH=$RUNNER_TEMP/notary.p8" >> "$GITHUB_ENV"
-          echo "RELOAD_NOTARY_KEY_ID=${{ secrets.NOTARY_KEY_ID }}" >> "$GITHUB_ENV"
-          echo "RELOAD_NOTARY_ISSUER_ID=${{ secrets.NOTARY_ISSUER_ID }}" >> "$GITHUB_ENV"
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: scripts/ci/notary-key.sh
 
       - name: Build
         run: scripts/release.sh "$VERSION"
 
-      # Tagged only after the build succeeds, so a failed run leaves no tag behind. A tag pushed
-      # with the workflow's token doesn't start this workflow again.
       - name: Tag and publish the release
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
           BODY: ${{ github.event.pull_request.body }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: |
-          tag=v$VERSION
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
-            echo "::error::$tag already exists"
-            exit 1
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$tag" -m "Reload $VERSION"
-          git push origin "$tag"
-          # The notes are the PR description, minus the Claude Code attribution line.
-          printf '%s\n' "$BODY" | grep -v '^🤖 Generated with' > "$RUNNER_TEMP/notes.md"
-          gh release create "$tag" build/release/Reload-*.dmg* build/release/Reload-*.zip* \
-            --verify-tag --latest --title "Reload $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
-          git push origin --delete "$HEAD_REF" || true
+        run: scripts/ci/publish-release.sh
 
       - name: Draft the GitHub release
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          notes="Unsigned build: the first time, open Reload, then click Open Anyway in System Settings ▸ Privacy & Security."
-          [[ $HAS_CERT == true && $HAS_NOTARY == true ]] && notes="Signed and notarized."
-          gh release create "$GITHUB_REF_NAME" build/release/Reload-*.dmg* build/release/Reload-*.zip* \
-            --draft --title "Reload $VERSION" --generate-notes --notes "$notes"
+        run: scripts/ci/draft-release.sh
 
       - name: Keep the build
         if: github.event_name == 'workflow_dispatch'
@@ -159,6 +101,4 @@ jobs:
 
       - name: Clean up signing files
         if: always()
-        run: |
-          [[ -n ${RELOAD_KEYCHAIN:-} ]] && security delete-keychain "$RELOAD_KEYCHAIN" || true
-          rm -f "$RUNNER_TEMP/notary.p8"
+        run: scripts/ci/cleanup-signing.sh
