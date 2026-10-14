@@ -6,11 +6,6 @@
 
 A native macOS add-on manager for **World of Warcraft: Forever**, written in Swift. It's a SwiftUI app with a package-manager-style command-line tool (`reload`) built in. Both share the same core library and the same list of installed add-ons, so changes made in one show up in the other.
 
-<p>
-  <img src="Screenshots/installed-light.png" width="49%" alt="Reload's Installed view in light mode: three add-ons, one with an update available, and its details on the right">
-  <img src="Screenshots/installed-dark.png" width="49%" alt="The same Installed view in dark mode">
-</p>
-
 > **Status: early development.** Expect rough edges, and try it on a copy of your AddOns folder first.
 
 ## Features
