@@ -6,10 +6,10 @@
 
 A native macOS add-on manager for **World of Warcraft: Forever**, written in Swift. It's a SwiftUI app with a package-manager-style command-line tool (`reload`) built in. Both share the same core library and the same list of installed add-ons, so changes made in one show up in the other.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Screenshots/installed-dark.png">
-  <img src="Screenshots/installed-light.png" alt="Reload's Installed view: three add-ons, one with an update available, and its details on the right">
-</picture>
+<p>
+  <img src="Screenshots/installed-light.png" width="49%" alt="Reload's Installed view in light mode: three add-ons, one with an update available, and its details on the right">
+  <img src="Screenshots/installed-dark.png" width="49%" alt="The same Installed view in dark mode">
+</p>
 
 > **Status: early development.** Expect rough edges, and try it on a copy of your AddOns folder first.
 
@@ -25,17 +25,17 @@ A native macOS add-on manager for **World of Warcraft: Forever**, written in Swi
 
 Browse the catalogue by category, with the games each add-on supports:
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Screenshots/browse-dark.png">
-  <img src="Screenshots/browse-light.png" alt="Browse view listing popular add-ons with Retail, Forever and Classic badges, and Itemwatch's details and read me on the right">
-</picture>
+<p>
+  <img src="Screenshots/browse-light.png" width="49%" alt="Browse view in light mode, listing popular add-ons with Retail, Forever and Classic badges, and Itemwatch's details and read me on the right">
+  <img src="Screenshots/browse-dark.png" width="49%" alt="The same Browse view in dark mode">
+</p>
 
 Each add-on's details show its screenshots, release channel, folders, changelog and read me:
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Screenshots/details-dark.png">
-  <img src="Screenshots/details-light.png" alt="Details for the installed BetterBags add-on: version, screenshots, channel picker, pin toggle, folders and changelog">
-</picture>
+<p>
+  <img src="Screenshots/details-light.png" width="49%" alt="Details for the installed BetterBags add-on in light mode: version, screenshots, channel picker, pin toggle, folders and changelog">
+  <img src="Screenshots/details-dark.png" width="49%" alt="The same BetterBags details in dark mode">
+</p>
 
 ## Install
 
