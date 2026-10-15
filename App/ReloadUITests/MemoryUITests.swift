@@ -6,13 +6,16 @@ import XCTest
 /// `scripts/ui-tests.sh` runs it before each push. XCTest, because UI testing needs it.
 final class MemoryUITests: XCTestCase {
     /// Rounds of every action after the warm-up round.
-    static let rounds = 8
+    static let rounds = Int(ProcessInfo.processInfo.environment["RELOAD_UI_ROUNDS"] ?? "") ?? 8
     /// Leaked bytes may grow this much over all rounds; anything that leaks per round
     /// passes it quickly. The constant leak in Apple's App Shortcuts connections is in both
     /// measurements, so it cancels out.
     static let leakAllowance = 16 * 1024
-    /// Physical footprint may grow this much after the warm-up round (caches settling).
-    static let footprintAllowance = 25.0 * 1024 * 1024
+    /// Live heap bytes may grow this much over all rounds. AppKit and SwiftUI keep ~75 KB per
+    /// round of their own bookkeeping (window KVO, glass effects); a Reload retain cycle
+    /// that keeps a window's models alive costs megabytes. The footprint isn't checked: it
+    /// also counts freed memory the allocator keeps, which swings by tens of MB on its own.
+    static let heapAllowance = 4 * 1024 * 1024
 
     var app: XCUIApplication!
 
@@ -30,18 +33,22 @@ final class MemoryUITests: XCTestCase {
 
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 20), "the main window didn't open")
         let pid = try XCTUnwrap(Self.processID(), "couldn't find the launched app")
+        XCTAssertNotNil(ProcessInfo.processInfo.environment["RELOAD_MEASURE"], "run this through scripts/ui-tests.sh, which measures the app")
 
         exerciseOnce()
-        let leaksBefore = try Self.leakedBytes(pid)
-        let footprintBefore = try Self.footprint(pid)
-        for _ in 0..<Self.rounds { exerciseOnce() }
-        let leaksAfter = try Self.leakedBytes(pid)
-        let footprintAfter = try Self.footprint(pid)
+        let before = try Self.measure(pid, label: "before")
+        var series: [String] = []
+        for round in 1...Self.rounds {
+            exerciseOnce()
+            series.append(Self.megabytes(Double(try Self.measure(pid, label: "round-\(round)").footprint)))
+        }
+        print("MemoryUITests: footprint per round \(series.joined(separator: ", "))")
+        let after = try Self.measure(pid, label: "after")
 
-        let report = "leaked bytes \(leaksBefore) → \(leaksAfter), footprint \(Self.megabytes(footprintBefore)) → \(Self.megabytes(footprintAfter))"
+        let report = "leaked bytes \(before.leakedBytes) → \(after.leakedBytes), live heap \(Self.megabytes(Double(before.liveHeap))) → \(Self.megabytes(Double(after.liveHeap))), footprint \(Self.megabytes(Double(before.footprint))) → \(Self.megabytes(Double(after.footprint)))"
         print("MemoryUITests: \(report)")
-        XCTAssertLessThanOrEqual(leaksAfter - leaksBefore, Self.leakAllowance, "leaks grew with use: \(report)")
-        XCTAssertLessThanOrEqual(footprintAfter - footprintBefore, Self.footprintAllowance, "memory grew with use: \(report)")
+        XCTAssertLessThanOrEqual(after.leakedBytes - before.leakedBytes, Self.leakAllowance, "leaks grew with use: \(report)")
+        XCTAssertLessThanOrEqual(after.liveHeap - before.liveHeap, Self.heapAllowance, "live memory grew with use: \(report)")
     }
 
     // MARK: - One round of the app
@@ -56,13 +63,19 @@ final class MemoryUITests: XCTestCase {
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.click()
         search.typeText("Test Addon")
-        let rows = main.tables.firstMatch.tableRows
+        // SwiftUI's Table reaches UI testing as an outline; the sidebar is the other one.
+        let table = main.outlines.matching(NSPredicate(format: "label != 'Sidebar'")).firstMatch
+        let rows = table.outlineRows
         XCTAssertTrue(rows.element(boundBy: 5).waitForExistence(timeout: 10), "search found nothing")
-        let table = main.tables.firstMatch
         for _ in 0..<3 { table.scroll(byDeltaX: 0, deltaY: -1500) }
         for _ in 0..<3 { table.scroll(byDeltaX: 0, deltaY: 1500) }
-        rows.element(boundBy: 0).click()
-        rows.element(boundBy: 0).doubleClick()
+        // The row elements don't take right-clicks; the name text inside does.
+        let firstName = rows.element(boundBy: 0).staticTexts.firstMatch
+        firstName.click()
+        firstName.rightClick()
+        let openWindow = app.menuItems["Open in New Window"].firstMatch
+        XCTAssertTrue(openWindow.waitForExistence(timeout: 5), "no Open in New Window item")
+        openWindow.click()
         waitForWindowCount(2)
         app.typeKey("w", modifierFlags: .command)
         waitForWindowCount(1)
@@ -71,8 +84,11 @@ final class MemoryUITests: XCTestCase {
         app.typeKey(.delete, modifierFlags: [])
 
         // Window ▸ Network Activity, open and closed.
-        app.typeKey("a", modifierFlags: [.command, .option])
-        XCTAssertTrue(app.windows["Network Activity"].waitForExistence(timeout: 10))
+        app.menuBars.menuBarItems["Window"].click()
+        let networkActivity = app.menuBars.menuItems["Network Activity"].firstMatch
+        XCTAssertTrue(networkActivity.waitForExistence(timeout: 5), "no Window ▸ Network Activity")
+        networkActivity.click()
+        waitForWindowCount(2)
         app.typeKey("w", modifierFlags: .command)
         waitForWindowCount(1)
 
@@ -95,7 +111,8 @@ final class MemoryUITests: XCTestCase {
     private func waitForWindowCount(_ count: Int) {
         let predicate = NSPredicate(format: "count == %d", count)
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: app.windows)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 10), .completed, "expected \(count) window(s)")
+        let result = XCTWaiter.wait(for: [expectation], timeout: 10)
+        XCTAssertEqual(result, .completed, "expected \(count) window(s), have: \(app.windows.allElementsBoundByIndex.map(\.title))")
     }
 
     // MARK: - Measuring the app process
@@ -108,46 +125,31 @@ final class MemoryUITests: XCTestCase {
             .processIdentifier
     }
 
-    /// Total leaked bytes `leaks` reports for `pid`.
-    static func leakedBytes(_ pid: pid_t) throws -> Int {
-        let output = try run("/usr/bin/leaks", ["\(pid)"])
-        guard let match = output.firstMatch(of: /(\d+) leaks? for (\d+) total leaked bytes/),
-              let bytes = Int(match.output.2) else {
-            throw NSError(domain: "MemoryUITests", code: 1, userInfo: [NSLocalizedDescriptionKey: "unexpected leaks output:\n\(output)"])
+    /// Leaked bytes, physical footprint and live heap bytes of `pid` (`round-N` labels: the
+    /// footprint only). The test runner is sandboxed and can't examine another process, so it
+    /// asks `scripts/ui-tests.sh` (watching this folder) to run `leaks`, `footprint` and
+    /// `heap`, and waits for the answer.
+    static func measure(_ pid: pid_t, label: String) throws -> (leakedBytes: Int, footprint: Int, liveHeap: Int) {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "ReloadUITests-measure", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let result = folder.appending(path: "\(label).result")
+        try? FileManager.default.removeItem(at: result)
+        try "\(pid)".write(to: folder.appending(path: "\(label).request"), atomically: true, encoding: .utf8)
+        let deadline = Date().addingTimeInterval(180)
+        while Date() < deadline {
+            if let text = try? String(contentsOf: result, encoding: .utf8) {
+                let parts = text.split(whereSeparator: \.isWhitespace)
+                guard parts.count == 3, let leaked = Int(parts[0]), let footprint = Int(parts[1]), let live = Int(parts[2]) else {
+                    throw NSError(domain: "MemoryUITests", code: 1, userInfo: [NSLocalizedDescriptionKey: "unexpected measurement: \(text)"])
+                }
+                return (leaked, footprint, live)
+            }
+            Thread.sleep(forTimeInterval: 0.5)
         }
-        return bytes
-    }
-
-    /// Physical footprint in bytes, as `footprint` reports it.
-    static func footprint(_ pid: pid_t) throws -> Double {
-        let output = try run("/usr/bin/footprint", ["-p", "\(pid)"])
-        guard let match = output.firstMatch(of: /phys_footprint:\s+([\d.]+)\s+(KB|MB|GB)/),
-              let value = Double(match.output.1) else {
-            throw NSError(domain: "MemoryUITests", code: 2, userInfo: [NSLocalizedDescriptionKey: "unexpected footprint output:\n\(output)"])
-        }
-        let scale: Double = switch match.output.2 {
-        case "KB": 1024
-        case "MB": 1024 * 1024
-        default: 1024 * 1024 * 1024
-        }
-        return value * scale
+        throw NSError(domain: "MemoryUITests", code: 2, userInfo: [NSLocalizedDescriptionKey: "no measurement for \(label) within 3 minutes"])
     }
 
     static func megabytes(_ bytes: Double) -> String {
         String(format: "%.1f MB", bytes / 1024 / 1024)
-    }
-
-    /// Runs a tool and returns its output; `leaks` exits 1 when it finds any, which is fine.
-    static func run(_ path: String, _ arguments: [String]) throws -> String {
-        let process = Process()
-        process.executableURL = URL(filePath: path)
-        process.arguments = arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        try process.run()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return String(decoding: data, as: UTF8.self)
     }
 }
