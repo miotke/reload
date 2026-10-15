@@ -18,6 +18,10 @@ extension AddonManager {
     ) async throws -> [AddonRef: UpdateState] {
         let addons = try await store.addons(in: installation)
         let previous = await storedUpdates(in: installation)
+        // WoWInterface and Tukui answer many add-ons in one request: fetch them together, then
+        // each check below reads the fresh answer (docs/features/sources.md#updates).
+        await hosted.prefetch(addons.filter { !$0.pinned }.map(\.id), policy: policy)
+        let hostedPolicy: CachePolicy = policy == .preferStored ? .preferStored : .revalidateIfStale
         var states: [AddonRef: UpdateState] = [:]
         var etags: [AddonRef: String] = [:]
 
@@ -27,7 +31,8 @@ extension AddonManager {
                 guard let addon = pending.popFirst() else { return }
                 let last = previous[addon.id]
                 group.addTask {
-                    let (state, etag) = await self.updateState(of: addon, in: installation, policy: policy, background: background, previous: last)
+                    let (state, etag) = await self.updateState(
+                        of: addon, in: installation, policy: policy, background: background, previous: last, hostedPolicy: hostedPolicy)
                     return (addon, state, etag)
                 }
             }
@@ -68,9 +73,11 @@ extension AddonManager {
     /// - Parameter previous: the last stored state, from a bulk check. When only the API can
     ///   decide and the repo's API check isn't due, it's returned instead of a request. Nil
     ///   (an explicit single-add-on action) always asks.
+    /// - Parameter hostedPolicy: replaces `policy` for WoWInterface and Tukui add-ons, after a
+    ///   bulk caller fetched their files in one batch (`HostedCatalogue.prefetch`).
     func updateState(
         of addon: InstalledAddon, in installation: Installation, policy: CachePolicy, background: Bool = false,
-        previous: UpdateState? = nil
+        previous: UpdateState? = nil, hostedPolicy: CachePolicy? = nil
     ) async -> (UpdateState, String?) {
         if addon.pinned { return (.pinned, nil) }
         let own = installation.flavor
@@ -84,7 +91,7 @@ extension AddonManager {
         }
         do {
             guard addon.id.source == .github else {
-                return (await hostedUpdateState(of: addon, in: installation, policy: policy), nil)
+                return (await hostedUpdateState(of: addon, in: installation, policy: hostedPolicy ?? policy), nil)
             }
             // Stable channel: the latest release (the same lookup support checks use) settles
             // most add-ons. An unchanged tag is up to date, with no release.json needed; a new
@@ -189,6 +196,10 @@ extension AddonManager {
         for ref in targets { continuation.yield(.queued(ref)) }
         // Updating one add-on always asks; updating many is a bulk check (API throttle).
         let previous = targets.count > 1 ? await storedUpdates(in: installation) : [:]
+        // Updating many hosted add-ons fetches their latest files in one request per host.
+        let unresolved = installed.filter { targets.contains($0.id) && releases[$0.id] == nil && !$0.pinned }.map(\.id)
+        let batched = unresolved.count > 1
+        if batched { await hosted.prefetch(unresolved, policy: .forceRevalidate) }
 
         await withTaskGroup(of: Void.self) { group in
             var pending = targets[...]
@@ -198,7 +209,9 @@ extension AddonManager {
                 let release = releases[ref]
                 let last = previous[ref]
                 group.addTask {
-                    await self.updateOne(ref, addon: addon, release: release, previous: last, in: installation, continuation: continuation)
+                    await self.updateOne(
+                        ref, addon: addon, release: release, previous: last, hostedPolicy: batched ? .revalidateIfStale : nil,
+                        in: installation, continuation: continuation)
                 }
             }
             for _ in 0..<Self.maxConcurrentOperations { addNext() }
@@ -208,7 +221,7 @@ extension AddonManager {
 
     private func updateOne(
         _ ref: AddonRef, addon: InstalledAddon?, release given: ResolvedRelease?, previous: UpdateState?,
-        in installation: Installation, continuation: AsyncStream<OperationEvent>.Continuation
+        hostedPolicy: CachePolicy?, in installation: Installation, continuation: AsyncStream<OperationEvent>.Continuation
     ) async {
         guard let addon else {
             continuation.yield(.failed(ref, AddonError.notInstalled(ref).localizedDescription))
@@ -226,7 +239,7 @@ extension AddonManager {
             }
             release = given
         } else {
-            switch await updateState(of: addon, in: installation, policy: .forceRevalidate, previous: previous).0 {
+            switch await updateState(of: addon, in: installation, policy: .forceRevalidate, previous: previous, hostedPolicy: hostedPolicy).0 {
             case .available(let found):
                 release = found
             case .upToDate, .pinned:

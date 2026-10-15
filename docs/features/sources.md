@@ -45,6 +45,8 @@ Hosts don't say whether a file supports Forever. WoWInterface lists the game ver
 
 ## Updates
 
+Bulk checks (the refresh, ⌘R, `reload outdated`) and Update All first fetch every due hosted add-on's latest file together (`HostedCatalogue.prefetch`): WoWInterface's `filedetails/101,102,….json` takes up to 50 IDs per request (`batchSize`), and Tukui's listing has them all. Each check then reads that fresh answer. An add-on the batch missed is asked for on its own.
+
 `hostedUpdateState`: the latest file's version against the installed one (`isUpdate`; hosted releases have synthetic IDs, so versions are compared). Same version: up to date, no download. New version: its zip is downloaded and inspected for the build in use, then offered. On a Retail build on Forever, a new version with a Forever TOC is offered as the Forever build.
 
 ## Turning sources on and off

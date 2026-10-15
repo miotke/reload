@@ -11,6 +11,8 @@ public actor HostedCatalogue {
     public static let maxAge: TimeInterval = 24 * 60 * 60
     public static let failureBackoff: TimeInterval = 15 * 60
     public static let fileTTL: TimeInterval = SupportCache.defaultTTL
+    /// IDs per batched files request; keeps the URL short.
+    public static let batchSize = 50
 
     private let http: any HTTPClient
     private let database: MetadataDatabase
@@ -104,6 +106,31 @@ public actor HostedCatalogue {
     }
 
     // MARK: - Latest files
+
+    /// Fetches the latest files of `refs` that `policy` says are due, one request per host
+    /// per `batchSize` IDs instead of one per add-on: a bulk update check of ten WoWInterface
+    /// add-ons is one request. Afterwards their stored files are fresh, so `file(for:policy:)`
+    /// with `.revalidateIfStale` needs no request. Failures are skipped; those add-ons are
+    /// asked for one at a time by their own check.
+    public func prefetch(_ refs: [AddonRef], policy: CachePolicy) async {
+        guard policy != .preferStored else { return }
+        var due: [SourceID: [String]] = [:]
+        for ref in refs where ref.source != .github {
+            if policy == .revalidateIfStale, let stored = await database.hostedFile(ref),
+               now().timeIntervalSince(stored.fetchedAt) < Self.fileTTL { continue }
+            due[ref.source, default: []].append(ref.identifier)
+        }
+        for (id, identifiers) in due.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            guard let source = try? source(id) else { continue }
+            let sorted = Array(Set(identifiers)).sorted()
+            for start in stride(from: 0, to: sorted.count, by: Self.batchSize) {
+                let batch = Array(sorted[start..<min(start + Self.batchSize, sorted.count)])
+                guard let (data, response) = try? await http.data(for: URLRequest(url: source.filesURL(for: batch))),
+                      response.statusCode == 200, let files = try? source.files(from: data) else { continue }
+                await database.setHostedFiles(Array(files.values), source: id, at: now())
+            }
+        }
+    }
 
     /// `ref`'s latest file. `.preferStored` uses any stored answer and only asks when there
     /// is none; `.revalidateIfStale` asks once the stored one is an hour old;
