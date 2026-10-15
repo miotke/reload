@@ -30,6 +30,9 @@ struct InstallCommand: ContextCommand {
         help: "Forever only: when an add-on has no Forever build, install its Retail build. Forever lists it as out of date until you tick Load out of date AddOns.")
     var retailBuild = false
 
+    @Flag(name: .customLong("no-deps"), help: "Don't offer to install add-ons the new ones require; only warn about them.")
+    var noDeps = false
+
     func validate() throws {
         guard !refs.isEmpty else { throw ValidationError("Name at least one add-on to install.") }
     }
@@ -48,13 +51,17 @@ struct InstallCommand: ContextCommand {
         }
         var outcome = await BatchInstaller.run(requests, force: force, context: context, installation: installation)
         try await offerFallbackBuilds(&outcome, requests: requests, context: context, installation: installation)
+        let dependencies = try await DependencyOffer.run(after: &outcome, noDeps: noDeps, force: force, context: context, installation: installation)
         if context.json {
-            try context.emit(InstallOutput(installation: installation.id, installed: outcome.installed, failed: outcome.failedJSON))
+            try context.emit(InstallOutput(
+                installation: installation.id, installed: outcome.installed, failed: outcome.failedJSON,
+                missingDependencies: dependencies.missing.map(MissingDependencyJSON.init)))
         } else {
             context.say("Installed \(outcome.installed.count) add-on\(outcome.installed.count == 1 ? "" : "s").")
             context.noteIfGameRunning(changed: outcome.installed.count)
         }
-        if let error = ExitStatus.batchError(failures: outcome.failures.map(\.error), total: requests.count) { throw error }
+        let total = requests.count + dependencies.attempted
+        if let error = ExitStatus.batchError(failures: outcome.failures.map(\.error), total: total) { throw error }
     }
 
     /// An add-on with no build for this game may still load from its fallback family's build
@@ -98,6 +105,8 @@ struct InstallOutput: Encodable {
     var installation: String
     var installed: [InstalledAddon]
     var failed: [FailureJSON]
+    /// Required add-ons the installed ones still lack (docs/features/dependencies.md).
+    var missingDependencies: [MissingDependencyJSON] = []
 }
 
 struct FailureJSON: Encodable {
@@ -233,9 +242,17 @@ struct RemoveCommand: ContextCommand {
             guard let addon = try await context.installedAddon(ref, in: installation) else { throw AddonError.notInstalled(ref) }
             if !targets.contains(where: { $0.id == ref }) { targets.append(addon) }
         }
-        let names = targets.map(\.name).joined(separator: ", ")
-        let folderCount = targets.reduce(0) { $0 + $1.folders.count }
-        guard try context.confirm("Remove \(names) (\(folderCount) folder\(folderCount == 1 ? "" : "s"))? Folders go to the Trash.", action: "remove") else {
+        let removing = Set(targets.map(\.id))
+        var dependents: [(removed: InstalledAddon, dependents: [InstalledAddon])] = []
+        for addon in targets {
+            let needing = await context.manager.dependents(of: addon.id, in: installation).filter { !removing.contains($0.id) }
+            dependents.append((addon, needing))
+        }
+        let warnings = DependencyOffer.removalWarnings(dependents)
+        if context.yes {
+            for warning in warnings { context.warn(warning) }
+        }
+        guard try context.confirm(Self.question(targets, warnings: warnings), action: "remove") else {
             throw CLIError.cancelled
         }
 
@@ -253,7 +270,11 @@ struct RemoveCommand: ContextCommand {
         }
         if context.json {
             let failed = failures.map { FailureJSON(ref: $0.ref, code: ExitStatus.identifier(for: $0.error), message: ExitStatus.message(for: $0.error)) }
-            try context.emit(RemoveOutput(installation: installation.id, removed: removed, failed: failed))
+            let stopping = dependents.filter { entry in removed.contains { $0.id == entry.removed.id } }.flatMap(\.dependents)
+            var seen = Set<AddonRef>()
+            try context.emit(RemoveOutput(
+                installation: installation.id, removed: removed, failed: failed,
+                stopLoading: stopping.map(\.id).filter { seen.insert($0).inserted }))
         } else {
             context.noteIfGameRunning(changed: removed.count)
         }
@@ -264,6 +285,17 @@ struct RemoveCommand: ContextCommand {
         var installation: String
         var removed: [InstalledAddon]
         var failed: [FailureJSON]
+        /// Managed add-ons that required a removed one and won't load now.
+        var stopLoading: [AddonRef] = []
+    }
+
+    /// "Remove LittleWigs, BigWigs (3 folders)? Folders go to the Trash.", plus a sentence for
+    /// each add-on that will stop loading.
+    static func question(_ targets: [InstalledAddon], warnings: [String]) -> String {
+        let names = targets.map(\.name).joined(separator: ", ")
+        let folderCount = targets.reduce(0) { $0 + $1.folders.count }
+        return (["Remove \(names) (\(folderCount) folder\(folderCount == 1 ? "" : "s"))? Folders go to the Trash."] + warnings)
+            .joined(separator: " ")
     }
 
     /// The core checks every folder (no `Blizzard_*`, nothing managed, only folders directly in

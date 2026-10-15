@@ -68,7 +68,20 @@ Listings stored before migration 7 have no folders. The migration marks them sta
 
 `dependents(of: ref)` reads the other managed add-ons' loaded TOCs the same way and returns those that require a folder `ref` owns, unless another folder in `AddOns/` provides it. Front ends use it to warn before uninstalling: "LittleWigs needs BigWigs and will stop loading".
 
+## In the CLI
+
+`Sources/reload/Commands/DependencyOffer.swift` words what the core finds; the CLI decides nothing about candidates.
+
+| Command | What it does |
+|---|---|
+| `install` | Offers each suggested add-on, `[Y/n]` (`--yes` accepts, `--no-deps` skips), installs the accepted ones and checks them too; warns about the rest. `--json` lists them in `missingDependencies` ([commands.md](../cli/commands.md#install-and-required-add-ons)) |
+| `remove` | The confirmation adds "LittleWigs needs BigWigs and will stop loading" (unless both are removed); `--json` lists them in `stopLoading` |
+| `list` | STATE shows "needs BigWigs"; JSON `missingDependencies` |
+| `doctor` | A warning per missing folder ([maintenance.md](../cli/maintenance.md#doctor)) |
+
+There's no CLI setting for `DependencyPolicy`: a terminal asks, and `--yes` / `--no-deps` cover the other two.
+
 ## Not done
 
 - Required folders of unmanaged folders aren't checked.
-- Dependencies of dependencies are found only after the first one is installed.
+- Dependencies of dependencies are found only after the first one is installed (the CLI checks again then).

@@ -61,7 +61,7 @@ struct CLIHarness {
     let context: CLIContext
     let installation: Installation
 
-    init() async throws {
+    init(arguments: [String] = ["--quiet"], downloads: any DownloadTransport = NoDownloads()) async throws {
         root = try temporaryDirectory()
         let wow = root.appending(path: "World of Warcraft/_classic_beta_", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: wow.appending(path: "Interface/AddOns"), withIntermediateDirectories: true)
@@ -70,11 +70,11 @@ struct CLIHarness {
             "RELOAD_GITHUB_TOKEN": "test-token",
         ]
         var context = CLIContext(
-            options: try GlobalOptions.parse(["--quiet"]), environment: environment,
+            options: try GlobalOptions.parse(arguments), environment: environment,
             console: Console(stdinIsTTY: false, stdoutIsTTY: false, stderrIsTTY: false))
         context.keychain = KeychainStore(service: "reloadTests-\(UUID().uuidString)")
         context.manager = AddonManager(
-            directories: context.directories, http: http, downloadTransport: NoDownloads(),
+            directories: context.directories, http: http, downloadTransport: downloads,
             locator: CLIEnvironment.locator(environment), keychain: context.keychain, environment: environment)
         self.context = context
         installation = try await context.manager.addInstallation(at: wow)

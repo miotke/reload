@@ -21,16 +21,20 @@ struct ListCommand: ContextCommand {
         let installation = try await context.installation()
         let statuses = Self.filter(try await context.manager.addons(in: installation), unmanaged: unmanaged, missing: missing)
         let games = await Self.games(statuses, in: installation, manager: context.manager)
+        let needs = Self.needs(await context.manager.missingDependencies(in: installation))
 
         if context.json {
-            try context.emit(Output(installation: installation, addons: statuses.map { AddonStatusJSON($0, availableFlavors: games[$0.id]) }))
+            try context.emit(Output(installation: installation, addons: statuses.map { status in
+                let missing: [String]? = if case .managed(let addon, _) = status { needs[addon.id] } else { nil }
+                return AddonStatusJSON(status, availableFlavors: games[status.id], missingDependencies: missing)
+            }))
             return
         }
         guard !statuses.isEmpty else {
             context.say(missing ? "No add-ons have missing folders." : "No add-ons installed. Try `reload search <words>`.")
             return
         }
-        context.print(Format.listTable(statuses, flavor: installation.flavor, games: games, style: context.style))
+        context.print(Format.listTable(statuses, flavor: installation.flavor, games: games, needs: needs, style: context.style))
         let managedCount = statuses.filter { if case .managed = $0 { true } else { false } }.count
         context.detail("\(managedCount) managed in \(installation.addonsDirectory.path(percentEncoded: false))")
     }
@@ -57,6 +61,15 @@ struct ListCommand: ContextCommand {
             if !found.isEmpty { out[status.id] = found }
         }
         return out
+    }
+
+    /// The folders each managed add-on requires and doesn't have.
+    static func needs(_ missing: [MissingDependency]) -> [AddonRef: [String]] {
+        var needs: [AddonRef: [String]] = [:]
+        for dependency in missing {
+            for ref in dependency.requiredBy { needs[ref, default: []].append(dependency.folder) }
+        }
+        return needs
     }
 
     static func filter(_ statuses: [AddonStatus], unmanaged: Bool, missing: Bool) -> [AddonStatus] {

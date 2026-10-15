@@ -93,7 +93,10 @@ enum Format {
     }
 
     /// `games` holds each row's available flavors by `AddonStatus.id`; missing means not checked.
-    static func listTable(_ statuses: [AddonStatus], flavor: Flavor, games: [String: Set<Flavor>] = [:], style: Style) -> String {
+    /// `needs`: missing required folders by managed add-on, shown as "needs BigWigs".
+    static func listTable(
+        _ statuses: [AddonStatus], flavor: Flavor, games: [String: Set<Flavor>] = [:], needs: [AddonRef: [String]] = [:], style: Style
+    ) -> String {
         let rows = statuses.map { status -> [String] in
             let gamesCell = Format.games(games[status.id], flavor: flavor, style: style)
             switch status {
@@ -102,6 +105,7 @@ enum Format {
                 if addon.pinned { notes.append(style.yellow("pinned")) }
                 if let build = build(addon) { notes.append(style.yellow(build)) }
                 if !missing.isEmpty { notes.append(style.red("missing: \(missing.joined(separator: ", "))")) }
+                if let folders = needs[addon.id], !folders.isEmpty { notes.append(style.red("needs \(DependencyOffer.list(folders))")) }
                 return [addon.name, addon.version, style.dim(ref(addon.id)), gamesCell, addon.channel.rawValue, notes.joined(separator: ", ")]
             case .unmanaged(let unmanaged):
                 let source = unmanaged.suggestedRef.map { style.dim("→ \(ref($0))?") } ?? style.dim("—")

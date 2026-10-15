@@ -40,7 +40,7 @@ One row per check, marked ✓ (ok), `!` (warning) or error. Exit 1 if any check 
 | Row | Checks |
 |---|---|
 | Installations | found, default still exists |
-| Each installation | `AddOns` readable; store readable; managed and unmanaged counts; add-ons with missing folders; folders claimed by two add-ons |
+| Each installation | `AddOns` readable; store readable; managed and unmanaged counts; add-ons with missing folders; folders claimed by two add-ons; a warning per [missing required add-on](../features/dependencies.md), with what could provide it |
 | Metadata | `metadata.sqlite` opens, schema version, size, catalogue and support row counts. Warns when the catalogue is empty (run `reload refresh`) |
 | Refresh *(per installation)* | when it was last refreshed, or a warning if never |
 | GitHub API | the stored `core` rate-limit state: remaining calls and reset time; warns below 10 |
