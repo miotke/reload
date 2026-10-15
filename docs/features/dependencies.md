@@ -70,7 +70,7 @@ Listings stored before migration 7 have no folders. The migration marks them sta
 
 ## In the CLI
 
-`Sources/reload/Commands/DependencyOffer.swift` words what the core finds; the CLI decides nothing about candidates.
+`DependencyOffer` in `Sources/reload/Commands/InstallCommands.swift` words what the core finds; the CLI decides nothing about candidates.
 
 | Command | What it does |
 |---|---|
