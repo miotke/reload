@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Synchronization
 
@@ -224,6 +225,10 @@ public actor Downloader {
         guard Self.isUsableFile(partial) else {
             throw AddonError.invalidArchive("download of \(release.assetName) is empty")
         }
+        // A corrupted or tampered file never reaches the cache, so it's never installed.
+        if let expected = release.md5, try await Self.md5(of: partial) != expected {
+            throw AddonError.invalidArchive("\(release.assetName) doesn't match the checksum its host published")
+        }
         if fm.fileExists(atPath: destination.path(percentEncoded: false)) {
             try fm.removeItem(at: destination)
         }
@@ -231,6 +236,18 @@ public actor Downloader {
         touch(destination)
         progress(1)
         return destination
+    }
+
+    /// Lower-case hex MD5 of the file at `url`, read in 1 MB chunks off this actor.
+    @concurrent
+    static func md5(of url: URL) async throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = Insecure.MD5()
+        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     /// Cached archives for `ref`, newest first. Use for rollback.

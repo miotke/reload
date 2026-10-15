@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import AddonKit
@@ -226,6 +227,32 @@ import Testing
         }
         #expect(h.http.urls.filter { $0.hasPrefix(base) } == [base + "101,102.json"])
         #expect(done == ["2.0", "2.0"])
+    }
+
+    @Test func wowInterfaceDownloadsMustMatchTheirChecksum() async throws {
+        let h = try await ManagerHarness()
+        let ref = AddonRef(source: .wowinterface, identifier: "101")
+        let download = "https://cdn.wowinterface.com/downloads/getfile.php?id=101"
+        let zip = try Data(contentsOf: makeTestZip([
+            .directory("Addon101"),
+            .file("Addon101/Addon101.toc", "## Interface: 16001\n## Title: Addon101\n"),
+        ], named: "101.zip", in: makeTempDirectory()))
+        h.transport.stub(URL(string: download)!, zip)
+        func details(version: String, md5: String) -> String {
+            #"[{"UID":"101","UIName":"Addon101","UIVersion":"\#(version)","UIDate":"1790000000000","UIFileName":"Addon101-\#(version).zip","UIMD5":"\#(md5)","UIDownload":"\#(download)"}]"#
+        }
+
+        // A tampered or corrupted download is refused and leaves nothing behind.
+        h.http.stub(HostedSourceManagerTests.details, text: details(version: "1.0", md5: String(repeating: "0", count: 32)))
+        await #expect(throws: AddonError.self) { try await h.manager.install(ref, into: h.installation) }
+        #expect(try await h.manager.installedAddons(in: h.installation).isEmpty)
+        #expect(await h.manager.downloader.cachedArchives(for: ref).isEmpty)
+
+        // The published checksum (WoWInterface sends it upper- or lower-case) installs.
+        let md5 = Insecure.MD5.hash(data: zip).map { String(format: "%02X", $0) }.joined()
+        h.http.stub(HostedSourceManagerTests.details, text: details(version: "1.1", md5: md5))
+        let installed = try await h.manager.install(ref, into: h.installation)
+        #expect(installed.version == "1.1")
     }
 
     @Test func zipDecidesForeverSupport() async throws {

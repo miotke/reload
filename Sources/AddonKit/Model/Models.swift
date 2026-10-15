@@ -194,13 +194,17 @@ public struct ResolvedRelease: Sendable, Hashable {
     /// Another game's build, chosen with `allowFamilyFallback` (`.mainline` on Forever); nil
     /// for the installation's own flavor.
     public var flavorBuild: Flavor?
+    /// The MD5 the host published for the download (WoWInterface), lower-case hex. The
+    /// downloader refuses an archive that doesn't match. Nil when the host publishes none.
+    public var md5: String?
 
     public init(
         ref: AddonRef, name: String, version: String, releaseID: Int64, publishedAt: Date,
         downloadURL: URL, assetName: String, changelog: String? = nil, isPrerelease: Bool = false,
-        reasoning: [String] = [], flavorBuild: Flavor? = nil
+        reasoning: [String] = [], flavorBuild: Flavor? = nil, md5: String? = nil
     ) {
         self.flavorBuild = flavorBuild
+        self.md5 = md5
         self.ref = ref
         self.name = name
         self.version = version

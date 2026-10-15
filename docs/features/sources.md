@@ -9,7 +9,7 @@ Code: `Sources/AddonKit/AddonManager+Sources.swift`, `Sources/AddonKit/Sources/`
 | Source | Listing | Latest file | Refs |
 |---|---|---|---|
 | GitHub | the community catalogue CSV ([search.md](search.md)) | releases, `release.json` ([release-selection.md](release-selection.md)) | `owner/repo`, `github:owner/repo`, `github.com` URLs |
-| WoWInterface | `api.mmoui.com/v3/game/WOW/filelist.json`: ~8,200 add-ons, ~5.6 MB | `…/filedetails/<id>.json`: download link, description (BBCode), changelog | `wowinterface:3826`, `wowinterface.com/downloads/info3826-…`, `…/fileinfo.php?id=3826`, `…/download3826-…` |
+| WoWInterface | `api.mmoui.com/v3/game/WOW/filelist.json`: ~8,200 add-ons, ~5.6 MB | `…/filedetails/<id>.json`: download link, MD5 (checked by the [downloader](installing.md#downloader)), description (BBCode), changelog | `wowinterface:3826`, `wowinterface.com/downloads/info3826-…`, `…/fileinfo.php?id=3826`, `…/download3826-…` |
 | Tukui | `api.tukui.org/v1/addons`: ElvUI and Tukui, a few KB | the same listing, which carries the download link | `tukui:elvui`, `tukui.org/elvui` |
 
 All three are keyless. WoWInterface and Tukui are **hosted sources** (`HostedSource`): one listing of every add-on and one zip per add-on, with no builds per game and no prereleases. Both channels get the latest file.
@@ -71,6 +71,5 @@ A source that's **off**:
 
 ## Not done yet
 
-- WoWInterface's `UIMD5` isn't checked against the download.
 - Tukui's changelog (`changelog_url`) isn't fetched; its release notes are empty.
 - The same add-on on GitHub and a host shows as two rows. Adoption suggestions are still GitHub-only.

@@ -37,7 +37,8 @@ struct WoWInterface: HostedSource {
                 identifier: file.UID, name: file.UIName, author: file.UIAuthorName, version: file.UIVersion,
                 publishedAt: Date(timeIntervalSince1970: date.value / 1000), downloadURL: url,
                 fileName: file.UIFileName ?? "\(file.UID).zip",
-                summary: file.UIDescription.map(BBCode.markdown), changelog: file.UIChangeLog.map(BBCode.markdown)
+                summary: file.UIDescription.map(BBCode.markdown), changelog: file.UIChangeLog.map(BBCode.markdown),
+                md5: file.UIMD5.flatMap { Self.isMD5($0) ? $0 : nil }
             )
         }
         return out
@@ -62,6 +63,11 @@ struct WoWInterface: HostedSource {
 
     func webURL(for identifier: String) -> URL? {
         URL(string: "https://www.wowinterface.com/downloads/info\(identifier)")
+    }
+
+    /// 32 hex digits; anything else is ignored rather than failing every download.
+    static func isMD5(_ s: String) -> Bool {
+        s.count == 32 && s.allSatisfy(\.isHexDigit)
     }
 
     static func isValidID(_ s: String) -> Bool {
@@ -91,6 +97,7 @@ struct WoWInterface: HostedSource {
         var UIVersion: String
         var UIDate: FlexibleNumber?
         var UIFileName: String?
+        var UIMD5: String?
         var UIDownload: String
         var UIDescription: String?
         var UIChangeLog: String?
