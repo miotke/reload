@@ -69,6 +69,8 @@ struct GeneralSettingsTab: View {
     @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
     @AppStorage(SettingsKey.checkForUpdatesOnLaunch) private var checkForUpdatesOnLaunch = true
     @AppStorage(SettingsKey.showMenuBarExtra) private var showMenuBarExtra = false
+    @AppStorage(SettingsKey.dependencyPolicy) private var dependencyPolicy: DependencyPolicy = .ask
+    @AppStorage(SettingsKey.warnBeforeRemovingDependencies) private var warnBeforeRemovingDependencies = true
 
     private static let checkHelp = "On launch, when the app becomes active, and every 2 hours. Check for Updates (⌘R) always works."
 
@@ -97,6 +99,18 @@ struct GeneralSettingsTab: View {
                 } footer: {
                     SettingsFootnote("The game the main window shows. Also in the window's title menu.")
                 }
+            }
+
+            Section {
+                Picker("When an add-on needs another add-on", selection: $dependencyPolicy) {
+                    ForEach(DependencyPolicy.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .accessibilityIdentifier("dependency-policy")
+                Toggle("Warn before removing an add-on others need", isOn: $warnBeforeRemovingDependencies)
+            } header: {
+                Text("Dependencies")
+            } footer: {
+                SettingsFootnote("Some add-ons only load with another one installed, like LittleWigs with BigWigs. Installed shows what's missing either way; Reload only installs an add-on it's sure provides it.")
             }
 
             Section("Menu Bar") {

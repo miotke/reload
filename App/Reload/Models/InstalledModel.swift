@@ -36,6 +36,19 @@ final class InstalledModel {
     /// Managed add-ons by lower-cased `AddonRef.description`: the hashable form of
     /// `AddonRef.isSameRepo(as:)`, so lookups per row stay O(1).
     @ObservationIgnored private var managedIndex: [String: InstalledAddon] = [:]
+    /// Required add-ons missing for the managed add-ons, from the core, reloaded with them.
+    private(set) var missingDependencies: [MissingDependency] = [] {
+        didSet {
+            var index: [String: [MissingDependency]] = [:]
+            for dependency in missingDependencies {
+                for ref in dependency.requiredBy { index[ref.description.lowercased(), default: []].append(dependency) }
+            }
+            dependencyIndex = index
+            rebuildRows()
+        }
+    }
+    /// `missingDependencies` by requiring add-on, keyed like `managedIndex`.
+    @ObservationIgnored private var dependencyIndex: [String: [MissingDependency]] = [:]
     private(set) var hasLoaded = false
     private(set) var isLoading = false
     /// From the last check (`UpdateQueue`), and from the queue's own installs and pins.
@@ -79,6 +92,11 @@ final class InstalledModel {
     /// The managed add-on for `ref`, compared case-insensitively.
     func addon(for ref: AddonRef) -> InstalledAddon? {
         managedIndex[ref.description.lowercased()]
+    }
+
+    /// Required add-ons that `ref` needs and that aren't installed.
+    func missingDependencies(for ref: AddonRef) -> [MissingDependency] {
+        dependencyIndex[ref.description.lowercased()] ?? []
     }
 
     func status(id: AddonStatus.ID?) -> AddonStatus? {
@@ -138,8 +156,14 @@ final class InstalledModel {
         defer { isLoading = false; hasLoaded = true }
         do {
             let loaded = try await manager.addons(in: installation)
+            // Local: the TOCs the reload just read. Always asked, since installing a missing
+            // add-on by hand changes it without changing the managed list.
+            let missing = await manager.missingDependencies(in: installation)
             // Unchanged reloads (e.g. after our own writes) don't touch the tables.
-            if loaded != addons { addons = loaded }
+            batchingRows {
+                if loaded != addons { addons = loaded }
+                if missing != missingDependencies { missingDependencies = missing }
+            }
             didReload?()
         } catch {
             reportError(error.localizedDescription)
@@ -158,8 +182,12 @@ final class InstalledModel {
         let now = Date.now
         let query = options.query
         let all = addons.map { status in
-            let update: UpdateState? = if case .managed(let addon, _) = status { updateStates[addon.id] } else { nil }
-            return (status, InstalledRow(status: status, update: update, flavor: installation.flavor, now: now))
+            guard case .managed(let addon, _) = status else {
+                return (status, InstalledRow(status: status, update: nil, flavor: installation.flavor, now: now))
+            }
+            let needs = dependencyIndex[addon.id.description.lowercased()]?.map(\.folder) ?? []
+            return (status, InstalledRow(status: status, update: updateStates[addon.id], flavor: installation.flavor,
+                                         missingDependencies: needs, now: now))
         }
         let counts = LibraryCounts(rows: all.map(\.1))
         var rows = all.filter { options.section.includes($0.1) && Self.matches($0.0, query: query) }.map(\.1)

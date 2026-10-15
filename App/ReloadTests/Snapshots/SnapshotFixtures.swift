@@ -37,6 +37,7 @@ nonisolated enum Fixtures {
     static let bugSack = addon("funkydude/BugSack", "BugSack", version: "v11.2.0", folders: ["BugSack", "!BugGrabber"])
     static let pinnedDBM = addon("DeadlyBossMods/DeadlyBossMods", "Deadly Boss Mods", version: "11.2.15", folders: ["DBM-Core", "DBM-GUI"], pinned: true)
     static let retailOnlyInstalled = addon("Tercioo/Details-Damage-Meter", "Details!", version: "#Details.20250930", retailBuild: true)
+    static let littleWigs = addon("BigWigsMods/LittleWigs", "LittleWigs", version: "v11.2.6")
 
     static let questie = UnmanagedFolder(
         folder: "Questie", folders: ["Questie", "QuestieDB"],
@@ -54,6 +55,7 @@ nonisolated enum Fixtures {
         .managed(bugSack, missingFolders: []),
         .managed(pinnedDBM, missingFolders: []),
         .managed(retailOnlyInstalled, missingFolders: []),
+        .managed(littleWigs, missingFolders: []),
         .unmanaged(questie),
         .unmanaged(notLoaded),
     ]
@@ -63,6 +65,24 @@ nonisolated enum Fixtures {
         bugSack.id: .available(release("funkydude/BugSack", "BugSack", version: "v11.2.3")),
         pinnedDBM.id: .pinned,
         retailOnlyInstalled.id: .available(release("Tercioo/Details-Damage-Meter", "Details!", version: "#Details.20250930")),
+        littleWigs.id: .upToDate,
+    ]
+
+    // MARK: Dependencies
+
+    static let bigWigs = DependencyCandidate(ref: ref("BigWigsMods/BigWigs"), name: "BigWigs",
+                                             reason: "Its latest release ships the BigWigs folder")
+    /// LittleWigs needs BigWigs, which isn't installed; the core is sure which add-on provides it.
+    static let missingDependencies = [
+        MissingDependency(folder: "BigWigs", requiredBy: [littleWigs.id], candidates: [bigWigs], suggested: bigWigs),
+    ]
+    /// Every kind the Requires section shows: a suggestion, several candidates, and none.
+    static let missingDependencyKinds = missingDependencies + [
+        MissingDependency(folder: "LibSharedMedia-3.0", requiredBy: [littleWigs.id], candidates: [
+            DependencyCandidate(ref: ref("example/LibSharedMedia"), name: "LibSharedMedia-3.0", reason: "Its latest release ships the folder"),
+            DependencyCandidate(ref: ref("example/SharedMedia"), name: "SharedMedia", reason: "WoWInterface lists the folder"),
+        ]),
+        MissingDependency(folder: "LittleWigs_Extras", requiredBy: [littleWigs.id]),
     ]
 
     // MARK: Browse
@@ -139,6 +159,11 @@ nonisolated struct FixtureManager: AddonManaging {
 
     var addonList: [AddonStatus] = Fixtures.addons
     var content = Fixtures.browseContent
+    var missing: [MissingDependency] = Fixtures.missingDependencies
+    /// What `dependents(of:in:)` reports, by ref.
+    var dependentsByRef: [AddonRef: [InstalledAddon]] = [:]
+    /// Refs `install` succeeds for, with the record it returns; the rest throw.
+    var installable: [AddonRef: InstalledAddon] = [:]
 
     func installations() async throws -> [Installation] { [Fixtures.installation] }
     func detectInstallations() async throws -> [Installation] { [Fixtures.installation] }
@@ -150,7 +175,10 @@ nonisolated struct FixtureManager: AddonManaging {
     func install(
         _ ref: AddonRef, into installation: Installation, channel: Channel, force: Bool, allowFamilyFallback: Bool,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws -> InstalledAddon { throw Unsupported() }
+    ) async throws -> InstalledAddon {
+        guard let addon = installable[ref] else { throw Unsupported() }
+        return addon
+    }
     func checkForUpdates(in installation: Installation) async throws -> [AddonRef: UpdateState] { Fixtures.updates }
     func update(_ refs: [AddonRef], in installation: Installation) -> AsyncStream<OperationEvent> { Self.finished() }
     func update(releases: [ResolvedRelease], in installation: Installation) -> AsyncStream<OperationEvent> { Self.finished() }
@@ -176,6 +204,11 @@ nonisolated struct FixtureManager: AddonManaging {
     func metadataVersion() async -> Int64? { nil }
     var storeDirectory: URL { URL(filePath: "/tmp/ReloadSnapshots/store", directoryHint: .isDirectory) }
     func storedAvailability(for refs: [AddonRef], in installation: Installation) async -> [AddonRef: StoredAvailability] { [:] }
+    func missingDependencies(in installation: Installation) async -> [MissingDependency] { missing }
+    func missingDependencies(of ref: AddonRef, in installation: Installation) async -> [MissingDependency] {
+        missing.filter { $0.requiredBy.contains(ref) }
+    }
+    func dependents(of ref: AddonRef, in installation: Installation) async -> [InstalledAddon] { dependentsByRef[ref] ?? [] }
 
     private static func finished<T>() -> AsyncStream<T> {
         AsyncStream { $0.finish() }

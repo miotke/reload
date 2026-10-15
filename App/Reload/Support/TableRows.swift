@@ -108,7 +108,7 @@ nonisolated enum BrowseColumn: String, SortableColumn {
 nonisolated struct InstalledRow: Identifiable, Hashable, Sendable {
     /// Ascending puts what needs attention first.
     enum Condition: Int, Comparable, Sendable {
-        case missingFolders, updateAvailable, failed, noCompatibleRelease, pinned, upToDate, unchecked, unmanaged
+        case missingFolders, missingDependencies, updateAvailable, failed, noCompatibleRelease, pinned, upToDate, unchecked, unmanaged
 
         static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
     }
@@ -131,6 +131,11 @@ nonisolated struct InstalledRow: Identifiable, Hashable, Sendable {
     var installedText: String
     var isPinned: Bool
     var missingFolders: [String]
+    /// Required add-ons that aren't installed (`MissingDependency.folder`), from the core.
+    var missingDependencies: [String] = []
+    /// "Needs BigWigs" and its tooltip, when `missingDependencies` isn't empty.
+    var dependencyText: String?
+    var dependencyHelp: String?
     var condition: Condition
     var failure: String?
     /// Unmanaged only: the game doesn't load this folder for the installation's flavor.
@@ -138,7 +143,7 @@ nonisolated struct InstalledRow: Identifiable, Hashable, Sendable {
 
     var isManaged: Bool { ref != nil }
 
-    init(status: AddonStatus, update: UpdateState?, flavor: Flavor, now: Date = .now) {
+    init(status: AddonStatus, update: UpdateState?, flavor: Flavor, missingDependencies: [String] = [], now: Date = .now) {
         id = status.id
         isPinned = false
         missingFolders = []
@@ -154,8 +159,14 @@ nonisolated struct InstalledRow: Identifiable, Hashable, Sendable {
             missingFolders = missing
             buildText = RetailBuildOffer.buildLabel(addon)
             availableVersion = UpdateOffer(installed: addon, update: update, flavor: flavor)?.label
+            self.missingDependencies = missingDependencies
+            dependencyText = DependencyWording.status(missingDependencies)
+            dependencyHelp = DependencyWording.statusHelp(name: addon.name, folders: missingDependencies)
             if !missing.isEmpty {
                 condition = .missingFolders
+            } else if !missingDependencies.isEmpty {
+                // The game won't load it at all, which matters more than an update.
+                condition = .missingDependencies
             } else if addon.pinned {
                 condition = .pinned
             } else {

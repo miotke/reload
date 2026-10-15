@@ -235,6 +235,10 @@ struct StatusCell: View {
                 Label("Missing files", systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                     .help("Missing \(row.missingFolders.joined(separator: ", "))")
+            case .missingDependencies:
+                Label(row.dependencyText ?? "Needs add-ons", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .help(row.dependencyHelp ?? "")
             case .updateAvailable:
                 Label("Update", systemImage: "arrow.down.circle.fill").foregroundStyle(.tint)
                     .help("\(row.availableVersion ?? "An update") is available")
@@ -335,7 +339,7 @@ private struct InstalledContextMenu: View {
             }
             Button("Show in Finder") { showInFinder(addon.folders) }
             Divider()
-            Button("Uninstall…", role: .destructive) { model.pendingRemoval = .managed(addon) }
+            Button("Uninstall…", role: .destructive) { model.requestUninstall(addon) }
         } else if let unmanaged = status.unmanagedFolder {
             Button("Adopt…") { model.adoptTarget = AdoptTarget(unmanaged) }
             Button("Show in Finder") { showInFinder(unmanaged.folders) }

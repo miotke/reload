@@ -62,14 +62,14 @@ Each installation has one `InstallationModel`, which only owns and wires four fe
 | Name | name, with the repository beside it |
 | Version | `1.2 → 1.3` when an update is available (`→ Forever build` when it replaces a Retail build); **Retail build** beside it when that's the build in use |
 | Channel | stable / prerelease |
-| Status | missing files / update / check failed / no *<flavor>* build / pinned / up to date / unmanaged / not loaded by *<flavor>* |
+| Status | missing files / needs *<add-on>* ([required add-ons](required-addons.md)) / update / check failed / no *<flavor>* build / pinned / up to date / unmanaged / not loaded by *<flavor>* |
 | Installed | date |
 | Action | Update / Retry, Adopt…, progress |
 
 - One table for every library section: Installed shows managed add-ons; Updates, Unmanaged and Pinned are filtered views of the same rows ([navigation.md](navigation.md#library-sections-are-one-table)).
 - **Unmanaged rows** show the title and version of the TOC the game loads for the flavor (`Questie`, `v12.0.4`), not the folder's base TOC, with the folder name beside it when it differs. Folders one release ships are one row, "Questie · 2 folders" ([data-storage.md](../architecture/data-storage.md#reconcile)). When no TOC is for the flavor, Status says **Not loaded by Forever**.
-- **Inspector actions.** An installed add-on's action row has Update, Roll Back…, **Show in Finder** (bordered, reveals its folders in Interface/AddOns) and **Uninstall…**; an unmanaged folder's has Adopt…, **Show in Finder** and **Move to Trash…**. The Folders section only lists folders.
-- **Context menus.** Managed: Update, Pin/Unpin, Open on GitHub, Show in Finder, **Uninstall…**. Unmanaged: Adopt…, Show in Finder, **Move to Trash…**. Both confirm through one dialog at the window root (`AppModel.pendingRemoval`), since a menu can't host it. The trash dialog lists every folder in the group.
+- **Inspector actions.** An installed add-on's action row has Update, Roll Back…, **Show in Finder** (bordered, reveals its folders in Interface/AddOns) and **Uninstall…**; an unmanaged folder's has Adopt…, **Show in Finder** and **Move to Trash…**. The Folders section only lists folders. An add-on that needs missing ones has a **Requires** section with Install or Search per folder ([required-addons.md](required-addons.md)).
+- **Context menus.** Managed: Update, Pin/Unpin, Open on GitHub, Show in Finder, **Uninstall…**. Unmanaged: Adopt…, Show in Finder, **Move to Trash…**. Both confirm through one dialog at the window root (`AppModel.pendingRemoval`), since a menu can't host it; Uninstall… names the add-ons that need it first. The trash dialog lists every folder in the group.
 - **Update** and **Update All** install the releases the last check found (`update(releases:in:)`), with no second check. With nothing available, Update All does nothing (an empty list used to mean "update everything", which was a bug).
 - Errors show as a red icon with the message in its tooltip and in the inspector ([errors.md](../architecture/errors.md)).
 - Action buttons in both tables (Install, Overwrite, Update/Retry, Adopt…) are bordered and small.
