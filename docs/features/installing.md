@@ -105,6 +105,7 @@ Names compare case-insensitively and duplicates are removed once, so a whole gro
 - Downloads with `URLSession` and reports progress from 0 to 1.
 - Reuses a cached zip when one exists. Concurrent requests for the same release share one download.
 - Zips inspected during a resolve are stored at the same paths, so the install reuses them.
+- **Checks the host's checksum** when the release has one (`ResolvedRelease.md5`, from WoWInterface's `UIMD5`): a mismatch throws `invalidArchive` before the file enters the cache, so it's never installed or reused. Hashing runs off the downloader's actor in 1 MB chunks. GitHub and Tukui publish no checksum.
 - Runs up to 4 downloads at once.
 - Keeps the newest **2** zips per add-on, which is what rollback uses.
 - The transport is a protocol (`DownloadTransport`), so tests serve zips without the network.

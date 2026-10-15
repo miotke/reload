@@ -61,7 +61,7 @@ final class NetworkActivityModel {
     private(set) var downloadCount = 0
     private(set) var receivedBytes: Int64 = 0
 
-    /// Every row kept, oldest first.
+    /// Every row kept, sorted by ID, which is oldest first.
     @ObservationIgnored private var rows: [ActivityRow] = []
     @ObservationIgnored private var bytesByID: [Int: Int64] = [:]
     @ObservationIgnored private var pending: [NetworkEvent] = []
@@ -99,10 +99,12 @@ final class NetworkActivityModel {
         guard !pending.isEmpty else { return }
         for event in pending where event.id > clearedThrough {
             let row = ActivityRow(event)
-            if let index = rows.lastIndex(where: { $0.id == event.id }) {
+            // A search per event, not a scan: a replay is 1,000 events into up to 1,000 rows.
+            let index = position(of: event.id)
+            if index < rows.count, rows[index].id == event.id {
                 rows[index] = row
             } else {
-                rows.append(row)
+                rows.insert(row, at: index)
             }
             if let bytes = event.bytes { bytesByID[event.id] = bytes }
         }
@@ -123,7 +125,18 @@ final class NetworkActivityModel {
     }
 
     func row(id: ActivityRow.ID) -> ActivityRow? {
-        rows.last { $0.id == id }
+        let index = position(of: id)
+        return index < rows.count && rows[index].id == id ? rows[index] : nil
+    }
+
+    /// Where the row for `id` is, or would go, in `rows`.
+    private func position(of id: ActivityRow.ID) -> Int {
+        var low = 0, high = rows.count
+        while low < high {
+            let middle = (low + high) / 2
+            if rows[middle].id < id { low = middle + 1 } else { high = middle }
+        }
+        return low
     }
 
     /// "214 requests · 3 downloads · 6.1 MB"

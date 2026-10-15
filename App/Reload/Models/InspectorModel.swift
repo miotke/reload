@@ -83,6 +83,23 @@ final class InspectorModel {
         setDetails(.loaded(loaded, readme: readme), for: ref)
     }
 
+    /// Refs whose details are loaded; their games follow the metadata database like Browse rows.
+    var loadedRefs: Set<AddonRef> {
+        Set(details.compactMap { $0.value.details == nil ? nil : $0.key })
+    }
+
+    /// Patches loaded details with fresh stored availability, so installing an add-on (which
+    /// records the flavors its TOCs ship) updates the header without refetching.
+    func applyStored(_ answers: [AddonRef: StoredAvailability]) {
+        for (ref, answer) in answers {
+            guard case .loaded(var loaded, let readme)? = details[ref] else { continue }
+            let before = loaded
+            if let support = answer.support { loaded.support = support }
+            if let flavors = answer.availableFlavors { loaded.availableFlavors = flavors }
+            if loaded != before { details[ref] = .loaded(loaded, readme: readme) }
+        }
+    }
+
     /// Stores `state` for `ref`, dropping the least recently viewed beyond `detailsLimit`.
     func setDetails(_ state: DetailsState?, for ref: AddonRef) {
         details[ref] = state

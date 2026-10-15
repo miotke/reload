@@ -16,8 +16,11 @@ struct BrowseView: View {
     var query: String
     var category: SearchCategory?
 
-    /// "Hide Classic-only" and its per-family siblings; the key predates them.
-    @AppStorage("browseForeverOnly") private var hideIncompatible = true
+    /// The games picker: a family's raw value, "all", or empty for the installation's own
+    /// family, so the default follows the selected game.
+    @AppStorage("browseGames") private var gamesStorage = ""
+    /// The checkbox the picker replaced; unticked carries over as "All".
+    @AppStorage("browseForeverOnly") private var legacyHideIncompatible = true
     @AppStorage("browseHome") private var home: BrowseHome = .popular
     @AppStorage("browseSort") private var sortStorage = ""
     @SceneStorage("browseColumns") private var columns = TableColumnCustomization<BrowseRow>()
@@ -25,7 +28,7 @@ struct BrowseView: View {
 
     private struct QueryKey: Hashable {
         var text: String
-        var hideIncompatible: Bool
+        var games: GameFamily?
         var includeLiveGitHub: Bool
         var installationID: String
         var sources: Set<SourceID>
@@ -36,6 +39,21 @@ struct BrowseView: View {
     private var isHome: Bool { trimmedQuery.isEmpty }
     private var sort: ColumnSort<BrowseColumn>? { ColumnSort(storageValue: sortStorage) }
 
+    private var games: GameFamily? {
+        let own = browse.installation.flavor.family
+        switch gamesStorage {
+        case "all": return nil
+        case "": return legacyHideIncompatible ? own : nil
+        default: return GameFamily(rawValue: gamesStorage) ?? own
+        }
+    }
+
+    private var gamesSelection: Binding<GameFamily?> {
+        Binding(
+            get: { games },
+            set: { gamesStorage = $0 == browse.installation.flavor.family ? "" : $0?.rawValue ?? "all" })
+    }
+
     private var sortOrder: Binding<[ColumnSort<BrowseColumn>]> {
         Binding(
             get: { sort.map { [$0] } ?? [] },
@@ -44,14 +62,13 @@ struct BrowseView: View {
 
     /// Filtering and sorting happen in the model, once per change, not in `body`.
     private var options: BrowseOptions {
-        BrowseOptions(query: trimmedQuery, home: home, hideIncompatible: hideIncompatible, sort: sort)
+        BrowseOptions(query: trimmedQuery, home: home, games: games, sort: sort)
     }
 
     var body: some View {
         @Bindable var inspector = inspector
         VStack(spacing: 0) {
-            BrowseFilterBar(flavor: browse.installation.flavor, isHome: isHome, category: category,
-                            home: $home, hideIncompatible: $hideIncompatible)
+            BrowseFilterBar(isHome: isHome, category: category, home: $home, games: gamesSelection)
             Divider()
             BrowseTable(model: model, browse: browse, queue: queue, selection: $inspector.selectedBrowseID,
                         sortOrder: sortOrder, columns: $columns)
@@ -62,7 +79,7 @@ struct BrowseView: View {
         }
         .onChange(of: options, initial: true) { browse.options = options }
         // `.task(id:)` cancels the previous search whenever the query changes; the sleep is the debounce.
-        .task(id: QueryKey(text: trimmedQuery, hideIncompatible: hideIncompatible, includeLiveGitHub: includeLiveGitHub,
+        .task(id: QueryKey(text: trimmedQuery, games: games, includeLiveGitHub: includeLiveGitHub,
                            installationID: browse.installation.id, sources: model.enabledSources,
                            catalogueVersion: browse.catalogueVersion)) {
             let text = trimmedQuery
@@ -73,7 +90,7 @@ struct BrowseView: View {
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
             await browse.search(SearchQuery(text: text, flavor: browse.installation.flavor,
-                                            hideIncompatible: hideIncompatible, includeLiveGitHub: includeLiveGitHub))
+                                            hideIncompatible: false, games: games, includeLiveGitHub: includeLiveGitHub))
         }
         .task(id: browse.installation.id) {
             await queue.loadLastRefresh()
@@ -103,14 +120,12 @@ struct BrowseView: View {
     }
 }
 
-/// Popular / Recently Updated with an empty query, the selected category, and the
-/// "Hide Classic-only" toggle.
+/// Popular / Recently Updated with an empty query, the selected category, and the games picker.
 struct BrowseFilterBar: View {
-    var flavor: Flavor
     var isHome: Bool
     var category: SearchCategory?
     @Binding var home: BrowseHome
-    @Binding var hideIncompatible: Bool
+    @Binding var games: GameFamily?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -127,10 +142,14 @@ struct BrowseFilterBar: View {
                     .font(.headline)
             }
             Spacer()
-            Toggle(IncompatibleFilterLabel.title(for: flavor), isOn: $hideIncompatible)
-                .toggleStyle(.checkbox)
-                .help(IncompatibleFilterLabel.help(for: flavor))
-                .fixedSize()
+            Picker("Games", selection: $games) {
+                Text("All").tag(GameFamily?.none)
+                ForEach(GameFamily.allCases, id: \.self) { Text($0.displayName).tag(Optional($0)) }
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
+            .controlSize(.small)
+            .help("Show add-ons with a build for this game. Installed add-ons and ones not checked yet always show.")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

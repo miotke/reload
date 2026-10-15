@@ -53,6 +53,20 @@ import Testing
         #expect(BrowseFilter.hasConfirmedBuild(result, for: .forever))
     }
 
+    @Test func gamesFilter() {
+        var result = SearchResult(id: ref, name: "R", owner: "o", availableFlavors: [.mainline], origin: [.catalogue])
+        #expect(BrowseFilter.isHidden(result, games: .forever, isInstalled: false), "a Retail-only build has no F bubble")
+        #expect(!BrowseFilter.isHidden(result, games: .forever, isInstalled: true), "installed rows always show")
+        #expect(!BrowseFilter.isHidden(result, games: .retail, isInstalled: false))
+        #expect(!BrowseFilter.isHidden(result, games: nil, isInstalled: false))
+        result.availableFlavors = [.mists]
+        #expect(!BrowseFilter.isHidden(result, games: .classic, isInstalled: false))
+        result.availableFlavors = nil
+        #expect(!BrowseFilter.isHidden(result, games: .classic, isInstalled: false), "unchecked rows stay")
+        result.support = .noReleases
+        #expect(BrowseFilter.isHidden(result, games: .classic, isInstalled: false))
+    }
+
     @Test func visibleCheckTargetsPutUncheckedFirst() {
         let refs = (0..<30).map { AddonRef(source: .github, identifier: "o/r\($0)") }
         let checked = Set(refs.prefix(5))

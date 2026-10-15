@@ -78,7 +78,7 @@ public actor SearchCoordinator {
             continuation.yield(SearchUpdate(results: [], isComplete: true))
             return
         }
-        var session = Session(flavor: query.flavor, hideIncompatible: query.hideIncompatible)
+        var session = Session(flavor: query.flavor, hideIncompatible: query.hideIncompatible, games: query.games)
         // Sources that are off add no results; installed add-ons from them still show.
         let enabled = await supportCache.database.enabledSources()
         let statuses = await keyed(supportCache.statuses(flavor: query.flavor))
@@ -323,12 +323,14 @@ public actor SearchCoordinator {
 private struct Session {
     var flavor: Flavor
     var hideIncompatible: Bool
+    var games: GameFamily?
     private(set) var results: [SearchResult] = []
     private var positions: [String: Int] = [:]
 
-    init(flavor: Flavor, hideIncompatible: Bool) {
+    init(flavor: Flavor, hideIncompatible: Bool, games: GameFamily? = nil) {
         self.flavor = flavor
         self.hideIncompatible = hideIncompatible
+        self.games = games
     }
 
     var count: Int { results.count }
@@ -382,7 +384,9 @@ private struct Session {
     }
 
     private func isVisible(_ result: SearchResult) -> Bool {
-        guard hideIncompatible, flavor.hidesAsIncompatible(families: result.families, support: result.support) else { return true }
+        let incompatible = hideIncompatible && flavor.hidesAsIncompatible(families: result.families, support: result.support)
+        let otherGame = games?.hides(families: result.families, support: result.support) ?? false
+        guard incompatible || otherGame else { return true }
         // Installed add-ons and explicit references are always shown.
         return result.installed != nil || result.origin.contains(.installed) || result.origin.contains(.direct)
     }

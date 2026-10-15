@@ -112,13 +112,6 @@ import Testing
         #expect(label(date(2026, 10, 12, 7, 18), now: now) == "Last fetched Oct 12, 7:18 AM")
         #expect(label(date(2025, 12, 30, 19, 5), now: now) == "Last fetched Dec 30, 2025, 7:05 PM")
     }
-
-    @Test func filterToggleIsLabelledByFamily() {
-        #expect(IncompatibleFilterLabel.title(for: .forever) == "Hide Classic-only")
-        #expect(IncompatibleFilterLabel.title(for: .mainline) == "Hide add-ons without a Retail build")
-        #expect(IncompatibleFilterLabel.title(for: .mists) == "Hide add-ons without a Classic build")
-        #expect(IncompatibleFilterLabel.help(for: .mists).contains("Mists Classic"))
-    }
 }
 
 /// Browse rows and the inspector ask the same model question, so they agree, including when a

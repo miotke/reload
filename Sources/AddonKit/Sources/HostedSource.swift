@@ -37,11 +37,14 @@ public struct HostedFile: Codable, Sendable, Hashable {
     /// Markdown.
     public var changelog: String?
     public var screenshots: [URL]
+    /// The download's MD5 as the host published it (WoWInterface's `UIMD5`), if any.
+    public var md5: String?
 
     public init(
         identifier: String, name: String, author: String? = nil, version: String, publishedAt: Date, downloadURL: URL,
-        fileName: String, summary: String? = nil, changelog: String? = nil, screenshots: [URL] = []
+        fileName: String, summary: String? = nil, changelog: String? = nil, screenshots: [URL] = [], md5: String? = nil
     ) {
+        self.md5 = md5
         self.identifier = identifier
         self.name = name
         self.author = author
@@ -61,7 +64,8 @@ public struct HostedFile: Codable, Sendable, Hashable {
             ref: ref, name: name, version: version,
             releaseID: LatestReleaseStore.syntheticReleaseID(ref: ref, tag: version),
             publishedAt: publishedAt, downloadURL: downloadURL, assetName: fileName, changelog: changelog,
-            reasoning: ["\(ref.source.displayName) file \(fileName), version \(version)"]
+            reasoning: ["\(ref.source.displayName) file \(fileName), version \(version)"],
+            md5: md5?.lowercased()
         )
     }
 }

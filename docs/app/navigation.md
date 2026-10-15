@@ -83,4 +83,4 @@ One toolbar search field (⌘F), whose prompt follows the section: "Filter insta
 
 - Library sections: ⟳ Check for Updates (⌘R) and Update All (not on Updates, which has its own above the table).
 - Always: the inspector toggle (⌥⌘I) and the search field.
-- Browse's **Hide Classic-only** toggle stays in its filter bar, beside Popular / Recently Updated (empty query) or the selected category's name.
+- Browse's **Games** picker stays in its filter bar, beside Popular / Recently Updated (empty query) or the selected category's name.

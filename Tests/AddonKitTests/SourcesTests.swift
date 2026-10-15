@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import AddonKit
@@ -182,6 +183,76 @@ import Testing
             if case .done(let addon) = event { updated = addon }
         }
         #expect(updated?.version == "2.1")
+    }
+
+    /// File `id` at `version`: its details JSON object, with its zip stubbed for download.
+    func file(_ h: ManagerHarness, _ id: String, version: String) throws -> String {
+        let folder = "Addon\(id)"
+        let download = "https://cdn.wowinterface.com/downloads/getfile.php?id=\(id)&v=\(version)"
+        let zip = try makeTestZip([
+            .directory(folder),
+            .file("\(folder)/\(folder).toc", "## Interface: 16001\n## Title: \(folder)\n"),
+        ], named: "\(id)-\(version).zip", in: makeTempDirectory())
+        h.transport.stub(URL(string: download)!, try Data(contentsOf: zip))
+        return #"{"UID":"\#(id)","UIName":"\#(folder)","UIVersion":"\#(version)","UIDate":"1790000000000","UIFileName":"\#(folder).zip","UIDownload":"\#(download)"}"#
+    }
+
+    @Test func bulkChecksAskForEveryHostedAddonAtOnce() async throws {
+        let h = try await ManagerHarness()
+        let base = "https://api.mmoui.com/v3/game/WOW/filedetails/"
+        let refs = ["101", "102"].map { AddonRef(source: .wowinterface, identifier: $0) }
+        for id in ["101", "102"] {
+            h.http.stub(base + "\(id).json", text: "[\(try file(h, id, version: "1.0"))]")
+            try await h.manager.install(AddonRef(source: .wowinterface, identifier: id), into: h.installation)
+        }
+
+        // Both have a new version: one request answers both checks.
+        h.http.stub(base + "101,102.json", text: "[\(try file(h, "101", version: "2.0")),\(try file(h, "102", version: "2.0"))]")
+        h.http.reset()
+        let states = try await h.manager.checkForUpdates(in: h.installation)
+        #expect(h.http.urls.filter { $0.hasPrefix(base) } == [base + "101,102.json"])
+        for ref in refs {
+            guard case .available(let release) = states[ref] else {
+                Issue.record("expected an update for \(ref)")
+                continue
+            }
+            #expect(release.version == "2.0")
+        }
+
+        // Update All asks once too, then installs both.
+        h.http.reset()
+        var done: [String] = []
+        for await event in h.manager.update([], in: h.installation) {
+            if case .done(let addon) = event { done.append(addon.version) }
+        }
+        #expect(h.http.urls.filter { $0.hasPrefix(base) } == [base + "101,102.json"])
+        #expect(done == ["2.0", "2.0"])
+    }
+
+    @Test func wowInterfaceDownloadsMustMatchTheirChecksum() async throws {
+        let h = try await ManagerHarness()
+        let ref = AddonRef(source: .wowinterface, identifier: "101")
+        let download = "https://cdn.wowinterface.com/downloads/getfile.php?id=101"
+        let zip = try Data(contentsOf: makeTestZip([
+            .directory("Addon101"),
+            .file("Addon101/Addon101.toc", "## Interface: 16001\n## Title: Addon101\n"),
+        ], named: "101.zip", in: makeTempDirectory()))
+        h.transport.stub(URL(string: download)!, zip)
+        func details(version: String, md5: String) -> String {
+            #"[{"UID":"101","UIName":"Addon101","UIVersion":"\#(version)","UIDate":"1790000000000","UIFileName":"Addon101-\#(version).zip","UIMD5":"\#(md5)","UIDownload":"\#(download)"}]"#
+        }
+
+        // A tampered or corrupted download is refused and leaves nothing behind.
+        h.http.stub(HostedSourceManagerTests.details, text: details(version: "1.0", md5: String(repeating: "0", count: 32)))
+        await #expect(throws: AddonError.self) { try await h.manager.install(ref, into: h.installation) }
+        #expect(try await h.manager.installedAddons(in: h.installation).isEmpty)
+        #expect(await h.manager.downloader.cachedArchives(for: ref).isEmpty)
+
+        // The published checksum (WoWInterface sends it upper- or lower-case) installs.
+        let md5 = Insecure.MD5.hash(data: zip).map { String(format: "%02X", $0) }.joined()
+        h.http.stub(HostedSourceManagerTests.details, text: details(version: "1.1", md5: md5))
+        let installed = try await h.manager.install(ref, into: h.installation)
+        #expect(installed.version == "1.1")
     }
 
     @Test func zipDecidesForeverSupport() async throws {

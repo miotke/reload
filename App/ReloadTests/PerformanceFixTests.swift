@@ -242,4 +242,19 @@ func pngData(width: Int, height: Int) throws -> Data {
         #expect(model.details[refs[0]] == nil)
         #expect(model.details[refs.last!] != nil)
     }
+
+    /// Installing records the flavors the zip's TOCs ship; the open inspector must show them
+    /// like the Browse row does, not the details it loaded before the install.
+    @Test func storedAvailabilityPatchesLoadedDetails() {
+        let model = InstallationModel(installation: installation, manager: manager, reportError: { _ in })
+        let ref = AddonRef(source: .tukui, identifier: "elvui")
+        let before = AddonDetails(ref: ref, name: "ElvUI", owner: "Elv", repositoryURL: URL(string: "https://tukui.org")!,
+                                  support: .needsDownload, availableFlavors: [.mainline, .vanilla])
+        model.inspector.setDetails(.loaded(before, readme: []), for: ref)
+        #expect(model.browse.listedRefs.contains(ref))
+
+        model.browse.applyStored([ref: StoredAvailability(support: nil, availableFlavors: [.mainline, .forever, .vanilla])])
+        #expect(model.inspector.details[ref]?.details?.availableFlavors == [.mainline, .forever, .vanilla])
+        #expect(model.inspector.details[ref]?.details?.support == .needsDownload)
+    }
 }

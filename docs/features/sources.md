@@ -9,7 +9,7 @@ Code: `Sources/AddonKit/AddonManager+Sources.swift`, `Sources/AddonKit/Sources/`
 | Source | Listing | Latest file | Refs |
 |---|---|---|---|
 | GitHub | the community catalogue CSV ([search.md](search.md)) | releases, `release.json` ([release-selection.md](release-selection.md)) | `owner/repo`, `github:owner/repo`, `github.com` URLs |
-| WoWInterface | `api.mmoui.com/v3/game/WOW/filelist.json`: ~8,200 add-ons, ~5.6 MB | `…/filedetails/<id>.json`: download link, description (BBCode), changelog | `wowinterface:3826`, `wowinterface.com/downloads/info3826-…`, `…/fileinfo.php?id=3826`, `…/download3826-…` |
+| WoWInterface | `api.mmoui.com/v3/game/WOW/filelist.json`: ~8,200 add-ons, ~5.6 MB | `…/filedetails/<id>.json`: download link, MD5 (checked by the [downloader](installing.md#downloader)), description (BBCode), changelog | `wowinterface:3826`, `wowinterface.com/downloads/info3826-…`, `…/fileinfo.php?id=3826`, `…/download3826-…` |
 | Tukui | `api.tukui.org/v1/addons`: ElvUI and Tukui, a few KB | the same listing, which carries the download link | `tukui:elvui`, `tukui.org/elvui` |
 
 All three are keyless. WoWInterface and Tukui are **hosted sources** (`HostedSource`): one listing of every add-on and one zip per add-on, with no builds per game and no prereleases. Both channels get the latest file.
@@ -45,6 +45,8 @@ Hosts don't say whether a file supports Forever. WoWInterface lists the game ver
 
 ## Updates
 
+Bulk checks (the refresh, ⌘R, `reload outdated`) and Update All first fetch every due hosted add-on's latest file together (`HostedCatalogue.prefetch`): WoWInterface's `filedetails/101,102,….json` takes up to 50 IDs per request (`batchSize`), and Tukui's listing has them all. Each check then reads that fresh answer. An add-on the batch missed is asked for on its own.
+
 `hostedUpdateState`: the latest file's version against the installed one (`isUpdate`; hosted releases have synthetic IDs, so versions are compared). Same version: up to date, no download. New version: its zip is downloaded and inspected for the build in use, then offered. On a Retail build on Forever, a new version with a Forever TOC is offered as the Forever build.
 
 ## Turning sources on and off
@@ -69,6 +71,5 @@ A source that's **off**:
 
 ## Not done yet
 
-- WoWInterface's `UIMD5` isn't checked against the download.
 - Tukui's changelog (`changelog_url`) isn't fetched; its release notes are empty.
 - The same add-on on GitHub and a host shows as two rows. Adoption suggestions are still GitHub-only.

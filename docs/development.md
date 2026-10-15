@@ -37,6 +37,7 @@ scripts/ci/              the steps the GitHub workflows run (below)
 | App build | `xcodebuild -project App/Reload.xcodeproj -scheme Reload -configuration Debug -destination 'platform=macOS' -derivedDataPath build/DerivedData build` |
 | App tests | the same command with `test` instead of `build` |
 | UI snapshots | `scripts/snapshots.sh` ([below](#snapshots)) |
+| UI tests (leaks, memory) | `scripts/ui-tests.sh` ([below](#ui-tests)); quit Reload first |
 | Regenerate Xcode project | `cd App && xcodegen generate` (commit the result) |
 | Release build | `scripts/release.sh <version>` ([app/releases.md](app/releases.md)) |
 
@@ -70,6 +71,17 @@ The **require tests** ruleset makes the `test` job a required check for merging 
 - Views are drawn in an offscreen `NSHostingView`, not `ImageRenderer`: `ImageRenderer` leaves scroll views blank and draws borderless and link buttons as yellow placeholders. `Table` doesn't render either way, so rows are the real cell views stacked at the column widths.
 - Controls draw as in an inactive app, so prominent buttons are grey rather than the accent colour. Menus can't be drawn offscreen, so the installation menu is shown as its item labels in a menu-style panel; sidebar selection is redrawn by the renderer and its text looks slightly dim.
 - A test passes when rendering succeeds; nothing is compared against a reference image.
+
+## UI tests
+
+`App/ReloadUITests` drives the real app and fails on leaks or memory growth. **Not in CI**: GitHub's runners have no unlocked desktop to drive. It runs on this Mac **before each push**.
+
+- `MemoryUITests` launches a throwaway Reload over `UITestFixture`: a temp `RELOAD_DATA_DIR` with a fake installation and 600 WoWInterface catalogue rows, marked refreshed and downloaded, so there's no first-launch sheet and no network. It then repeats, 1 warm-up round plus 8: Browse search, scrolling, the inspector, an add-on window, Window ▸ Network Activity, Settings ▸ Sources (WoWInterface off and on), Installed.
+- After the warm-up and after the rounds, `scripts/ui-tests.sh` measures the app from outside (the test runner is sandboxed and can't): `leaks`, `heap` (live bytes) and `footprint`, plus the footprint after every round as a trend. It fails if leaked bytes grow by more than 16 KB or the live heap by more than 4 MB. The footprint is printed but not judged: it counts freed memory the allocator keeps and swings by tens of MB on its own. Apple's constant ~20 KB App Shortcuts leak is in both readings, so it cancels out. `RELOAD_UI_ROUNDS=20` runs more rounds; `RELOAD_UI_SNAPSHOT_ROUNDS="7 20"` saves `vmmap` and `heap` reports to `build/ui-snapshots/` for digging into growth.
+- It's XCTest, not Swift Testing: UI testing only exists in XCTest. Its own scheme, `ReloadUITests`, keeps it out of the `Reload` scheme CI tests.
+- `scripts/ui-tests.sh` runs it. It refuses while any Reload is running, because XCTest quits running copies of the app it launches, and while the screen is locked, because macOS won't bring the app to the front then.
+- **Before each push:** `scripts/install-hooks.sh` (once per clone) sets SSH keep-alives for the repo (git opens its connection before the hook and would lose it during the minutes the tests take) and points git at `.githooks/`, whose `pre-push` runs `scripts/ui-tests.sh` when the push changes `Sources/`, `App/` or `Package.*`. `git push --no-verify` skips it in an emergency.
+- The first run asks for Accessibility access for Xcode's test runner (System Settings ▸ Privacy & Security ▸ Accessibility).
 
 ## Testing without touching your real setup
 

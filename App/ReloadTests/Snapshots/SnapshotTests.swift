@@ -126,8 +126,7 @@ import UniformTypeIdentifiers
                     .frame(width: 220)
                 Divider()
                 VStack(alignment: .leading, spacing: 0) {
-                    BrowseFilterBar(flavor: .forever, isHome: false, category: bags,
-                                    home: .constant(.popular), hideIncompatible: .constant(true))
+                    BrowseFilterBar(isHome: false, category: bags, home: .constant(.popular), games: .constant(.forever))
                     Divider()
                     TableSnapshot(columns: BrowseRowSnapshot.columns) {
                         ForEach(rows) { row in BrowseRowSnapshot(state: state, row: row) }

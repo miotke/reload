@@ -65,12 +65,16 @@ public struct SearchQuery: Sendable, Hashable {
     /// build on Retail, without a Classic build on the classics. Installed add-ons and direct
     /// refs always stay. It was `compatibleOnly`, and before that `foreverOnly`.
     public var hideIncompatible: Bool
+    /// Keeps only results with a build for this family (`GameFamily.hides`), the app's games
+    /// picker; nil keeps every game. Installed add-ons and direct refs always stay.
+    public var games: GameFamily?
     public var includeLiveGitHub: Bool
 
-    public init(text: String, flavor: Flavor, hideIncompatible: Bool = true, includeLiveGitHub: Bool = false) {
+    public init(text: String, flavor: Flavor, hideIncompatible: Bool = true, games: GameFamily? = nil, includeLiveGitHub: Bool = false) {
         self.text = text
         self.flavor = flavor
         self.hideIncompatible = hideIncompatible
+        self.games = games
         self.includeLiveGitHub = includeLiveGitHub
     }
 }

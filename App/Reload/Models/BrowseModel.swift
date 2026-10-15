@@ -6,7 +6,8 @@ import Observation
 struct BrowseOptions: Equatable {
     var query = ""
     var home: BrowseHome = .popular
-    var hideIncompatible = true
+    /// The games picker; nil shows every game.
+    var games: GameFamily?
     var sort: ColumnSort<BrowseColumn>?
 }
 
@@ -87,9 +88,8 @@ final class BrowseModel {
             results = searchResults
         }
         // The home lists come back unfiltered, and live patches can fill in a search result's games.
-        if options.hideIncompatible {
-            let flavor = installation.flavor
-            results = results.filter { !BrowseFilter.isHidden($0, for: flavor, isInstalled: installed.addon(for: $0.id) != nil) }
+        if let games = options.games {
+            results = results.filter { !BrowseFilter.isHidden($0, games: games, isInstalled: installed.addon(for: $0.id) != nil) }
         }
         var rows = results.map { row(for: $0, now: now) }
         if let sort = options.sort { rows.sort(using: sort) }
@@ -167,8 +167,13 @@ final class BrowseModel {
         self.content = content
     }
 
+    /// Refs shown outside Browse whose games follow the database too (the inspector's details).
+    @ObservationIgnored var watchedRefs: (@MainActor () -> Set<AddonRef>)?
+    @ObservationIgnored var didApplyStored: (@MainActor ([AddonRef: StoredAvailability]) -> Void)?
+
     /// Replaces the games and verdicts of listed rows; a database change touches only its own rows.
     func applyStored(_ answers: [AddonRef: StoredAvailability]) {
+        didApplyStored?(answers)
         let results = searchResults.patching(answers)
         if results != searchResults { searchResults = results }
         guard var content else { return }
@@ -177,9 +182,10 @@ final class BrowseModel {
         if content.popular != self.content?.popular || content.recent != self.content?.recent { self.content = content }
     }
 
-    /// Every result currently listed: search results and both home lists.
+    /// Every result currently listed (search results and both home lists), plus `watchedRefs`.
     var listedRefs: Set<AddonRef> {
         Set((searchResults + (content?.popular ?? []) + (content?.recent ?? [])).map(\.id))
+            .union(watchedRefs?() ?? [])
     }
 
     /// Re-reads Browse after another process (`reload`) changed the metadata database.

@@ -31,6 +31,8 @@ final class InstallationModel {
         queue.didFinishRefresh = { [weak browse] in
             if let browse, browse.content != nil { await browse.loadBrowse() }
         }
+        browse.watchedRefs = { [weak inspector] in inspector?.loadedRefs ?? [] }
+        browse.didApplyStored = { [weak inspector] answers in inspector?.applyStored(answers) }
         browse.isRefreshing = { [weak queue] in queue?.isRefreshing ?? false }
         inspector.didLoadAvailability = { [weak browse] ref, availability in browse?.applyStored([ref: availability]) }
     }

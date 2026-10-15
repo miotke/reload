@@ -16,6 +16,8 @@ struct SourcesSettingsTab: View {
                         Text(setting.source.displayName)
                         Text(Self.summary(setting.source))
                     }
+                    // For the UI tests (App/ReloadUITests).
+                    .accessibilityIdentifier("source-\(setting.source.rawValue)")
                 }
             } header: {
                 Text("Search and Browse")

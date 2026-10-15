@@ -39,8 +39,8 @@ targets:
       path: Reload/Info.plist
       properties:
         CFBundleDisplayName: Reload
-        CFBundleShortVersionString: "0.1.4"
-        CFBundleVersion: "5"
+        CFBundleShortVersionString: "0.1.5"
+        CFBundleVersion: "6"
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         NSHumanReadableCopyright: "© 2026 miotke. MIT License. Not affiliated with Blizzard Entertainment."
@@ -109,7 +109,34 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+  # Drives the built app (docs/development.md#ui-tests). Its own scheme, so CI (which tests
+  # the Reload scheme) never runs it; scripts/ui-tests.sh runs it before each push.
+  ReloadUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: ReloadUITests
+    dependencies:
+      - target: Reload
+      - package: AddonKit
+        product: AddonKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.miotke.ReloadUITests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        TEST_TARGET_NAME: Reload
 schemes:
+  ReloadUITests:
+    build:
+      targets:
+        Reload: all
+        ReloadUITests: [test]
+    test:
+      targets:
+        - ReloadUITests
   Reload:
     build:
       targets:
