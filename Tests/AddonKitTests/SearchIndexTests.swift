@@ -26,6 +26,22 @@ func catalogueEntry(_ fullName: String, name: String? = nil, description: String
 
     @Test func foldingIgnoresCaseAndDiacritics() {
         #expect(SearchText.key("Ätherwind Façade") == "atherwindfacade")
+        #expect(SearchText.tokens("ÉcoleBag") == ["ecolebag", "ecole", "bag"])
+    }
+
+    /// The ASCII fast paths split exactly like the `Character` rules they stand in for.
+    @Test func asciiFastPathsMatchTheCharacterRules() {
+        var generator = SystemRandomNumberGenerator()
+        let alphabet = Array("aZbY09 _-.\r\nQq7x")
+        for _ in 0..<2_000 {
+            let text = String((0..<Int.random(in: 0...16, using: &generator)).map { _ in alphabet.randomElement(using: &generator)! })
+            let words = SearchText.words(text)
+            #expect(words == Substring(text).split { !($0.isLetter || $0.isNumber) }, "\(text.debugDescription)")
+            for word in words {
+                #expect(SearchText.camelParts(word) == SearchText.unicodeCamelParts(word), "\(word.debugDescription)")
+                #expect(SearchText.fold(word) == String(word).folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil).lowercased())
+            }
+        }
     }
 }
 
