@@ -96,26 +96,6 @@ nonisolated struct GameBubblesModel: Hashable, Sendable {
     }
 }
 
-/// The Browse filter toggle, by the installation's game family. Its `@AppStorage` key is still
-/// `browseForeverOnly`, so the setting carries over.
-nonisolated enum IncompatibleFilterLabel {
-    static func title(for flavor: Flavor) -> String {
-        switch flavor.family {
-        case .forever: "Hide Classic-only"
-        case .retail, .classic: "Hide add-ons without a \(flavor.family.displayName) build"
-        }
-    }
-
-    static func help(for flavor: Flavor) -> String {
-        switch flavor.family {
-        case .forever:
-            "Hide add-ons that only ship Classic builds; they don't load on \(flavor.displayName). Retail-only add-ons stay: they often work, listed as out of date."
-        case .retail, .classic:
-            "Hide add-ons whose latest release has no \(flavor.family.displayName) build, so they won't load on \(flavor.displayName). Add-ons not checked yet stay."
-        }
-    }
-}
-
 extension UpdateOffer {
     /// "v1.3", or "Forever build" when the update replaces a fallback build with the installation's own.
     nonisolated var label: String {

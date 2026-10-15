@@ -31,7 +31,7 @@ func budget(_ duration: Duration) -> Duration {
         manager.content = BrowseContent(popular: results("Popular"), recent: results("Recent"), categories: [])
         let installed = InstalledModel(installation: Fixtures.installation, manager: manager, reportError: { _ in })
         let browse = BrowseModel(installation: Fixtures.installation, manager: manager, installed: installed)
-        browse.options = BrowseOptions(hideIncompatible: false)
+        browse.options = BrowseOptions(games: nil)
         return browse
     }
 
