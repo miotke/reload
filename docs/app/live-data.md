@@ -26,7 +26,7 @@ flowchart LR
 
 - `LiveMetadata`, owned by each installation's `BrowseModel`, listens to `metadataChanges()` for the `support` and `catalogue` kinds.
 - Changed repos are collected and patched in **at most twice a second** (`LiveMetadata.interval`, 500 ms), because a refresh writes one verdict per repo.
-- Only rows on screen are patched: the search results and the Browse home lists. Their stored verdicts and available flavors are read back in one `storedAvailability(for:in:)` call (one SQL query however many rows) and applied with `patching`.
+- Only what's on screen is patched: the search results, the Browse home lists and the inspector's loaded details (`InspectorModel.applyStored`), so installing an add-on updates its header's games along with its row. Their stored verdicts and available flavors are read back in one `storedAvailability(for:in:)` call (one SQL query however many rows) and applied with `patching`.
 - If a catalogue change touches a repo on the home lists, or a change carries no repo list, the Browse lists are re-read.
 - When the refresh finishes, Browse is re-read once in full.
 

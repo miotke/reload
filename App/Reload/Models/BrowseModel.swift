@@ -167,8 +167,13 @@ final class BrowseModel {
         self.content = content
     }
 
+    /// Refs shown outside Browse whose games follow the database too (the inspector's details).
+    @ObservationIgnored var watchedRefs: (@MainActor () -> Set<AddonRef>)?
+    @ObservationIgnored var didApplyStored: (@MainActor ([AddonRef: StoredAvailability]) -> Void)?
+
     /// Replaces the games and verdicts of listed rows; a database change touches only its own rows.
     func applyStored(_ answers: [AddonRef: StoredAvailability]) {
+        didApplyStored?(answers)
         let results = searchResults.patching(answers)
         if results != searchResults { searchResults = results }
         guard var content else { return }
@@ -177,9 +182,10 @@ final class BrowseModel {
         if content.popular != self.content?.popular || content.recent != self.content?.recent { self.content = content }
     }
 
-    /// Every result currently listed: search results and both home lists.
+    /// Every result currently listed (search results and both home lists), plus `watchedRefs`.
     var listedRefs: Set<AddonRef> {
         Set((searchResults + (content?.popular ?? []) + (content?.recent ?? [])).map(\.id))
+            .union(watchedRefs?() ?? [])
     }
 
     /// Re-reads Browse after another process (`reload`) changed the metadata database.
