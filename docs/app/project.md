@@ -22,6 +22,7 @@ New files under `App/Reload/` (and `Sources/reload/`) are picked up on regenerat
 | `Reload` | The app. Depends on the `AddonKit` package product and embeds `reload`. Default actor isolation `MainActor` |
 | `reload` | The CLI, compiled from `../Sources/reload` (the whole folder) against `AddonKit` and `ArgumentParser` (swift-argument-parser, pinned to 1.5.0 like `Package.swift`). Built with `-parse-as-library` because the entry point is an `@main` type. Default isolation `nonisolated`, matching the package |
 | `ReloadTests` | Unit tests for app helpers (`CLIInstaller`, `DirectoryWatcher`, `DayLabel`, table rows and sorting, `MarkdownParser`, `ScreenshotLoader` over a stub `URLProtocol`, the installation's models over a temp-folder `AddonManager`, sidebar sections and search scope), `EnvironmentUsageTests` for [decision 0015](../decisions/0015-environment-only-at-scene-roots.md), `ArchitectureTests` for the core/UI boundary, and `SnapshotTests` ([development.md](../development.md#snapshots)). Links `AddonKit`. Not hosted: every app source but `ReloadApp.swift` is compiled into the test bundle, so tests never launch the app |
+| `ReloadUITests` | UI tests that drive the built app (XCTest), in their own `ReloadUITests` scheme so CI doesn't run them; run before each push ([development.md](../development.md#ui-tests)). Links `AddonKit` to build the throwaway data folder |
 
 The app is signed "Sign to Run Locally", so no Apple developer account is needed.
 
@@ -103,6 +104,7 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | Screenshot download, disk cache and thumbnail decoding | `App/Reload/Support/ScreenshotLoader.swift` |
 | App unit and architecture tests | `App/ReloadTests/` |
 | UI snapshots: fixtures, test-only manager, renderer | `App/ReloadTests/Snapshots/` |
+| UI tests: the throwaway fixture, the leak and memory test | `App/ReloadUITests/` |
 
 The Keychain wrapper lives in AddonKit (`KeychainStore`), shared with the CLI.
 

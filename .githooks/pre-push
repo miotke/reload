@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Runs the UI tests before a push that changes app or core code (docs/development.md#ui-tests).
+# Install once per clone: scripts/install-hooks.sh. Skip in an emergency: git push --no-verify.
+set -euo pipefail
+
+zero=0000000000000000000000000000000000000000
+needs=false
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [[ $local_sha == "$zero" ]] && continue  # deleting a branch
+  if [[ $remote_sha == "$zero" ]]; then
+    range=$(git merge-base origin/main "$local_sha" 2>/dev/null || echo "")
+    [[ -z $range ]] && { needs=true; continue; }
+  else
+    range=$remote_sha
+  fi
+  if git diff --name-only "$range" "$local_sha" | grep -qE '^(Sources|App)/|^Package\.(swift|resolved)$'; then
+    needs=true
+  fi
+done
+
+if [[ $needs == false ]]; then
+  echo "pre-push: no app or core changes, skipping the UI tests."
+  exit 0
+fi
+echo "pre-push: running the UI tests (scripts/ui-tests.sh)…"
+exec "$(git rev-parse --show-toplevel)/scripts/ui-tests.sh"
