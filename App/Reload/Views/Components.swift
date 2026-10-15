@@ -2,7 +2,8 @@ import AddonKit
 import SwiftUI
 
 /// The R / F / C bubbles (docs/app/layout.md#games). Reads only its pre-computed model, so
-/// it's cheap in table cells and never touches the environment.
+/// it's cheap in table cells and never touches the environment. No tooltips: the status bar's
+/// legend says what the letters mean, and each one costs a view per bubble in long tables.
 struct GameBubbles: View {
     var model: GameBubblesModel
 
@@ -11,7 +12,6 @@ struct GameBubbles: View {
             HStack(spacing: 3) {
                 ForEach(bubbles) { bubble in
                     GameBubble(family: bubble.family, isPresent: bubble.isPresent, isOwn: bubble.isOwn)
-                        .help(bubble.help)
                 }
             }
             .accessibilityElement(children: .ignore)
@@ -20,7 +20,6 @@ struct GameBubbles: View {
             Text("—")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-                .help(model.uncheckedHelp)
                 .accessibilityLabel(model.accessibilityLabel)
         }
     }

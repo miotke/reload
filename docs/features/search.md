@@ -106,7 +106,7 @@ Known quirk: "bag" ranks the Bagnon plugins above BetterBags, because a name sta
 - **Popular:** add-ons with a stored "supported" verdict, sorted by stars when known.
 - Both lists carry `availableFlavors`. **Recently updated** always drops what the hide-incompatible rule hides; the app filters both lists again by its toggle.
 - **Recently updated:** catalogue entries with the newest update dates.
-- Each list holds up to `SearchCoordinator.browseLimit` (500) rows; the table is lazy, so the cap is about relevance, not cost. (It was 20 when Browse was a short chip-led list.)
+- Each list holds up to `SearchCoordinator.browseLimit` (200) rows, and a search keeps its best `catalogueLimit` (100) catalogue matches. The table builds only visible rows, but accessibility clients (VoiceOver, window managers, UI tests) make it build every row, at about 0.7 MB each, so the caps keep that bounded; the lists are ranked, so the cut is the long tail. (Browse was 500 rows a list and searches 200 matches until 0.1.6.)
 - **Categories:** Boss mods, Bags, UI, Quests, Maps, Auction and Combat. Each is a saved keyword query from `SearchAliases.categories`; clicking one runs that search.
 
 Results that are already installed are marked.

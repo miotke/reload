@@ -140,7 +140,7 @@ struct AdoptSheet: View {
                         Text(result.id.identifier).fontWeight(.medium)
                         Text(result.summary ?? "").foregroundStyle(.secondary).lineLimit(1)
                         Spacer()
-                        GameBubbles(model: GameBubblesModel(availableFlavors: result.availableFlavors, flavor: flavor, support: result.support))
+                        GameBubbles(model: GameBubblesModel(availableFlavors: result.availableFlavors, flavor: flavor))
                     }
                     .contentShape(Rectangle())
                 }

@@ -13,7 +13,7 @@ struct InspectorPane: View {
             case true:
                 switch state.installed.status(id: state.inspector.selectedAddonID) {
                 case .managed(let addon, let missing):
-                    AddonDetailView(state: state, ref: addon.id, missingFolders: missing)
+                    AddonDetailView(state: state, ref: addon.id, missingFolders: missing, searchBrowse: model.searchBrowse(for:))
                         .id(addon.id)
                 case .unmanaged(let unmanaged):
                     UnmanagedInspector(queue: state.queue, inspector: state.inspector, unmanaged: unmanaged,
@@ -51,6 +51,8 @@ struct AddonDetailView: View {
     var ref: AddonRef
     var missingFolders: [String]
     var style: Style = .inspector
+    /// The Requires section's Search: Browse, searching for a folder.
+    var searchBrowse: ((String) -> Void)?
 
     /// The installed record's row when installed: a search result's case can differ.
     private var id: String { (installed?.id ?? ref).description }
@@ -68,6 +70,12 @@ struct AddonDetailView: View {
                                  rowState: rowState, availableFlavors: availableFlavors, name: name)
                 about
                 detailsStatus
+                if installed != nil {
+                    let missing = state.installed.missingDependencies(for: ref)
+                    if !missing.isEmpty {
+                        RequiresSection(queue: state.queue, name: name, missing: missing, search: searchBrowse)
+                    }
+                }
                 if let loaded {
                     // The core already drops badges, SVGs and tiny icons.
                     let screenshots = Array(loaded.screenshots.prefix(ScreenshotLoader.maxImagesPerAddon))
@@ -119,7 +127,7 @@ struct AddonDetailView: View {
                 Text(byline).foregroundStyle(.secondary).font(.callout)
             }
             HStack(spacing: 8) {
-                GameBubbles(model: GameBubblesModel(availableFlavors: availableFlavors, flavor: flavor, support: support))
+                GameBubbles(model: GameBubblesModel(availableFlavors: availableFlavors, flavor: flavor))
                 Text(GameAvailability.sentence(availableFlavors: availableFlavors, for: flavor))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -353,6 +361,8 @@ private struct InspectorActions: View {
     var name: String
 
     @State private var confirmUninstall = false
+    /// Add-ons that stop loading without this one, read when Uninstall… is clicked.
+    @State private var dependents: [InstalledAddon] = []
     @State private var confirmRollback = false
     @State private var confirmRetailBuild = false
 
@@ -386,13 +396,18 @@ private struct InspectorActions: View {
                     NSWorkspace.shared.activateFileViewerSelecting(urls)
                 }
                 .help("Reveal \(installed.folders.joined(separator: ", ")) in Interface/AddOns")
-                Button("Uninstall…", role: .destructive) { confirmUninstall = true }
-                    .disabled(busy)
-                    .confirmationDialog("Uninstall \(installed.name)?", isPresented: $confirmUninstall) {
-                        Button("Uninstall", role: .destructive) { Task { await queue.uninstall(installedRef) } }
-                    } message: {
-                        Text("Removes \(installed.folders.joined(separator: ", ")) from Interface/AddOns. Saved settings are kept.")
+                Button("Uninstall…", role: .destructive) {
+                    Task {
+                        dependents = await queue.removalDependents(of: installedRef)
+                        confirmUninstall = true
                     }
+                }
+                .disabled(busy)
+                .confirmationDialog("Uninstall \(installed.name)?", isPresented: $confirmUninstall) {
+                    Button("Uninstall", role: .destructive) { Task { await queue.uninstall(installedRef) } }
+                } message: {
+                    Text(RemovalRequest.uninstallMessage(installed, dependents: dependents))
+                }
             } else if rowState.needsOverwrite {
                 Button("Overwrite Existing Folder", role: .destructive) {
                     Task { await queue.install(ref, channel: defaultChannel, force: true) }

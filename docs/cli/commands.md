@@ -15,11 +15,11 @@ Every `reload` command, how `<ref>` arguments are resolved, and how the installa
 |---|---|---|
 | `search <query…>` | `s` | Same local-first search as the Browse tab; see [search](#search). Prints NAME / REPO / GAMES / UPDATED ([GAMES](output.md#terminal-output): `R F C`). `--github` adds a deeper live GitHub search, `--all` keeps add-ons the [hide-incompatible rule](../features/search.md#hide-incompatible) drops (classic-only ones on Forever), `--limit N` (default 20) |
 | `info <ref>` | `show` | Description, website, the games it ships builds for with a sentence on what that means here, latest version, installed version, update status, owned folders, rollback target; see [info](#info). `--changelog` adds release notes, `--prerelease` looks at prereleases |
-| `install <ref…>` | `i`, `add` | Installs one after another with a progress row each. `--prerelease`, `--force` (overwrite unmanaged folders), `--version <tag>` (pins it; see [limits](config.md#limits)), `--retail-build` / `--allow-family-fallback` (Forever only: install the Retail build of an add-on with no Forever build; [release-selection.md](../features/release-selection.md#retail-build-on-forever)). Without the flag, an add-on with no Forever build is offered its Retail build at the end: a `[Y/n]` prompt, accepted by `--yes`; with no terminal it fails with a hint. Re-installing keeps the add-on's channel unless `--prerelease` is given; new installs use `default-channel` |
-| `remove <ref…>` | `rm`, `uninstall` | Moves folders to the Trash after confirmation. `--unmanaged <folder…>` moves unmanaged folders instead; it refuses `Blizzard_*`, managed folders and anything outside `AddOns/` before moving any ([installing.md](../features/installing.md#removing-unmanaged-folders)) |
+| `install <ref…>` | `i`, `add` | Installs one after another with a progress row each. `--prerelease`, `--force` (overwrite unmanaged folders), `--version <tag>` (pins it; see [limits](config.md#limits)), `--retail-build` / `--allow-family-fallback` (Forever only: install the Retail build of an add-on with no Forever build; [release-selection.md](../features/release-selection.md#retail-build-on-forever)). Without the flag, an add-on with no Forever build is offered its Retail build at the end: a `[Y/n]` prompt, accepted by `--yes`; with no terminal it fails with a hint. Re-installing keeps the add-on's channel unless `--prerelease` is given; new installs use `default-channel`. Afterwards it [checks required add-ons](#install-and-required-add-ons); `--no-deps` only warns |
+| `remove <ref…>` | `rm`, `uninstall` | Moves folders to the Trash after confirmation, which names add-ons that need a removed one and will stop loading ("LittleWigs needs BigWigs and will stop loading"; with `--yes`, a warning). `--unmanaged <folder…>` moves unmanaged folders instead; it refuses `Blizzard_*`, managed folders and anything outside `AddOns/` before moving any ([installing.md](../features/installing.md#removing-unmanaged-folders)) |
 | `update [<ref…>]` | `upgrade`, `up` | Checks, then installs only what has an update; see [update](#update). Pinned add-ons are listed as skipped. `--dry-run` shows the `outdated` table and what would be skipped |
 | `outdated` | | NAME / INSTALLED / LATEST / CHANNEL / PUBLISHED for available updates. Always revalidates. Exit code 10 if any |
-| `list` | `ls` | Managed add-ons with version, repo, GAMES, channel and state (pinned, "Retail build", missing folders). `--unmanaged` adds unmanaged folders: the title and version of the TOC the game loads, the suggested ref, and in STATE "not loaded by Forever" when it isn't plus the suggestion's reason ("Matched CurseForge project 334372") or "N candidates". Grouped folders are one row, `Questie (Questie, QuestieDB)`. `--missing` shows only add-ons with missing folders |
+| `list` | `ls` | Managed add-ons with version, repo, GAMES, channel and state (pinned, "Retail build", missing folders, "needs BigWigs" for a [missing required add-on](../features/dependencies.md)). `--unmanaged` adds unmanaged folders: the title and version of the TOC the game loads, the suggested ref, and in STATE "not loaded by Forever" when it isn't plus the suggestion's reason ("Matched CurseForge project 334372") or "N candidates". Grouped folders are one row, `Questie (Questie, QuestieDB)`. `--missing` shows only add-ons with missing folders |
 | `pin <ref…>` / `unpin <ref…>` | | Pin or unpin, so `update` skips them |
 | `channel <ref> stable\|prerelease` | | Set the release channel (applies on the next `update`) |
 | `rollback <ref>` | | Reinstall `previousRelease` from the download cache and pin it. Asks first |
@@ -43,6 +43,16 @@ Destructive commands (`remove`, `remove --unmanaged`, `adopt`, `rollback`, `cach
 - A spinner shows "Searching GitHub…" while the live search runs (terminal only).
 - `--json` output gains `searchedGitHub`.
 - How search works: [features/search.md](../features/search.md).
+
+## install and required add-ons
+
+After installing, `install` checks the TOCs of what it installed for required add-ons that aren't in `AddOns/` (`missingDependencies(of:in:)`, [dependencies.md](../features/dependencies.md)):
+
+- One with a **suggested** add-on is offered: `LittleWigs needs BigWigs. Install BigWigs (BigWigsMods/BigWigs)? [Y/n]`. `--yes` accepts. Accepted ones install like the rest, with `default-channel`, and are checked in turn (up to 3 rounds).
+- `--no-deps`, or no terminal and no `--yes`: nothing is offered.
+- Whatever is still missing is a warning on stderr: the install command for a suggestion, else the candidates and their reasons, else `reload search BigWigs`.
+- `--json` never asks (unless `--yes`) and lists what's missing in `missingDependencies`.
+- The exit code counts dependency installs in the batch: one that fails makes it a partial failure (3).
 
 ## info
 

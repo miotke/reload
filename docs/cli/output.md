@@ -49,7 +49,8 @@ $ reload update
 | `SupportJSON` | `{"status": "supported", "version": …}` |
 | `UpdateStateJSON` | `{"state": "available", "version": …, "release": …}`; `release` may be missing (only `version` known), and `state` can be `unknown` |
 | `SearchResultJSON` | a search result, plus `availableFlavors` (flavor raw values in `Flavor.allCases` order) and `families` (`retail`, `forever`, `classic`); both absent when not checked |
-| `AddonStatusJSON` | `{"kind": "managed"\|"unmanaged", …}`; unmanaged entries add `folders`, `title` and `tocVersion` (from the TOC the game loads), `tocFile`, `supportsFlavor`, `suggestedRef` and `candidates` (`ref`, `name`, `reason`, `confidence`); every entry may carry `availableFlavors` and `families`. A managed `addon` has `installedFlavorBuild` (`mainline`) when it's a Retail build on Forever |
+| `AddonStatusJSON` | `{"kind": "managed"\|"unmanaged", …}`; unmanaged entries add `folders`, `title` and `tocVersion` (from the TOC the game loads), `tocFile`, `supportsFlavor`, `suggestedRef` and `candidates` (`ref`, `name`, `reason`, `confidence`); every entry may carry `availableFlavors` and `families`. A managed `addon` has `installedFlavorBuild` (`mainline`) when it's a Retail build on Forever; managed entries list required folders that aren't installed in `missingDependencies` |
+| `MissingDependencyJSON` | `{"folder": "BigWigs", "requiredBy": [ref], "candidates": [{ref, name, reason}], "suggested": {ref, name, reason}}`; `suggested` is absent when no candidate is certain ([dependencies.md](../features/dependencies.md#candidates)) |
 
 - Batch commands report `installed` / `updated` / `removed` plus `failed: [{ref, code, message}]`.
 
@@ -59,6 +60,8 @@ Per-command documents:
 |---|---|
 | `search` | `query`, `searchedGitHub`, `results` |
 | `info` | the add-on plus `support`, `availableFlavors`, `families`, `games` (the sentence), `latestVersion`, `latestPublishedAt`, `readmePath`, `screenshots` (a count), `detailsFetchedAt`, `detailsError`, `lastUpdated`, `changelog`, `updateState`; `latest` (a `ReleaseJSON`) only for prereleases |
+| `install` | `installation`, `installed`, `failed`, `missingDependencies[]` (`MissingDependencyJSON`) |
+| `remove` | `installation`, `removed`, `failed`, `stopLoading` (refs of add-ons that needed a removed one) |
 | `refresh` | `installation`, `skipped`, `lastRefresh`, `updates[]` |
 | `cache info` | cache sizes plus `metadataDatabase` |
 - `export` prints the [`addons.json`](config.md#addonsjson) itself.

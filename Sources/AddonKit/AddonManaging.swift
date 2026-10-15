@@ -85,6 +85,16 @@ public protocol AddonManaging: Sendable {
     /// default that reports nothing.
     func networkActivity() -> AsyncStream<NetworkEvent>
 
+    /// Required add-ons that are missing for the managed add-ons in `installation`, read from
+    /// the TOCs the game loads for its flavor, with candidates to install (docs/features/dependencies.md).
+    /// Local only. Has a default that reports none.
+    func missingDependencies(in installation: Installation) async -> [MissingDependency]
+    /// The same for one managed add-on, e.g. right after installing it.
+    func missingDependencies(of ref: AddonRef, in installation: Installation) async -> [MissingDependency]
+    /// Managed add-ons that would stop loading if `ref` were uninstalled: they require a
+    /// folder only `ref` provides. Local only. Has a default that reports none.
+    func dependents(of ref: AddonRef, in installation: Installation) async -> [InstalledAddon]
+
     /// Hosted sources that are on but have no listing yet. Search never downloads one; the
     /// next `refresh`, even inside its 2-hour window, does. Has a default that reports none.
     func missingListings() async -> [SourceID]
@@ -172,6 +182,12 @@ extension AddonManaging {
     public func setSource(_ source: SourceID, enabled: Bool) async throws {}
 
     public func missingListings() async -> [SourceID] { [] }
+
+    public func missingDependencies(in installation: Installation) async -> [MissingDependency] { [] }
+
+    public func missingDependencies(of ref: AddonRef, in installation: Installation) async -> [MissingDependency] { [] }
+
+    public func dependents(of ref: AddonRef, in installation: Installation) async -> [InstalledAddon] { [] }
 
     public func networkActivity() -> AsyncStream<NetworkEvent> {
         AsyncStream { $0.finish() }

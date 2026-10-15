@@ -177,6 +177,8 @@ struct AddonStatusJSON: Encodable {
     var tocFile: String?
     var supportsFlavor: Bool?
     var candidates: [CandidateJSON]?
+    /// Folders a managed add-on's loaded TOC requires that aren't installed.
+    var missingDependencies: [String]?
 
     struct CandidateJSON: Encodable, Equatable {
         var ref: AddonRef
@@ -185,7 +187,7 @@ struct AddonStatusJSON: Encodable {
         var confidence: String
     }
 
-    init(_ status: AddonStatus, availableFlavors: Set<Flavor>? = nil) {
+    init(_ status: AddonStatus, availableFlavors: Set<Flavor>? = nil, missingDependencies: [String]? = nil) {
         self.availableFlavors = GamesJSON.flavors(availableFlavors)
         families = GamesJSON.families(availableFlavors)
         switch status {
@@ -193,6 +195,7 @@ struct AddonStatusJSON: Encodable {
             kind = "managed"
             self.addon = addon
             missingFolders = missing
+            self.missingDependencies = missingDependencies ?? []
         case .unmanaged(let unmanaged):
             kind = "unmanaged"
             folder = unmanaged.folder

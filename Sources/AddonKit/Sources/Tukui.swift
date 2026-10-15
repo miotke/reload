@@ -19,7 +19,8 @@ struct Tukui: HostedSource {
                 description: addon.small_desc, lastUpdated: addon.last_update.flatMap(Self.date),
                 flavors: Flavor.allCases.filter(flavors.contains).map(\.rawValue),
                 source: id, author: addon.author,
-                screenshots: addon.screenshots
+                screenshots: addon.screenshots,
+                folders: addon.directories
             )
         }
     }
@@ -84,6 +85,8 @@ struct Tukui: HostedSource {
         var desc: String?
         var screenshot_url: String?
         var gallery_url: [String]?
+        /// The top-level folders the download ships.
+        var directories: [String]?
 
         var screenshots: [URL] {
             var urls: [URL] = []

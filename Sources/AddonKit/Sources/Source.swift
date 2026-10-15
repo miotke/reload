@@ -74,7 +74,7 @@ public struct URLSessionHTTPClient: HTTPClient {
 public enum AppInfo {
     public static let name = "Reload"
     public static let bundleID = "io.github.miotke.Reload"
-    public static let version = "0.1.5"
+    public static let version = "0.1.6"
     public static let contactURL = "https://github.com/miotke/reload"
     public static var userAgent: String { "\(name)/\(version) (+\(contactURL))" }
 }

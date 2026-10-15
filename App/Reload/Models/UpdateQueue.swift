@@ -14,6 +14,14 @@ final class UpdateQueue {
     @ObservationIgnored var didInstall: (@MainActor (InstalledAddon) -> Void)?
     /// A refresh that did work finished; Browse re-reads rows that newly qualify for its lists.
     @ObservationIgnored var didFinishRefresh: (@MainActor () async -> Void)?
+    /// An install left required add-ons missing and the policy is to ask; the window asks.
+    @ObservationIgnored var didFindMissingDependencies: (@MainActor (DependencyPrompt) -> Void)?
+    /// Settings ▸ General, read when needed; tests replace them.
+    @ObservationIgnored var dependencyPolicy: @MainActor () -> DependencyPolicy = { DependencyPolicy.stored() }
+    @ObservationIgnored var warnsBeforeRemovingDependencies: @MainActor () -> Bool = { RemovalWarning.isOn() }
+    @ObservationIgnored var defaultChannel: @MainActor () -> Channel = {
+        UserDefaults.standard.string(forKey: SettingsKey.defaultChannel).flatMap(Channel.init(rawValue:)) ?? .stable
+    }
 
     @ObservationIgnored private var rowStates: [String: RowState] = [:]
     let refresh = RefreshStatus()
@@ -167,10 +175,40 @@ final class UpdateQueue {
         case .success(let addon):
             didInstall?(addon)
             await installed.reload()
+            await followUpDependencies(of: addon)
         case .failure(let error):
             if case .unmanagedFolderExists = error as? AddonError { row.needsOverwrite = true }
             row.error = error.localizedDescription
         }
+    }
+
+    // MARK: Required add-ons
+
+    /// After an install: asks the core what `addon` still needs, then installs the suggested
+    /// add-ons, asks about them, or leaves the Installed warning, as Settings says.
+    func followUpDependencies(of addon: InstalledAddon) async {
+        let missing = await manager.missingDependencies(of: addon.id, in: installation)
+        switch DependencyFollowUp(addonName: addon.name, missing: missing, policy: dependencyPolicy(), installationID: installation.id) {
+        case .nothing: break
+        case .ask(let prompt): didFindMissingDependencies?(prompt)
+        case .install(let candidates): await installDependencies(candidates)
+        }
+    }
+
+    /// Installs each candidate in turn through `install`, so each shows progress and errors
+    /// on its own row and gets its own follow-up. Skips ones already installed or installing.
+    func installDependencies(_ candidates: [DependencyCandidate]) async {
+        for candidate in candidates {
+            guard installed.addon(for: candidate.ref) == nil, row(candidate.ref.description).activity == nil else { continue }
+            await install(candidate.ref, channel: defaultChannel())
+        }
+    }
+
+    /// Managed add-ons that stop loading without `ref`, for the uninstall confirmation; none
+    /// when Settings doesn't warn.
+    func removalDependents(of ref: AddonRef) async -> [InstalledAddon] {
+        guard warnsBeforeRemovingDependencies() else { return [] }
+        return await manager.dependents(of: ref, in: installation)
     }
 
     func uninstall(_ ref: AddonRef) async {
@@ -211,16 +249,17 @@ final class UpdateQueue {
     /// Returns true on success so the sheet can dismiss. With `release` (from a preview) it's
     /// installed as is; otherwise `ref` is resolved first.
     func adopt(folder: String, as ref: AddonRef, release: ResolvedRelease? = nil) async -> Bool {
-        var succeeded = false
+        var adopted: InstalledAddon?
         await perform(AddonStatus.unmanagedID(folder), label: "Adopting…") {
             if let release, release.ref == ref {
-                _ = try await self.manager.adopt(release, in: self.installation)
+                adopted = try await self.manager.adopt(release, in: self.installation)
             } else {
-                _ = try await self.manager.adopt(folder: folder, as: ref, in: self.installation)
+                adopted = try await self.manager.adopt(folder: folder, as: ref, in: self.installation)
             }
-            succeeded = true
         }
-        return succeeded
+        // Not awaited, so the sheet closes first; the window asks once it has.
+        if let adopted { Task { await followUpDependencies(of: adopted) } }
+        return adopted != nil
     }
 
     /// Resolves `ref`'s release for this flavor and lists the folders adopting it replaces.

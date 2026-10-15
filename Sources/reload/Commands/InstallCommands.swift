@@ -30,6 +30,9 @@ struct InstallCommand: ContextCommand {
         help: "Forever only: when an add-on has no Forever build, install its Retail build. Forever lists it as out of date until you tick Load out of date AddOns.")
     var retailBuild = false
 
+    @Flag(name: .customLong("no-deps"), help: "Don't offer to install add-ons the new ones require; only warn about them.")
+    var noDeps = false
+
     func validate() throws {
         guard !refs.isEmpty else { throw ValidationError("Name at least one add-on to install.") }
     }
@@ -48,13 +51,17 @@ struct InstallCommand: ContextCommand {
         }
         var outcome = await BatchInstaller.run(requests, force: force, context: context, installation: installation)
         try await offerFallbackBuilds(&outcome, requests: requests, context: context, installation: installation)
+        let dependencies = try await DependencyOffer.run(after: &outcome, noDeps: noDeps, force: force, context: context, installation: installation)
         if context.json {
-            try context.emit(InstallOutput(installation: installation.id, installed: outcome.installed, failed: outcome.failedJSON))
+            try context.emit(InstallOutput(
+                installation: installation.id, installed: outcome.installed, failed: outcome.failedJSON,
+                missingDependencies: dependencies.missing.map(MissingDependencyJSON.init)))
         } else {
             context.say("Installed \(outcome.installed.count) add-on\(outcome.installed.count == 1 ? "" : "s").")
             context.noteIfGameRunning(changed: outcome.installed.count)
         }
-        if let error = ExitStatus.batchError(failures: outcome.failures.map(\.error), total: requests.count) { throw error }
+        let total = requests.count + dependencies.attempted
+        if let error = ExitStatus.batchError(failures: outcome.failures.map(\.error), total: total) { throw error }
     }
 
     /// An add-on with no build for this game may still load from its fallback family's build
@@ -98,6 +105,8 @@ struct InstallOutput: Encodable {
     var installation: String
     var installed: [InstalledAddon]
     var failed: [FailureJSON]
+    /// Required add-ons the installed ones still lack (docs/features/dependencies.md).
+    var missingDependencies: [MissingDependencyJSON] = []
 }
 
 struct FailureJSON: Encodable {
@@ -198,6 +207,142 @@ enum BatchInstaller {
     }
 }
 
+// MARK: - Required add-ons
+
+/// What `install`, `remove`, `list` and `doctor` say about required add-ons
+/// (docs/features/dependencies.md#in-the-cli). The core finds them; this only words and asks.
+enum DependencyOffer {
+    /// After an install: offers each missing dependency's suggested add-on (`[Y/n]`, or
+    /// accepted by `--yes`), installs the accepted ones and checks those in turn, a few rounds
+    /// deep. With `--no-deps`, or with no terminal and no `--yes`, nothing is offered. Warns
+    /// about what's still missing and returns it, with how many extra installs were tried.
+    static func run(
+        after outcome: inout BatchInstaller.Outcome, noDeps: Bool, force: Bool, context: CLIContext, installation: Installation
+    ) async throws -> (missing: [MissingDependency], attempted: Int) {
+        let manager = context.manager
+        let channel = context.config.load().defaultChannel ?? .stable
+        let offers = !noDeps && (context.yes || context.interactive)
+        var asked = Set<String>()
+        var checking = outcome.installed.map(\.id)
+        var attempted = 0
+        for _ in 0..<3 where offers && !checking.isEmpty {
+            let names = await Self.names(context, installation)
+            var accepted: [BatchInstaller.Request] = []
+            for dependency in await gather(checking, manager: manager, installation: installation) {
+                guard asked.insert(dependency.id).inserted, let candidate = dependency.suggested,
+                      !accepted.contains(where: { $0.ref == candidate.ref }) else { continue }
+                if try context.confirm(question(dependency, candidate: candidate, names: names), action: "install", defaultYes: true) {
+                    accepted.append(BatchInstaller.Request(ref: candidate.ref, channel: channel, version: nil, pin: false))
+                }
+            }
+            guard !accepted.isEmpty else { break }
+            attempted += accepted.count
+            let more = await BatchInstaller.run(accepted, force: force, context: context, installation: installation)
+            outcome.installed += more.installed
+            outcome.failures += more.failures
+            checking = more.installed.map(\.id)
+        }
+        let missing = await gather(outcome.installed.map(\.id), manager: manager, installation: installation)
+        if !missing.isEmpty {
+            let names = await Self.names(context, installation)
+            for dependency in missing { context.warn(warning(dependency, names: names)) }
+        }
+        return (missing, attempted)
+    }
+
+    /// The missing dependencies of `refs`, one entry per folder.
+    static func gather(_ refs: [AddonRef], manager: AddonManager, installation: Installation) async -> [MissingDependency] {
+        var merged: [MissingDependency] = []
+        for ref in refs {
+            for dependency in await manager.missingDependencies(of: ref, in: installation) {
+                if let index = merged.firstIndex(where: { $0.id == dependency.id }) {
+                    merged[index].requiredBy += dependency.requiredBy.filter { !merged[index].requiredBy.contains($0) }
+                } else {
+                    merged.append(dependency)
+                }
+            }
+        }
+        return merged
+    }
+
+    /// Installed add-ons' names by ref.
+    static func names(_ context: CLIContext, _ installation: Installation) async -> [AddonRef: String] {
+        let installed = (try? await context.manager.installedAddons(in: installation)) ?? []
+        return Dictionary(installed.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    // MARK: - Wording
+
+    /// "LittleWigs needs BigWigs", "LittleWigs and Capping need BigWigs".
+    static func needs(_ dependency: MissingDependency, names: [AddonRef: String]) -> String {
+        let who = dependency.requiredBy.map { names[$0] ?? Format.ref($0) }
+        return "\(list(who)) \(who.count == 1 ? "needs" : "need") \(dependency.folder)"
+    }
+
+    /// "LittleWigs needs BigWigs. Install BigWigs (BigWigsMods/BigWigs)?"
+    static func question(_ dependency: MissingDependency, candidate: DependencyCandidate, names: [AddonRef: String]) -> String {
+        "\(needs(dependency, names: names)). Install \(candidate.name) (\(Format.ref(candidate.ref)))?"
+    }
+
+    /// What to do about a dependency that's still missing: the suggested install, the
+    /// candidates to choose from, or a search.
+    static func warning(_ dependency: MissingDependency, names: [AddonRef: String]) -> String {
+        let start = "\(needs(dependency, names: names)), which isn't installed"
+        if let suggested = dependency.suggested {
+            return "\(start); install it with `reload install \(Format.ref(suggested.ref))`."
+        }
+        if !dependency.candidates.isEmpty {
+            let options = dependency.candidates.map { "\(Format.ref($0.ref)) (\($0.reason))" }
+            return "\(start). It may come from \(options.joined(separator: ", "))."
+        }
+        return "\(start). Search for it with `reload search \(dependency.folder)`."
+    }
+
+    /// "LittleWigs needs BigWigs and will stop loading." for each removed add-on with
+    /// dependents that aren't being removed too.
+    static func removalWarnings(_ dependents: [(removed: InstalledAddon, dependents: [InstalledAddon])]) -> [String] {
+        dependents.compactMap { entry in
+            guard !entry.dependents.isEmpty else { return nil }
+            let names = entry.dependents.map(\.name)
+            let verb = names.count == 1 ? "needs" : "need"
+            return "\(list(names)) \(verb) \(entry.removed.name) and will stop loading."
+        }
+    }
+
+    /// "A", "A and B", "A, B and C".
+    static func list(_ items: [String]) -> String {
+        guard items.count > 1 else { return items.first ?? "" }
+        return items.dropLast().joined(separator: ", ") + " and " + items.last!
+    }
+}
+
+/// A `MissingDependency` in `--json` output.
+struct MissingDependencyJSON: Encodable, Equatable {
+    var folder: String
+    var requiredBy: [AddonRef]
+    var candidates: [Candidate]
+    var suggested: Candidate?
+
+    struct Candidate: Encodable, Equatable {
+        var ref: AddonRef
+        var name: String
+        var reason: String
+
+        init(_ candidate: DependencyCandidate) {
+            ref = candidate.ref
+            name = candidate.name
+            reason = candidate.reason
+        }
+    }
+
+    init(_ dependency: MissingDependency) {
+        folder = dependency.folder
+        requiredBy = dependency.requiredBy
+        candidates = dependency.candidates.map(Candidate.init)
+        suggested = dependency.suggested.map(Candidate.init)
+    }
+}
+
 // MARK: - remove
 
 struct RemoveCommand: ContextCommand {
@@ -233,9 +378,17 @@ struct RemoveCommand: ContextCommand {
             guard let addon = try await context.installedAddon(ref, in: installation) else { throw AddonError.notInstalled(ref) }
             if !targets.contains(where: { $0.id == ref }) { targets.append(addon) }
         }
-        let names = targets.map(\.name).joined(separator: ", ")
-        let folderCount = targets.reduce(0) { $0 + $1.folders.count }
-        guard try context.confirm("Remove \(names) (\(folderCount) folder\(folderCount == 1 ? "" : "s"))? Folders go to the Trash.", action: "remove") else {
+        let removing = Set(targets.map(\.id))
+        var dependents: [(removed: InstalledAddon, dependents: [InstalledAddon])] = []
+        for addon in targets {
+            let needing = await context.manager.dependents(of: addon.id, in: installation).filter { !removing.contains($0.id) }
+            dependents.append((addon, needing))
+        }
+        let warnings = DependencyOffer.removalWarnings(dependents)
+        if context.yes {
+            for warning in warnings { context.warn(warning) }
+        }
+        guard try context.confirm(Self.question(targets, warnings: warnings), action: "remove") else {
             throw CLIError.cancelled
         }
 
@@ -253,7 +406,11 @@ struct RemoveCommand: ContextCommand {
         }
         if context.json {
             let failed = failures.map { FailureJSON(ref: $0.ref, code: ExitStatus.identifier(for: $0.error), message: ExitStatus.message(for: $0.error)) }
-            try context.emit(RemoveOutput(installation: installation.id, removed: removed, failed: failed))
+            let stopping = dependents.filter { entry in removed.contains { $0.id == entry.removed.id } }.flatMap(\.dependents)
+            var seen = Set<AddonRef>()
+            try context.emit(RemoveOutput(
+                installation: installation.id, removed: removed, failed: failed,
+                stopLoading: stopping.map(\.id).filter { seen.insert($0).inserted }))
         } else {
             context.noteIfGameRunning(changed: removed.count)
         }
@@ -264,6 +421,17 @@ struct RemoveCommand: ContextCommand {
         var installation: String
         var removed: [InstalledAddon]
         var failed: [FailureJSON]
+        /// Managed add-ons that required a removed one and won't load now.
+        var stopLoading: [AddonRef] = []
+    }
+
+    /// "Remove LittleWigs, BigWigs (3 folders)? Folders go to the Trash.", plus a sentence for
+    /// each add-on that will stop loading.
+    static func question(_ targets: [InstalledAddon], warnings: [String]) -> String {
+        let names = targets.map(\.name).joined(separator: ", ")
+        let folderCount = targets.reduce(0) { $0 + $1.folders.count }
+        return (["Remove \(names) (\(folderCount) folder\(folderCount == 1 ? "" : "s"))? Folders go to the Trash."] + warnings)
+            .joined(separator: " ")
     }
 
     /// The core checks every folder (no `Blizzard_*`, nothing managed, only folders directly in

@@ -104,7 +104,7 @@ struct UnmanagedInspector: View {
                 Text(summary).font(.callout).fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 8) {
-                GameBubbles(model: GameBubblesModel(availableFlavors: details.availableFlavors, flavor: flavor, support: details.support))
+                GameBubbles(model: GameBubblesModel(availableFlavors: details.availableFlavors, flavor: flavor))
                 if let latest = details.latestVersion { Text("Latest \(latest)").font(.callout).foregroundStyle(.secondary) }
                 Link(ref.sourceName, destination: details.repositoryURL).font(.callout)
             }

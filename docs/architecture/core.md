@@ -73,6 +73,7 @@ Sources/reload/            the CLI (docs/cli/)
 | Inspector details and their storage, release notes | `Sources/AddonKit/AddonManager+Details.swift` |
 | Background refresh, its targets, progress, stored update states | `Sources/AddonKit/AddonManager+Refresh.swift` |
 | Visible-row checks | `Sources/AddonKit/AddonManager+Visible.swift` |
+| Missing dependencies, their candidates (ranked in `DependencyMatcher`), dependents | `Sources/AddonKit/AddonManager+Dependencies.swift`, `Sources/AddonKit/Selection/DependencyMatcher.swift` |
 | Observation API: metadata changes, store folder, stored availability | `Sources/AddonKit/AddonManager+Observation.swift` |
 | Latest release, verdicts, available flavors, `CachePolicy`, quota-free resolve (the single cache owner) | `Sources/AddonKit/GitHub/LatestReleaseStore.swift` |
 | Refs parsed, resolve over the releases API, the selection loop, zip inspection | `Sources/AddonKit/GitHub/GitHubReleaseResolver.swift` |
@@ -90,7 +91,7 @@ Sources/reload/            the CLI (docs/cli/)
 | Refs, installations, installed add-ons, releases, update states, operation events | `Sources/AddonKit/Model/Models.swift` |
 | Catalogue entries, search queries and results, support status | `Sources/AddonKit/Model/SearchModels.swift` |
 | Decisions front ends display: `InstallAction`, `UpdateOffer`, `BrowseFilter`, `AddonRef(parsing:)` | `Sources/AddonKit/Model/InstallAction.swift` |
-| Unmanaged folders, TOC hints, adoption candidates and previews | `Sources/AddonKit/Model/Adoption.swift` |
+| Unmanaged folders, TOC hints, adoption candidates and previews; missing dependencies and `DependencyPolicy` | `Sources/AddonKit/Model/Adoption.swift`, `Sources/AddonKit/Model/Dependencies.swift` |
 | `AddonError` | `Sources/AddonKit/Model/AddonError.swift` |
 | TOC, `release.json`, `.build.info` and WoWInterface BBCode parsing | `Sources/AddonKit/Parsing/` |
 | Release selection (pure) | `Sources/AddonKit/Selection/ReleaseSelector.swift` |
@@ -103,8 +104,7 @@ Sources/reload/            the CLI (docs/cli/)
 | Install store and its lock; app data directories | `Sources/AddonKit/Store/InstallStore.swift`, `Sources/AddonKit/Store/AppDirectories.swift` |
 | Moving ForeverAddons-era data to Reload (decision 0024) | `Sources/AddonKit/Store/LegacyDataMigration.swift` |
 | SQLite schema, migrations, change stream | `Sources/AddonKit/Store/MetadataDatabase.swift` |
-| Catalogue download and storage | `Sources/AddonKit/Search/CatalogueSource.swift` |
-| CSV reader | `Sources/AddonKit/Search/CSVParser.swift` |
+| Catalogue download and storage; CSV reader | `Sources/AddonKit/Search/CatalogueSource.swift`, `Sources/AddonKit/Search/CSVParser.swift` |
 | Stored verdicts, latest tags, available flavors, batched availability reads | `Sources/AddonKit/Search/SupportCache.swift` |
 | Search layers merged, Browse content | `Sources/AddonKit/Search/SearchCoordinator.swift` |
 | Text normalisation and the local index | `Sources/AddonKit/Search/SearchIndex.swift` |
@@ -130,7 +130,7 @@ Sources/reload/            the CLI (docs/cli/)
 | Add-ons | `addons(in:)` (managed + unmanaged, reconciled with disk), `installedAddons(in:)`, `lookup(_:in:)` |
 | Search | `search(_:in:)` and `search(_:in:installed:)` → `AsyncStream<[SearchResult]>`, `searchUpdates(_:in:installed:)` → `AsyncStream<SearchUpdate>`, `browse(in:)`, `catalogueEntry(for:)` |
 | Install | `resolve(_:for:channel:)`, `resolve(_:for:channel:allowFamilyFallback:)`, `install(_:into:channel:force:allowFamilyFallback:progress:)` (the Retail build on Forever, [release-selection.md](../features/release-selection.md#retail-build-on-forever)) |
-| Unmanaged folders | `adoptionCandidates(folder:in:)` (local), `adoptionPreview(for:folders:in:)`, `adopt(_:in:)`, `adopt(folder:as:in:)`, `removeUnmanaged(folders:from:)` ([installing.md](../features/installing.md#adopting-unmanaged-folders)) |
+| Unmanaged folders | `adoptionCandidates(folder:in:)` (local), `adoptionPreview(for:folders:in:)`, `adopt(_:in:)`, `adopt(folder:as:in:)`, `removeUnmanaged(folders:from:)` ([installing.md](../features/installing.md#adopting-unmanaged-folders)); `missingDependencies(in:)`, `missingDependencies(of:in:)`, `dependents(of:in:)` (local, [dependencies.md](../features/dependencies.md)) |
 | Updates and changes | `checkForUpdates(in:)`, `update(_:in:)` and `update(releases:in:)` → `AsyncStream<OperationEvent>`; `uninstall`, `rollback`, `setPinned`, `setChannel` |
 | Metadata | `refresh(in:force:)` → `AsyncStream<RefreshProgress>`, `lastRefresh(in:)` ([refresh.md](../features/refresh.md)), `checkVisible(_:in:)` ([visible rows](../features/refresh.md#visible-row-checks)), `details(for:in:)` ([details](../features/details-and-screenshots.md)), `availableFlavors(for:)` (stored, local) |
 | Misc | `sources()`, `setSource(_:enabled:)`, `missingListings()` ([sources.md](../features/sources.md)), `networkActivity()` ([network-activity.md](../app/network-activity.md)), `tokenDidChange()`, `gitHubStatus()` ([quota status](../network/budget.md#quota-status)), `rateLimit()`, `clearCaches()`, `database.changes()` ([change stream](data-storage.md#change-stream)) |

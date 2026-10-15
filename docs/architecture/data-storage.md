@@ -62,13 +62,13 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 
 | Table | Key | Holds |
 |---|---|---|
-| `catalogue` | `full_name` (no case; `AddonRef.key`) | catalogue rows; `source` is `catalogue` or `github_search` for GitHub, or the host (`wowinterface`, `tukui`); `first_seen_at`, `changed_at`; hosted rows add `author`, `screenshots_json` ([sources.md](../features/sources.md)) |
+| `catalogue` | `full_name` (no case; `AddonRef.key`) | catalogue rows; `source` is `catalogue` or `github_search` for GitHub, or the host (`wowinterface`, `tukui`); `first_seen_at`, `changed_at`; hosted rows add `author`, `screenshots_json` and `folders_json`, the folders the listing says the add-on ships ([sources.md](../features/sources.md), [dependencies.md](../features/dependencies.md#candidates)) |
 | `source_state`, `source_settings`, `hosted_files` | source / key | each hosted listing's ETag and fetch times; which sources are on (no row = on); each hosted add-on's latest file (JSON) |
 | `catalogue_state` | single row | ETag, last fetch, last failure |
 | `support` | `full_name` + `flavor` | verdict (`supported`, `unsupported`, `noReleases`, `needsDownload`; NULL if no check has succeeded yet), version, the tag it was based on, `checked_at`; the last failure's `error_at` and `retry_after` |
 | `repo_meta` | `full_name` | latest tag and when it was seen, publish date if known (from an API call, or free from the `Last-Modified` of the tag's `release.json` asset), stars, README path and ETag, when the API was last asked (`api_checked_at`) and the latest tag then (`api_checked_tag`), and every flavor the latest release ships (`available_flavors`, comma-separated; NULL = not known), with the tag it describes and its source (`release_json` or `inspection`) |
 | `release_json` | `full_name` + `tag` | the decoded `release.json` of that release (NULL: it has none), about 600 B each |
-| `release_folders` | `full_name` | the tag last downloaded and the top-level folders its zip shipped (JSON), for grouping unmanaged folders |
+| `release_folders` | `full_name` | the tag last downloaded and the top-level folders its zip shipped (JSON), for grouping unmanaged folders and finding missing dependencies |
 | `details` | `full_name` + `flavor` | README, screenshot URLs, and release notes with the tag they belong to (`latest_version`) |
 | `refresh_state` | installation ID | last refresh time and the update states the last check found (refreshes and bulk checks write them; `last_refresh_at` stays NULL until a refresh finishes) |
 | `search_cache` | normalised query | repos a live search returned, and when |
@@ -89,8 +89,9 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 | 2 | `classic` was split into `vanilla`, `tbc`, `wrath`, `titan`, `cata` and `mists` ([decision 0016](../decisions/0016-one-flavor-per-game.md)). Deletes `support` and `details` rows with `flavor = 'classic'`; they're re-checked under the new flavors. `forever` and `mainline` rows stay. `refresh_state` is keyed by installation, so it's left alone |
 | 3 | Failures no longer replace verdicts ([decision 0017](../decisions/0017-details-without-quota-release-json-by-tag.md)). Rebuilds `support` with nullable `status` and `checked_at` plus `error_at` and `retry_after`; old `error` rows become NULL-status rows with `error_at`. Adds `release_json` and `repo_meta.api_checked_at` / `api_checked_tag` |
 | 4 | Adds `release_folders` ([decision 0018](../decisions/0018-adoption-suggestions-from-toc-hints.md)). Written only when the folders or tag change |
-| 6 | Adds `catalogue.author` / `screenshots_json`, `source_state`, `source_settings` and `hosted_files` ([decision 0029](../decisions/0029-wowinterface-and-tukui-sources.md)) |
 | 5 | Adds `repo_meta.available_flavors`, `flavors_tag`, `flavors_source` ([decision 0019](../decisions/0019-available-games-and-visible-row-checks.md)) and backfills them from the `release_json` row of each repo's latest tag (JSON1, packager names mapped like `Flavor.from(releaseJSONName:)`) |
+| 6 | Adds `catalogue.author` / `screenshots_json`, `source_state`, `source_settings` and `hosted_files` ([decision 0029](../decisions/0029-wowinterface-and-tukui-sources.md)) |
+| 7 | Adds `catalogue.folders_json` ([dependencies.md](../features/dependencies.md#candidates)). Stored hosted listings get `fetched_at = 0`, so the next refresh downloads them again and fills it, instead of waiting out their 24 hours |
 
 ### Change stream
 

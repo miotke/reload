@@ -43,6 +43,7 @@ final class MemoryUITests: XCTestCase {
             series.append(Self.megabytes(Double(try Self.measure(pid, label: "round-\(round)").footprint)))
         }
         print("MemoryUITests: footprint per round \(series.joined(separator: ", "))")
+        print("MemoryUITests: Browse with results on screen, as a user sees it: \(browseReadings.joined(separator: ", "))")
         let after = try Self.measure(pid, label: "after")
 
         let report = "leaked bytes \(before.leakedBytes) → \(after.leakedBytes), live heap \(Self.megabytes(Double(before.liveHeap))) → \(Self.megabytes(Double(after.liveHeap))), footprint \(Self.megabytes(Double(before.footprint))) → \(Self.megabytes(Double(after.footprint)))"
@@ -66,12 +67,22 @@ final class MemoryUITests: XCTestCase {
         // SwiftUI's Table reaches UI testing as an outline; the sidebar is the other one.
         let table = main.outlines.matching(NSPredicate(format: "label != 'Sidebar'")).firstMatch
         let rows = table.outlineRows
+        // What someone using the app sees: measured before this test reads the table, because
+        // reading it through accessibility makes SwiftUI build every row, not just the visible
+        // ones (about 0.7 MB a row). VoiceOver does the same; the caps on list length bound it.
+        Thread.sleep(forTimeInterval: 3)
+        if let pid = Self.processID(), let reading = try? Self.measure(pid, label: "browse-\(browseReadings.count + 1)") {
+            browseReadings.append(Self.megabytes(Double(reading.footprint)))
+        }
         XCTAssertTrue(rows.element(boundBy: 5).waitForExistence(timeout: 10), "search found nothing")
+        checkpoint("search")
         for _ in 0..<3 { table.scroll(byDeltaX: 0, deltaY: -1500) }
         for _ in 0..<3 { table.scroll(byDeltaX: 0, deltaY: 1500) }
+        checkpoint("scroll")
         // The row elements don't take right-clicks; the name text inside does.
         let firstName = rows.element(boundBy: 0).staticTexts.firstMatch
         firstName.click()
+        checkpoint("inspector")
         firstName.rightClick()
         let openWindow = app.menuItems["Open in New Window"].firstMatch
         XCTAssertTrue(openWindow.waitForExistence(timeout: 5), "no Open in New Window item")
@@ -79,6 +90,7 @@ final class MemoryUITests: XCTestCase {
         waitForWindowCount(2)
         app.typeKey("w", modifierFlags: .command)
         waitForWindowCount(1)
+        checkpoint("add-on window")
         search.click()
         app.typeKey("a", modifierFlags: .command)
         app.typeKey(.delete, modifierFlags: [])
@@ -91,6 +103,7 @@ final class MemoryUITests: XCTestCase {
         waitForWindowCount(2)
         app.typeKey("w", modifierFlags: .command)
         waitForWindowCount(1)
+        checkpoint("network activity")
 
         // Settings ▸ Sources: turn WoWInterface off and on again (Browse re-reads the catalogue).
         app.typeKey(",", modifierFlags: .command)
@@ -101,11 +114,32 @@ final class MemoryUITests: XCTestCase {
         XCTAssertTrue(wowInterface.waitForExistence(timeout: 10))
         wowInterface.click()
         wowInterface.click()
+        checkpoint("sources off and on")
+        // Settings ▸ General, with its Dependencies section.
+        app.toolbars.buttons["General"].firstMatch.click()
+        XCTAssertTrue(app.descendants(matching: .any)["dependency-policy"].firstMatch.waitForExistence(timeout: 10),
+                      "no dependency policy in Settings ▸ General")
         app.typeKey("w", modifierFlags: .command)
         waitForWindowCount(1)
+        checkpoint("settings general")
 
         app.outlines.staticTexts["Installed"].firstMatch.click()
+        checkpoint("installed")
     }
+
+    /// With `RELOAD_UI_STEPS` set (`scripts/ui-tests.sh --steps`), prints the footprint and its
+    /// peak after each step, to find the step behind a jump. Off by default: it's slow.
+    @MainActor
+    private func checkpoint(_ step: String) {
+        guard ProcessInfo.processInfo.environment["RELOAD_UI_STEPS"] != nil, let pid = Self.processID() else { return }
+        stepCount += 1
+        guard let reading = try? Self.measure(pid, label: "step-\(stepCount)") else { return }
+        print("MemoryUITests step \(step): footprint \(Self.megabytes(Double(reading.footprint))), peak \(Self.megabytes(Double(reading.peak)))")
+    }
+
+    private var stepCount = 0
+    /// Footprint with search results on screen, before the table is read, per round.
+    private var browseReadings: [String] = []
 
     @MainActor
     private func waitForWindowCount(_ count: Int) {
@@ -129,7 +163,7 @@ final class MemoryUITests: XCTestCase {
     /// footprint only). The test runner is sandboxed and can't examine another process, so it
     /// asks `scripts/ui-tests.sh` (watching this folder) to run `leaks`, `footprint` and
     /// `heap`, and waits for the answer.
-    static func measure(_ pid: pid_t, label: String) throws -> (leakedBytes: Int, footprint: Int, liveHeap: Int) {
+    static func measure(_ pid: pid_t, label: String) throws -> (leakedBytes: Int, footprint: Int, liveHeap: Int, peak: Int) {
         let folder = FileManager.default.temporaryDirectory.appending(path: "ReloadUITests-measure", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let result = folder.appending(path: "\(label).result")
@@ -139,10 +173,10 @@ final class MemoryUITests: XCTestCase {
         while Date() < deadline {
             if let text = try? String(contentsOf: result, encoding: .utf8) {
                 let parts = text.split(whereSeparator: \.isWhitespace)
-                guard parts.count == 3, let leaked = Int(parts[0]), let footprint = Int(parts[1]), let live = Int(parts[2]) else {
+                guard parts.count == 4, let leaked = Int(parts[0]), let footprint = Int(parts[1]), let live = Int(parts[2]), let peak = Int(parts[3]) else {
                     throw NSError(domain: "MemoryUITests", code: 1, userInfo: [NSLocalizedDescriptionKey: "unexpected measurement: \(text)"])
                 }
-                return (leaked, footprint, live)
+                return (leaked, footprint, live, peak)
             }
             Thread.sleep(forTimeInterval: 0.5)
         }

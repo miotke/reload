@@ -23,13 +23,18 @@ public struct CatalogueEntry: Codable, Sendable, Hashable, Identifiable {
     public var author: String?
     /// Images from a host's listing. GitHub rows have none: their README supplies them.
     public var screenshots: [URL]?
+    /// Top-level folders a host's listing says the add-on ships (WoWInterface `UIDir`, Tukui
+    /// `directories`). Stored in `catalogue.folders_json` for dependency lookups
+    /// (docs/features/dependencies.md) and not read back into entries; nil for GitHub rows.
+    public var folders: [String]?
 
     public init(
         id: String, name: String, fullName: String, url: URL, description: String? = nil,
         lastUpdated: Date? = nil, flavors: [String] = [], curseID: Int? = nil, wagoID: String? = nil,
         wowiID: Int? = nil, hasReleaseJSON: Bool = false, fromLiveSearch: Bool = false,
-        source: SourceID = .github, author: String? = nil, screenshots: [URL] = []
+        source: SourceID = .github, author: String? = nil, screenshots: [URL] = [], folders: [String]? = nil
     ) {
+        self.folders = folders
         self.source = source
         self.author = author
         self.screenshots = screenshots.isEmpty ? nil : screenshots

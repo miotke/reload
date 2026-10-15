@@ -13,7 +13,7 @@ Code: `App/Reload/Views/SettingsView.swift` (scene root, General and Advanced), 
 
 | Tab | Symbol | Contents |
 |---|---|---|
-| General | `gearshape` | default channel, check for updates automatically, default installation (only with more than one), update count in the menu bar |
+| General | `gearshape` | default channel, check for updates automatically, default installation (only with more than one), [dependencies](#dependencies), update count in the menu bar |
 | Appearance | `paintpalette` | Light / Dark / System cards, app icon grid |
 | Sources | `shippingbox` | a switch per source (GitHub, WoWInterface, Tukui) for search and Browse ([sources.md](../features/sources.md)) |
 | GitHub | `person.badge.key` | token field with Save and Remove, which token is in use, rate limits, links about tokens |
@@ -29,12 +29,24 @@ All in the app's user defaults (`SettingsKey`), except the token and the sources
 | Default channel | `defaultChannel` |
 | Check for updates automatically | `checkForUpdatesOnLaunch` |
 | Default installation | `selectedInstallation` (the same one the title menu picks) |
+| When an add-on needs another add-on | `dependencyPolicy` (`DependencyPolicy` raw value: `ask`, `install`, `warn`; `ask` when unset) |
+| Warn before removing an add-on others need | `warnBeforeRemovingDependencies` (on when unset) |
 | Show update count in the menu bar | `showMenuBarExtra` |
 | Appearance | `appearance` (`AppAppearance`, also View ▸ Appearance) |
 | App icon | `appIcon` (`AppIconChoice`) |
 | Selected tab | `settingsTab` |
 | GitHub token | Keychain, never in the JSON store |
 | Sources | `source_settings` in the metadata database, shared with `reload sources`; `AppModel.sources` re-reads it on launch, when the tab opens and on activation after another process wrote |
+
+## Dependencies
+
+General's **Dependencies** section, between Installation and Menu Bar:
+
+- **When an add-on needs another add-on**: Ask to install it (default) · Install it automatically · Only show a warning. Read when an install finishes (`DependencyPolicy.stored()`).
+- **Warn before removing an add-on others need** (on): the uninstall confirmation names the add-ons that stop loading.
+- A footnote says Installed shows what's missing either way, and that only an add-on the core is sure of is installed.
+
+What each does: [required-addons.md](required-addons.md).
 
 ## GitHub
 

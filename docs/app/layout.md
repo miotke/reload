@@ -29,7 +29,7 @@ Picker, sections, counts and search scope: [navigation.md](navigation.md).
 
 ## Flavor names
 
-Labels follow the selected installation's game, `installation.flavor.displayName` (Forever, Retail, Classic Era, TBC Anniversary, Wrath Classic, Titan, Cata Classic, Mists Classic; see [flavors.md](../architecture/flavors.md#flavors)): the Games tooltips, the filter toggle's help, Installed status, the inspector, the adopt sheet and the seeding sheet. The Games column and the filter toggle's label follow the installation's game family.
+Labels follow the selected installation's game, `installation.flavor.displayName` (Forever, Retail, Classic Era, TBC Anniversary, Wrath Classic, Titan, Cata Classic, Mists Classic; see [flavors.md](../architecture/flavors.md#flavors)): the filter toggle's help, Installed status, the inspector, the adopt sheet and the seeding sheet. The Games column and the filter toggle's label follow the installation's game family.
 
 Forever-specific on purpose: the app name, help text and the empty state that suggests adding `World of Warcraft/_classic_beta_`.
 
@@ -62,14 +62,14 @@ Each installation has one `InstallationModel`, which only owns and wires four fe
 | Name | name, with the repository beside it |
 | Version | `1.2 → 1.3` when an update is available (`→ Forever build` when it replaces a Retail build); **Retail build** beside it when that's the build in use |
 | Channel | stable / prerelease |
-| Status | missing files / update / check failed / no *<flavor>* build / pinned / up to date / unmanaged / not loaded by *<flavor>* |
+| Status | missing files / needs *<add-on>* ([required add-ons](required-addons.md)) / update / check failed / no *<flavor>* build / pinned / up to date / unmanaged / not loaded by *<flavor>* |
 | Installed | date |
 | Action | Update / Retry, Adopt…, progress |
 
 - One table for every library section: Installed shows managed add-ons; Updates, Unmanaged and Pinned are filtered views of the same rows ([navigation.md](navigation.md#library-sections-are-one-table)).
 - **Unmanaged rows** show the title and version of the TOC the game loads for the flavor (`Questie`, `v12.0.4`), not the folder's base TOC, with the folder name beside it when it differs. Folders one release ships are one row, "Questie · 2 folders" ([data-storage.md](../architecture/data-storage.md#reconcile)). When no TOC is for the flavor, Status says **Not loaded by Forever**.
-- **Inspector actions.** An installed add-on's action row has Update, Roll Back…, **Show in Finder** (bordered, reveals its folders in Interface/AddOns) and **Uninstall…**; an unmanaged folder's has Adopt…, **Show in Finder** and **Move to Trash…**. The Folders section only lists folders.
-- **Context menus.** Managed: Update, Pin/Unpin, Open on GitHub, Show in Finder, **Uninstall…**. Unmanaged: Adopt…, Show in Finder, **Move to Trash…**. Both confirm through one dialog at the window root (`AppModel.pendingRemoval`), since a menu can't host it. The trash dialog lists every folder in the group.
+- **Inspector actions.** An installed add-on's action row has Update, Roll Back…, **Show in Finder** (bordered, reveals its folders in Interface/AddOns) and **Uninstall…**; an unmanaged folder's has Adopt…, **Show in Finder** and **Move to Trash…**. The Folders section only lists folders. An add-on that needs missing ones has a **Requires** section with Install or Search per folder ([required-addons.md](required-addons.md)).
+- **Context menus.** Managed: Update, Pin/Unpin, Open on GitHub, Show in Finder, **Uninstall…**. Unmanaged: Adopt…, Show in Finder, **Move to Trash…**. Both confirm through one dialog at the window root (`AppModel.pendingRemoval`), since a menu can't host it; Uninstall… names the add-ons that need it first. The trash dialog lists every folder in the group.
 - **Update** and **Update All** install the releases the last check found (`update(releases:in:)`), with no second check. With nothing available, Update All does nothing (an empty list used to mean "update everything", which was a bug).
 - Errors show as a red icon with the message in its tooltip and in the inspector ([errors.md](../architecture/errors.md)).
 - Action buttons in both tables (Install, Overwrite, Update/Retry, Adopt…) are bordered and small.
@@ -114,8 +114,8 @@ Which games an add-on's latest release ships builds for, replacing the old singl
 ```
 
 - Three fixed-position capsules: **R** blue, **F** teal, **C** orange (system colours, so light and dark mode work). Every present family is the same solid fill with a white letter, so R, F and C read alike; the installation's own game gets a thin outer ring instead of a different fill (a lighter fill read as "not supported"); absent ones are a faint outline in the same slot, so columns line up.
-- **Not checked** (no `release.json`, never checked): a dim "—", whose tooltip says why. Verdicts stored before the game list existed get it on their next check (opening the add-on, a visible-row check or a refresh), from the tag's `release.json`, quota-free.
-- Tooltips per bubble: "Classic: Era, TBC Anniversary, Wrath, Cata, Mists"; on Forever, R says "Retail build: may work on Forever, which lists it as out of date until you tick Load out of date AddOns"; "No Forever build".
+- **Not checked** (no `release.json`, never checked): a dim "—". Verdicts stored before the game list existed get it on their next check (opening the add-on, a visible-row check or a refresh), from the tag's `release.json`, quota-free.
+- **No tooltips.** The status bar's legend explains the letters, and the inspector has the full sentence ("Retail build only: may work on Forever…"). A tooltip per bubble was three more hosted views per row, which adds up when accessibility makes the table build every row.
 - **Cheap cells.** `GameBubblesModel` is built with the row (`BrowseRow.games`), so the cell reads stored values and no environment.
 - **Sorting:** own family present first, then the number of families; unchecked rows last. The column keeps the `support` sort key.
 - **Inspector and add-on window:** the bubbles plus `GameAvailability.sentence`: "Has a Forever build", "Retail build only: may work on Forever; it will show as out of date", "Classic only: won't load on Forever", "Not checked yet". For a Retail-only add-on on Forever the action is **Install Retail Build…**, whose confirmation sheet explains *Load out of date AddOns* and installs with `allowFamilyFallback: true`. Installed add-ons show **Build: Retail build**, and **Update to Forever build** once one appears ([release-selection.md](../features/release-selection.md#retail-build-on-forever)).

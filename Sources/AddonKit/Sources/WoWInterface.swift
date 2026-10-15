@@ -1,7 +1,7 @@
 import Foundation
 
 /// WoWInterface's keyless MMOUI API (docs/features/sources.md):
-/// - `filelist.json`: every add-on (~8,000, ~5.6 MB) with its version, date, folders and the
+/// - `filelist.json`: every add-on (~8,000, ~5.6 MB) with its version, date, folders (`UIDir`) and the
 ///   game versions its author ticked.
 /// - `filedetails/<id>,<id>.json`: the download link, description and changelog of each file.
 struct WoWInterface: HostedSource {
@@ -20,7 +20,8 @@ struct WoWInterface: HostedSource {
                 lastUpdated: file.UIDate.map { Date(timeIntervalSince1970: $0.value / 1000) },
                 flavors: Flavor.allCases.filter(flavors.contains).map(\.rawValue),
                 source: id, author: file.UIAuthorName,
-                screenshots: (file.UIIMGs ?? []).compactMap(URL.init(string:))
+                screenshots: (file.UIIMGs ?? []).compactMap(URL.init(string:)),
+                folders: file.UIDir
             )
         }
     }
@@ -88,6 +89,8 @@ struct WoWInterface: HostedSource {
         var UIFileInfoURL: String?
         var UICompatibility: [Compatibility]?
         var UIIMGs: [String]?
+        /// The top-level folders the file ships.
+        var UIDir: [String]?
     }
 
     private struct DetailsFile: Decodable {

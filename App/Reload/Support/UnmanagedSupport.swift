@@ -23,19 +23,20 @@ struct AdoptTarget: Identifiable {
 /// Something to remove after the user confirms. It drives the window's confirmation dialog,
 /// so context menus (hosted by AppKit) only have to set it.
 enum RemovalRequest: Identifiable, Equatable {
-    case managed(InstalledAddon)
+    /// `dependents`: managed add-ons that stop loading without it (empty when Settings doesn't warn).
+    case managed(InstalledAddon, dependents: [InstalledAddon] = [])
     case unmanaged(UnmanagedFolder)
 
     var id: String {
         switch self {
-        case .managed(let addon): addon.id.description
+        case .managed(let addon, _): addon.id.description
         case .unmanaged(let folder): AddonStatus.unmanagedID(folder.folder)
         }
     }
 
     var title: String {
         switch self {
-        case .managed(let addon): "Uninstall \(addon.name)?"
+        case .managed(let addon, _): "Uninstall \(addon.name)?"
         case .unmanaged(let folder): "Move \(folder.title) to the Trash?"
         }
     }
@@ -49,11 +50,18 @@ enum RemovalRequest: Identifiable, Equatable {
 
     var message: String {
         switch self {
-        case .managed(let addon):
-            "Removes \(addon.folders.joined(separator: ", ")) from Interface/AddOns. Saved settings are kept."
+        case .managed(let addon, let dependents):
+            Self.uninstallMessage(addon, dependents: dependents)
         case .unmanaged(let folder):
             Self.trashMessage(folder.folders)
         }
+    }
+
+    /// The folders it removes, then the add-ons that stop loading without it.
+    static func uninstallMessage(_ addon: InstalledAddon, dependents: [InstalledAddon]) -> String {
+        let removes = "Removes \(addon.folders.joined(separator: ", ")) from Interface/AddOns. Saved settings are kept."
+        guard let warning = DependencyWording.dependentsSentence(dependents.map(\.name), removing: addon.name) else { return removes }
+        return warning + " " + removes
     }
 
     /// Lists every folder that will move; the Adopt sheet's own dialog uses it too.

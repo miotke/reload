@@ -19,7 +19,7 @@ All three are keyless. WoWInterface and Tukui are **hosted sources** (`HostedSou
 `AddonRef.key` is how a ref is stored and shown: `owner/repo` for GitHub, `wowinterface:3826` / `tukui:elvui` for the others. GitHub names can't contain a colon, so keys never collide, and `AddonRef(key:)` reverses one.
 
 - Every metadata table keyed by `full_name` (`catalogue`, `repo_meta`, `release_folders`, `hosted_files`) uses the key. For GitHub rows that's the same `owner/repo` as before, so no data moved.
-- Hosted listings go into `catalogue` with `source` set to the host (`wowinterface`, `tukui`), plus `author` and `screenshots_json`. GitHub rows keep `catalogue` / `github_search`.
+- Hosted listings go into `catalogue` with `source` set to the host (`wowinterface`, `tukui`), plus `author`, `screenshots_json` and `folders_json` (WoWInterface's `UIDir`, Tukui's `directories`: the folders each download ships, for [missing dependencies](dependencies.md#candidates)). GitHub rows keep `catalogue` / `github_search`.
 - Hosted add-ons never get `support` rows. The refresh's verdict queries only ever see GitHub repos.
 
 ## Which games a hosted file supports

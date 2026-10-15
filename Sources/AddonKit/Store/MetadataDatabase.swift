@@ -567,6 +567,14 @@ public actor MetadataDatabase {
             fetched_at REAL NOT NULL
         ) WITHOUT ROWID;
         """,
+        // 7: the folders a hosted listing says each add-on ships (JSON array; NULL = not
+        // listed), for finding which add-on provides a missing dependency
+        // (docs/features/dependencies.md). Listings stored before this have none, so they're
+        // marked stale and the next refresh downloads them again rather than waiting 24 h.
+        """
+        ALTER TABLE catalogue ADD COLUMN folders_json TEXT;
+        UPDATE source_state SET fetched_at = 0 WHERE fetched_at IS NOT NULL;
+        """,
     ]
 }
 

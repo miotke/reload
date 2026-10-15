@@ -53,6 +53,8 @@ struct DoctorCommand: ContextCommand {
             do {
                 let statuses = try await context.manager.addons(in: installation)
                 checks += Self.integrity(statuses, label: label)
+                let names = await DependencyOffer.names(context, installation)
+                checks += Self.dependencies(await context.manager.missingDependencies(in: installation), names: names, label: label)
             } catch {
                 checks.append(Check(name: label, level: .error, message: "Store unreadable: \(ExitStatus.message(for: error))"))
             }
@@ -138,6 +140,11 @@ struct DoctorCommand: ContextCommand {
         }
         checks.insert(Check(name: label, level: .ok, message: "\(managed) managed, \(unmanaged) unmanaged"), at: 0)
         return checks
+    }
+
+    /// A warning for each required folder that isn't installed, saying what could provide it.
+    static func dependencies(_ missing: [MissingDependency], names: [AddonRef: String], label: String) -> [Check] {
+        missing.map { Check(name: label, level: .warning, message: DependencyOffer.warning($0, names: names)) }
     }
 
     /// Whether `metadata.sqlite` opened, its schema version and how much it holds.

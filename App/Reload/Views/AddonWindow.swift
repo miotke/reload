@@ -23,7 +23,8 @@ struct AddonWindow: View {
             if let id, let installation {
                 let state = model.model(for: installation)
                 let missing: [String] = if case .managed(_, let missing)? = state.installed.status(id: id.ref.description) { missing } else { [] }
-                let details = AddonDetailView(state: state, ref: id.ref, missingFolders: missing, style: .window)
+                let details = AddonDetailView(state: state, ref: id.ref, missingFolders: missing, style: .window,
+                                              searchBrowse: model.searchBrowse(for:))
                 details
                     .navigationTitle(details.name)
                     .navigationSubtitle(installation.displayName)

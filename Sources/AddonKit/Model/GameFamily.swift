@@ -52,20 +52,6 @@ extension Flavor {
         }
     }
 
-    /// The name inside its family, for tooltips like "Classic: Era, Wrath, Mists".
-    public var shortName: String {
-        switch self {
-        case .mainline: "Retail"
-        case .forever: "Forever"
-        case .vanilla: "Era"
-        case .tbc: "TBC Anniversary"
-        case .wrath: "Wrath"
-        case .titan: "Titan"
-        case .cata: "Cata"
-        case .mists: "Mists"
-        }
-    }
-
     /// The build an installation may fall back to, only with the user's explicit consent,
     /// when an add-on has none for this flavor: Forever loads the Retail (`_Mainline`) TOC.
     public var fallbackFlavor: Flavor? {
