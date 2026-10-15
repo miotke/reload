@@ -320,6 +320,24 @@ import Testing
         #expect(ranked.suggested?.ref == github)
     }
 
+    @Test func theDependentsSourceIsPreferred() {
+        let wowi = AddonRef(source: .wowinterface, identifier: "5086")
+        let listing = CatalogueEntry(
+            id: "5086", name: "BigWigs (Boss Timers & Tools)", fullName: wowi.key,
+            url: URL(string: "https://www.wowinterface.com/downloads/info5086")!, source: .wowinterface)
+        // WoWInterface's listing is the strong match, but LittleWigs came from GitHub.
+        let fromGitHub = DependencyMatcher.rank(
+            folder: "BigWigs", downloaded: [], listed: [listing], named: [named(github, "BigWigs", .catalogueName)],
+            preferredSource: .github)
+        #expect(fromGitHub.suggested?.ref == github)
+        #expect(fromGitHub.candidates.map(\.ref) == [github, wowi])
+        // A WoWInterface add-on keeps the WoWInterface copy (its listing names the folder).
+        let fromWoWInterface = DependencyMatcher.rank(
+            folder: "BigWigs", downloaded: [], listed: [listing], named: [named(github, "BigWigs", .catalogueName)],
+            preferredSource: .wowinterface)
+        #expect(fromWoWInterface.suggested?.ref == wowi)
+    }
+
     @Test func twoDownloadsSuggestNothing() {
         let other = AddonRef(source: .github, identifier: "o/Pack")
         let ranked = DependencyMatcher.rank(

@@ -72,7 +72,11 @@ extension AddonManager {
                 .map { DependencyMatcher.Downloaded(ref: $0.ref, name: names[$0.ref.key.lowercased()] ?? $0.ref.repoName) }
             let hosted = listed.filter { $0.folder.lowercased() == folder }.map(\.entry)
             let named = index?.candidates(folder: dependency.folder, hints: TocHints()) ?? []
-            let ranked = DependencyMatcher.rank(folder: dependency.folder, downloaded: downloaded, listed: hosted, named: named)
+            // Where the add-ons that need it come from, when they agree.
+            let sources = Set(dependency.requiredBy.map(\.source))
+            let ranked = DependencyMatcher.rank(
+                folder: dependency.folder, downloaded: downloaded, listed: hosted, named: named,
+                preferredSource: sources.count == 1 ? sources.first : nil)
             var dependency = dependency
             dependency.candidates = ranked.candidates
             dependency.suggested = ranked.suggested

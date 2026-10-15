@@ -119,6 +119,17 @@ import Testing
         #expect(await results(h, "wowinterface:101").first?.id == Self.ledger)
     }
 
+    @Test func theGitHubCatalogueIsFetchedEvenWhenHostedRowsCameFirst() async throws {
+        let h = try await ManagerHarness()
+        try stub(h)
+        h.http.stub(CatalogueSource.defaultURL.absoluteString, text: catalogueCSV([("Test/Ledger", "Ledger Helper", "2026-09-01T00:00:00Z", true)]))
+        // As the CLI does: hosted listings first, then a search before any refresh.
+        await h.manager.downloadMissingListings()
+        let found = await results(h, "ledger")
+        #expect(found.contains { $0.id == AddonRef(source: .github, identifier: "Test/Ledger") })
+        #expect(found.contains { $0.id == Self.ledger })
+    }
+
     @Test func aSourceThatIsOffIsHiddenAndNotDownloaded() async throws {
         let h = try await ManagerHarness()
         try stub(h)

@@ -154,9 +154,14 @@ public actor SearchCoordinator {
     /// The stored catalogue's index over the sources that are on. Downloads the GitHub
     /// catalogue only if it has never been fetched and GitHub is on.
     private func localIndex(githubEnabled: Bool) async -> SearchIndex? {
-        if let index = try? await catalogue.localSearchIndex(), index.count > 0 { return index }
-        guard githubEnabled, await catalogue.lastFetched() == nil else { return nil }
-        return try? await catalogue.searchIndex()
+        // Checked by fetch time, not by an empty index: hosted listings fill the table too, and
+        // the CLI downloads them before searching, so an empty index no longer means "never
+        // downloaded". The app's first refresh fetches the catalogue before any search.
+        if githubEnabled, await catalogue.lastFetched() == nil {
+            _ = try? await catalogue.refresh()
+        }
+        guard let index = try? await catalogue.localSearchIndex(), index.count > 0 else { return nil }
+        return index
     }
 
     /// `owner/repo` → `repo`; a hosted ref's identifier as is.

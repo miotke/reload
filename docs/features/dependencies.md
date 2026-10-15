@@ -56,7 +56,8 @@ For each missing folder, from **sources that are on** (`enabledSources()`, [sour
 - Names come from the installed record, else the catalogue row, else the repo name.
 
 **`suggested`** is set only when one answer is certain:
-- the only candidate in tier 1, if tier 1 has any;
+- first, the **dependent's own source**: when every add-on needing the folder comes from one source and exactly one candidate from that source is named after the folder, it's suggested and listed first. LittleWigs from GitHub gets GitHub's BigWigs rather than WoWInterface's copy, so one family of add-ons doesn't straddle two hosts with different release timing;
+- else the only candidate in tier 1, if tier 1 has any;
 - else the only candidate in tier 2, if tier 2 has any;
 - else, with no strong match at all, the only candidate, when its name or repo name is the folder.
 
