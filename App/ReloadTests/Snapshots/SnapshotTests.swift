@@ -153,6 +153,20 @@ import UniformTypeIdentifiers
         }
     }
 
+    @Test func inspectorRequires() async throws {
+        let requires = InstallationModel(installation: Fixtures.installation,
+                                         manager: FixtureManager(missing: Fixtures.missingDependencyKinds), reportError: { _ in })
+        await requires.installed.reload()
+        requires.queue.apply(Fixtures.updates)
+        let result = Fixtures.result("BigWigsMods/LittleWigs", "LittleWigs", summary: "Boss mods for dungeons, an add-on for BigWigs",
+                                     stars: 140, updated: Fixtures.date(10, 6), flavors: [.forever, .mainline], support: .supported(version: "v11.2.6"))
+        let details = Fixtures.details(for: result, latest: "v11.2.6")
+        requires.inspector.setDetails(.loaded(details, readme: []), for: result.id)
+        try Snapshot.render("inspector-requires", width: 340, height: 640) {
+            AddonDetailView(state: requires, ref: Fixtures.littleWigs.id, missingFolders: [], searchBrowse: { _ in })
+        }
+    }
+
     @Test func inspectorNotInstalled() throws {
         load(Fixtures.browseNotInstalled, latest: "5.20.1")
         try Snapshot.render("inspector-not-installed", width: 340, height: 640) {

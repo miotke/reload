@@ -9,6 +9,8 @@ enum SettingsKey {
     static let appearance = "appearance"
     static let appIcon = "appIcon"
     static let settingsTab = "settingsTab"
+    static let dependencyPolicy = "dependencyPolicy"
+    static let warnBeforeRemovingDependencies = "warnBeforeRemovingDependencies"
 }
 
 /// Light, dark or the system's choice, set in Settings or View ▸ Appearance.

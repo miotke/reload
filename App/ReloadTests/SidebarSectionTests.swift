@@ -11,7 +11,7 @@ import Testing
 
     @Test func sectionsFilterTheInstalledRows() {
         func names(_ section: LibrarySection) -> [String] { Self.rows.filter(section.includes).map(\.name) }
-        #expect(names(.installed) == ["BetterBags", "BugSack", "Deadly Boss Mods", "Details!"])
+        #expect(names(.installed) == ["BetterBags", "BugSack", "Deadly Boss Mods", "Details!", "LittleWigs"])
         // Details! has a Forever build waiting to replace its Retail build; DBM is pinned, so no offer.
         #expect(names(.updates) == ["BugSack", "Details!"])
         #expect(names(.unmanaged) == ["Questie", "Old Minimap"])
@@ -22,7 +22,7 @@ import Testing
         let counts = LibraryCounts(rows: Self.rows)
         #expect(counts == {
             var expected = LibraryCounts()
-            expected.installed = 4
+            expected.installed = 5
             expected.updates = 2
             expected.unmanaged = 2
             expected.pinned = 1
@@ -38,7 +38,7 @@ import Testing
         let state = InstallationModel(installation: Fixtures.installation, manager: FixtureManager(), reportError: { _ in })
         await state.installed.reload()
         state.queue.apply(Fixtures.updates)
-        #expect(state.installed.rows.map(\.name) == ["BetterBags", "BugSack", "Deadly Boss Mods", "Details!"])
+        #expect(state.installed.rows.map(\.name) == ["BetterBags", "BugSack", "Deadly Boss Mods", "Details!", "LittleWigs"])
         #expect(state.installed.counts.updates == state.installed.updateCount)
 
         state.installed.options.section = .updates

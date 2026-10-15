@@ -101,6 +101,10 @@ final class MemoryUITests: XCTestCase {
         XCTAssertTrue(wowInterface.waitForExistence(timeout: 10))
         wowInterface.click()
         wowInterface.click()
+        // Settings ▸ General, with its Dependencies section.
+        app.toolbars.buttons["General"].firstMatch.click()
+        XCTAssertTrue(app.descendants(matching: .any)["dependency-policy"].firstMatch.waitForExistence(timeout: 10),
+                      "no dependency policy in Settings ▸ General")
         app.typeKey("w", modifierFlags: .command)
         waitForWindowCount(1)
 

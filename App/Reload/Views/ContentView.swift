@@ -33,6 +33,19 @@ struct ContentView: View {
         } message: { request in
             Text(request.message)
         }
+        // Waits for the Adopt sheet to close, since an adopt can raise it.
+        .alert(
+            model.pendingDependencies?.title ?? "",
+            isPresented: Binding(get: { model.pendingDependencies != nil && model.adoptTarget == nil },
+                                 set: { if !$0 { model.pendingDependencies = nil } }),
+            presenting: model.pendingDependencies
+        ) { prompt in
+            Button("Install") { model.installDependencies(prompt) }
+                .keyboardShortcut(.defaultAction)
+            Button("Not Now", role: .cancel) {}
+        } message: { prompt in
+            Text(prompt.message)
+        }
         .sheet(isPresented: $model.isSeedingPresented, onDismiss: model.seedingSheetDidClose) {
             if let state = model.seeding {
                 SeedingSheet(refresh: state.queue.refresh, flavor: state.installation.flavor) {

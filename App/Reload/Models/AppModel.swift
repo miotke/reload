@@ -52,16 +52,36 @@ final class AppModel {
     /// Waiting for the user to confirm an uninstall or a Move to Trash.
     var pendingRemoval: RemovalRequest?
 
+    /// Asks to confirm uninstalling `addon`, naming the add-ons that need it (Settings ▸ General).
+    func requestUninstall(_ addon: InstalledAddon) {
+        guard let state = current else { return }
+        Task {
+            let dependents = await state.queue.removalDependents(of: addon.id)
+            pendingRemoval = .managed(addon, dependents: dependents)
+        }
+    }
+
     /// Runs a confirmed `pendingRemoval` on the current installation.
     func performRemoval(_ request: RemovalRequest) {
         pendingRemoval = nil
         guard let state = current else { return }
         Task {
             switch request {
-            case .managed(let addon): await state.queue.uninstall(addon.id)
+            case .managed(let addon, _): await state.queue.uninstall(addon.id)
             case .unmanaged(let folder): await state.queue.removeUnmanaged(folder.folders, id: request.id)
             }
         }
+    }
+
+    /// Waiting for the user to answer "Install BigWigs too?" after an install.
+    var pendingDependencies: DependencyPrompt?
+
+    /// Installs the add-ons a confirmed `pendingDependencies` offered.
+    func installDependencies(_ prompt: DependencyPrompt) {
+        pendingDependencies = nil
+        guard let installation = installations.first(where: { $0.id == prompt.installationID }) else { return }
+        let queue = model(for: installation).queue
+        Task { await queue.installDependencies(prompt.candidates) }
     }
 
     /// Every add-on source and whether search and Browse use it (Settings ▸ Sources).
@@ -142,6 +162,7 @@ final class AppModel {
         }
         model.installed.didReload = { [weak self] in self?.recordStoreFingerprint() }
         model.inspector.didSelect = { [weak self] in self?.showInspector = true }
+        model.queue.didFindMissingDependencies = { [weak self] prompt in self?.pendingDependencies = prompt }
         models[installation.id] = model
         return model
     }
@@ -394,6 +415,12 @@ final class AppModel {
 
     func showError(_ message: String) {
         banner = Banner(message: message)
+    }
+
+    /// Browse, searching for `text`: the inspector's Search for a required add-on.
+    func searchBrowse(for text: String) {
+        section = .browse
+        searchText = text
     }
 
     /// "Search all add-ons" (or Return) in a library section: the same text, in Browse.
