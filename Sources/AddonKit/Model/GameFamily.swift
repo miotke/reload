@@ -31,6 +31,16 @@ public enum GameFamily: String, Codable, Sendable, CaseIterable, Comparable {
     public static func < (lhs: Self, rhs: Self) -> Bool {
         allCases.firstIndex(of: lhs)! < allCases.firstIndex(of: rhs)!
     }
+
+    /// Whether Browse's games picker, set to this family, hides a result
+    /// (docs/features/search.md#games-filter): one without a build for it, or a repo with no
+    /// releases. Unknown families (`nil`, not checked) are kept. Unlike `hidesAsIncompatible`,
+    /// Forever is strict: a Retail-only add-on has no F bubble, so it's hidden.
+    public func hides(families: Set<GameFamily>?, support: SupportStatus) -> Bool {
+        if case .noReleases = support { return true }
+        guard let families else { return false }
+        return !families.contains(self)
+    }
 }
 
 extension Flavor {

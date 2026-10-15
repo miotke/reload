@@ -78,6 +78,13 @@ public enum BrowseFilter {
         !isInstalled && flavor.hidesAsIncompatible(families: result.families, support: result.support)
     }
 
+    /// Whether the games picker, set to `games`, hides `result`: never an installed add-on,
+    /// otherwise `GameFamily.hides`. Nil shows every game.
+    public static func isHidden(_ result: SearchResult, games: GameFamily?, isInstalled: Bool) -> Bool {
+        guard let games, !isInstalled else { return false }
+        return games.hides(families: result.families, support: result.support)
+    }
+
     /// True when a build for the installation's flavor is confirmed: its latest release ships
     /// one, or the stored verdict says supported. Unconfirmed rows are shown de-emphasised.
     public static func hasConfirmedBuild(_ result: SearchResult, for flavor: Flavor) -> Bool {

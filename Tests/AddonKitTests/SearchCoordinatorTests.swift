@@ -179,6 +179,18 @@ private let errorSackLive: [(fullName: String, stars: Int, archived: Bool, fork:
         #expect(ids(mists).contains("example-boss/BossWarnings_Voice"))
     }
 
+    @Test func gamesKeepsOnlyThatFamily() async throws {
+        let h = try await Harness(withGitHub: false)
+        await storeFamilies(h)
+        let forever = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever, hideIncompatible: false, games: .forever)).last)
+        #expect(!ids(forever).contains("example-boss/BossWarnings"), "Retail-only is hidden when Forever is picked")
+        #expect(!ids(forever).contains("example-boss/BossWarnings_Classic"))
+        #expect(ids(forever).contains("example-boss/BossWarnings_Voice"), "unknown families stay")
+        let classic = try #require(await h.collect(SearchQuery(text: "bosswarnings", flavor: .forever, hideIncompatible: false, games: .classic)).last)
+        #expect(ids(classic).contains("example-boss/BossWarnings_Classic"))
+        #expect(!ids(classic).contains("example-boss/BossWarnings"))
+    }
+
     @Test func hideIncompatibleKeepsInstalledEvenIfUnsupported() async throws {
         let h = try await Harness(withGitHub: false)
         await h.cache.set(.unsupported, for: bossWarningsRef, flavor: .forever)

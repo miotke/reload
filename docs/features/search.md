@@ -60,7 +60,11 @@ sequenceDiagram
 
 Unknown families (nil: no `release.json`, never checked) are always kept. A verdict of `.unsupported` alone no longer hides a row: on Forever that's often a Retail-only add-on.
 
-Front ends ask `BrowseFilter.isHidden(_:for:isInstalled:)`, which also keeps installed add-ons, and `BrowseFilter.hasConfirmedBuild(_:for:)` for which rows to de-emphasise.
+The CLI's `search` (without `--all`) uses this rule. Front ends ask `BrowseFilter.isHidden(_:for:isInstalled:)`, which also keeps installed add-ons, and `BrowseFilter.hasConfirmedBuild(_:for:)` for which rows to de-emphasise.
+
+### Games filter
+
+The app's Browse picker (**All · Retail · Forever · Classic**) sets `SearchQuery.games`; `GameFamily.hides(families:support:)` keeps only results with a build for that family. Unlike the rule above it's strict on Forever: a Retail-only add-on has no F bubble, so picking Forever hides it. Unchecked results and installed add-ons stay, and repos with no releases are hidden. The app asks `BrowseFilter.isHidden(_:games:isInstalled:)` for the home lists and live-patched rows.
 
 ## GitHub fallback
 
@@ -111,7 +115,7 @@ Results that are already installed are marked.
 
 - Browse calls `searchUpdates(_:in:installed:)` and shows each `SearchUpdate` as it arrives.
 - "Searching GitHub…" shows only while the update says `isSearchingGitHub`; "No results" only after the update with `isComplete`.
-- The **Hide Classic-only** toggle ("Hide add-ons without a Retail build" on Retail, "…without a Classic build" on the classics) sets `hideIncompatible` and filters search results as well as the home lists. On by default; it keeps the `@AppStorage("browseForeverOnly")` key so users keep their setting.
+- The **Games** picker ([games filter](#games-filter)) filters search results and the home lists; the app no longer sends `hideIncompatible`. It defaults to the installation's own family and follows it when the installation changes, unless another choice was picked (`@AppStorage("browseGames")`). It replaced the *Hide Classic-only* checkbox; an unticked checkbox carries over as All.
 - Games fill in live during a refresh and after visible-row checks ([app/live-data.md](../app/live-data.md)). Table layout: [app/layout.md](../app/layout.md#browse-table).
 
 ## In the CLI
