@@ -218,7 +218,7 @@ struct CLIHarness {
         let database = h.context.manager.database
         let checks = await DoctorCommand.metadata(database, url: database.url)
         #expect(checks.first?.level == .ok)
-        #expect(checks.first?.message.contains("metadata.sqlite schema v6") == true)
+        #expect(checks.first?.message.contains("metadata.sqlite schema v7") == true)
         #expect(checks.first?.message.contains("0 catalogue rows, 0 support verdicts") == true)
         #expect(checks.contains { $0.name == "Catalogue" && $0.level == .warning })
     }

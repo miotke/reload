@@ -187,27 +187,30 @@ extension MetadataDatabase {
             var changed = Set<String>()
             var listed = Set<String>()
             let upsert = try db.prepare("""
-                INSERT INTO catalogue(\(Self.catalogueColumns), first_seen_at, seen_at, changed_at, author, screenshots_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?)
+                INSERT INTO catalogue(\(Self.catalogueColumns), first_seen_at, seen_at, changed_at, author, screenshots_json, folders_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(full_name) DO UPDATE SET
                     id = excluded.id, name = excluded.name, description = excluded.description, url = excluded.url,
                     last_updated = excluded.last_updated, flavors = excluded.flavors, author = excluded.author,
-                    screenshots_json = excluded.screenshots_json, seen_at = excluded.seen_at, changed_at = excluded.changed_at
+                    screenshots_json = excluded.screenshots_json, folders_json = excluded.folders_json,
+                    seen_at = excluded.seen_at, changed_at = excluded.changed_at
                 WHERE catalogue.source = excluded.source
                     AND (catalogue.id, catalogue.name, catalogue.description, catalogue.url, catalogue.last_updated,
-                         catalogue.flavors, catalogue.author, catalogue.screenshots_json)
+                         catalogue.flavors, catalogue.author, catalogue.screenshots_json, catalogue.folders_json)
                     IS NOT (excluded.id, excluded.name, excluded.description, excluded.url, excluded.last_updated,
-                            excluded.flavors, excluded.author, excluded.screenshots_json)
+                            excluded.flavors, excluded.author, excluded.screenshots_json, excluded.folders_json)
                 """)
             let seen = date.sqlValue
             for entry in entries {
                 listed.insert(entry.fullName.lowercased())
                 let screenshots = (entry.screenshots ?? []).isEmpty ? nil
                     : (try? JSONEncoder().encode((entry.screenshots ?? []).map(\.absoluteString))).map { String(decoding: $0, as: UTF8.self) }
+                let folders = (entry.folders ?? []).isEmpty ? nil
+                    : (try? JSONEncoder().encode(entry.folders ?? [])).map { String(decoding: $0, as: UTF8.self) }
                 let count = try db.step(upsert, [
                     .text(entry.fullName), .text(entry.id), .text(entry.name), entry.description.sqlValue,
                     .text(entry.url.absoluteString), entry.lastUpdated.sqlValue, .text(entry.flavors.joined(separator: ",")),
-                    .text(source.rawValue), seen, seen, seen, entry.author.sqlValue, screenshots.sqlValue,
+                    .text(source.rawValue), seen, seen, seen, entry.author.sqlValue, screenshots.sqlValue, folders.sqlValue,
                 ])
                 if count > 0 { changed.insert(entry.fullName) }
             }
