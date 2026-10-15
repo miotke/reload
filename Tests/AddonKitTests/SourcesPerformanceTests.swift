@@ -113,7 +113,6 @@ import Testing
         let browse = await DatabasePerformanceTests.median { _ = await manager.browse(in: h.installation) }
         let content = await manager.browse(in: h.installation)
         #expect(content.recent.count == SearchCoordinator.browseLimit)
-        #expect(content.recent.contains { $0.id.source == .wowinterface })
 
         var times: [String: Duration] = [:]
         for text in ["b", "bag", "quest frames", "raids"] {
@@ -125,7 +124,14 @@ import Testing
                 }
             }
             #expect(count > 0, "\(text)")
+            #expect(count <= SearchCoordinator.catalogueLimit + 50, "\(text): \(count) results")
         }
+        // Hosted rows are searched too (their author is indexed; GitHub rows have none).
+        var hostedFound = false
+        for await results in manager.search(SearchQuery(text: "Author12", flavor: .forever, hideIncompatible: false), in: h.installation, installed: []) {
+            hostedFound = results.contains { $0.id.source == .wowinterface }
+        }
+        #expect(hostedFound)
         let slowest = times.values.max()!
         print("""
             listing re-download \(DatabasePerformanceTests.ms(redownload)), \

@@ -7,10 +7,12 @@ import Foundation
 /// flavors the latest release ships, or `.unknown` / nil until the add-on is opened,
 /// installed, refreshed or scrolled into view in Browse (`AddonManager.checkVisible`).
 public actor SearchCoordinator {
-    /// Catalogue matches kept per search.
-    /// Rows in each Browse list. The table is lazy, so this is about relevance, not cost.
-    public static let browseLimit = 500
-    public static let catalogueLimit = 200
+    /// Rows in each Browse list. The table only builds visible rows, but accessibility clients
+    /// (VoiceOver, window managers) make it build every one, at about 0.7 MB a row, so the
+    /// lists stay short. They're ranked, so the cut is the long tail.
+    public static let browseLimit = 200
+    /// Catalogue matches kept per search, for the same reason.
+    public static let catalogueLimit = 100
     /// Below this many local results, GitHub live search runs automatically.
     public static let liveSearchThreshold = 3
     /// Shorter queries never trigger the automatic live search.

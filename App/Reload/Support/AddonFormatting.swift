@@ -37,23 +37,15 @@ nonisolated struct GameBubblesModel: Hashable, Sendable {
         var isPresent: Bool
         /// The installation's own family: drawn with a bolder fill.
         var isOwn: Bool
-        var help: String
         var id: GameFamily { family }
     }
 
     /// Nil when nobody has checked: drawn as a dim "—".
     var bubbles: [Bubble]?
-    /// Tooltip for the "—".
-    var uncheckedHelp: String
     var accessibilityLabel: String
 
-    init(availableFlavors: Set<Flavor>?, flavor: Flavor, support: SupportStatus = .unknown) {
+    init(availableFlavors: Set<Flavor>?, flavor: Flavor) {
         let own = flavor.family
-        uncheckedHelp = switch support {
-        case .noReleases: "This repository has no GitHub releases"
-        case .needsDownload: "Not checked: its releases have no release.json, so this shows once it's installed"
-        default: "Not checked yet. Shown once the add-on is opened, refreshed or scrolled into view"
-        }
         guard let available = availableFlavors else {
             bubbles = nil
             accessibilityLabel = "Games: not checked"
@@ -61,27 +53,11 @@ nonisolated struct GameBubblesModel: Hashable, Sendable {
         }
         let families = available.families
         let bubbles = GameFamily.allCases.map { family in
-            Bubble(family: family, isPresent: families.contains(family), isOwn: family == own,
-                   help: Self.help(family, available: available, installation: flavor))
+            Bubble(family: family, isPresent: families.contains(family), isOwn: family == own)
         }
         self.bubbles = bubbles
         let present = bubbles.filter(\.isPresent).map(\.family.displayName)
         accessibilityLabel = present.isEmpty ? "Games: none" : "Games: " + present.joined(separator: ", ")
-    }
-
-    /// "Classic: Era, TBC Anniversary, Wrath, Cata, Mists", "No Forever build", and on Forever
-    /// the out-of-date caveat for a Retail build.
-    static func help(_ family: GameFamily, available: Set<Flavor>, installation flavor: Flavor) -> String {
-        let present = family.flavors.filter(available.contains)
-        guard !present.isEmpty else { return "No \(family.displayName) build" }
-        switch family {
-        case .classic:
-            return "Classic: " + present.map(\.shortName).joined(separator: ", ")
-        case .retail where flavor == .forever:
-            return "Retail build: may work on Forever, which lists it as out of date until you tick Load out of date AddOns"
-        case .retail, .forever:
-            return "\(family.displayName) build"
-        }
     }
 
     var isChecked: Bool { bubbles != nil }

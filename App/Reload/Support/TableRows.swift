@@ -64,7 +64,7 @@ nonisolated struct BrowseRow: Identifiable, Hashable, Sendable {
         summary = result.summary
         support = result.support
         availableFlavors = result.availableFlavors
-        games = GameBubblesModel(availableFlavors: result.availableFlavors, flavor: flavor, support: result.support)
+        games = GameBubblesModel(availableFlavors: result.availableFlavors, flavor: flavor)
         isDimmed = !BrowseFilter.hasConfirmedBuild(result, for: flavor)
         stars = result.stars
         starsText = result.stars.map { $0.formatted() } ?? "—"

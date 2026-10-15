@@ -87,8 +87,9 @@ import Testing
         let manager = h.manager
         let browse = await Self.median { _ = await manager.browse(in: h.installation) }
         let content = await manager.browse(in: h.installation)
-        #expect(content.popular.count == Self.browseRefs)
-        #expect(content.recent.count == Self.browseRefs)
+        // More verdicts are stored than a list shows: each list is cut to `browseLimit`.
+        #expect(content.popular.count == min(Self.browseRefs, SearchCoordinator.browseLimit))
+        #expect(content.recent.count == min(Self.browseRefs, SearchCoordinator.browseLimit))
         let search = await Self.median {
             for await _ in manager.search(SearchQuery(text: "addon1", flavor: .forever), in: h.installation, installed: []) {}
         }

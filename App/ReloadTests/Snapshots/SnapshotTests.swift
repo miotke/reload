@@ -47,7 +47,7 @@ import UniformTypeIdentifiers
                     ForEach(cases, id: \.0) { label, flavors, support in
                         GridRow {
                             Text(label).foregroundStyle(.secondary)
-                            GameBubbles(model: GameBubblesModel(availableFlavors: flavors, flavor: .forever, support: support))
+                            GameBubbles(model: GameBubblesModel(availableFlavors: flavors, flavor: .forever))
                             Text(GameAvailability.sentence(availableFlavors: flavors, for: .forever)).font(.callout)
                         }
                     }

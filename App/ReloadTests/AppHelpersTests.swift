@@ -222,31 +222,23 @@ import Testing
         #expect(bubbles.map(\.family) == [.retail, .forever, .classic])
         #expect(bubbles.allSatisfy { $0.isPresent })
         #expect(bubbles.map(\.isOwn) == [false, true, false])
-        #expect(bubbles[2].help == "Classic: Era, TBC Anniversary, Wrath, Cata, Mists")
-        #expect(bubbles[1].help == "Forever build")
         #expect(model.accessibilityLabel == "Games: Retail, Forever, Classic")
         #expect(model.ownFamilyPresent && model.familyCount == 3)
     }
 
-    @Test func retailOnlyOnForeverExplainsTheCheckbox() throws {
+    @Test func retailOnlyOnForever() throws {
         let model = GameBubblesModel(availableFlavors: [.mainline, .vanilla], flavor: .forever)
         let bubbles = try #require(model.bubbles)
         #expect(bubbles.map(\.isPresent) == [true, false, true])
-        #expect(bubbles[0].help == "Retail build: may work on Forever, which lists it as out of date until you tick Load out of date AddOns")
-        #expect(bubbles[1].help == "No Forever build")
-        #expect(bubbles[2].help == "Classic: Era")
         #expect(!model.ownFamilyPresent)
         // On Retail the R bubble is plain, and it's the installation's own.
         let retail = try #require(GameBubblesModel(availableFlavors: [.mainline], flavor: .mainline).bubbles)
-        #expect(retail[0].help == "Retail build" && retail[0].isOwn)
+        #expect(retail[0].isPresent && retail[0].isOwn)
     }
 
     @Test func notCheckedIsADash() {
         let model = GameBubblesModel(availableFlavors: nil, flavor: .forever)
         #expect(model.bubbles == nil && !model.isChecked)
-        #expect(model.uncheckedHelp.hasPrefix("Not checked yet"))
-        #expect(GameBubblesModel(availableFlavors: nil, flavor: .forever, support: .needsDownload).uncheckedHelp.contains("no release.json"))
-        #expect(GameBubblesModel(availableFlavors: nil, flavor: .forever, support: .noReleases).uncheckedHelp == "This repository has no GitHub releases")
     }
 
     @Test func retailBuildWording() {

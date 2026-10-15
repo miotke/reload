@@ -124,6 +124,18 @@ Fourth audit, after WoWInterface and Tukui (decision [0029](../decisions/0029-wo
 
 Each event looked up its row with `lastIndex(where:)`, a scan of up to 1,000 rows (88 ms for 1,000 events over 1,000 rows); now a binary search over rows kept in ID order. What's left is formatting each row once (~11 µs) and one filter-and-compare of the visible rows per flush (~0.2 ms).
 
+## App memory (0.1.6)
+
+From the UI test (`scripts/ui-tests.sh --steps`, Debug build, 600-row fixture). An idle app is 57 MB; live objects stay about 55 MB through every round.
+
+| | Before | After |
+|---|---|---|
+| Browse with search results on screen | 93 MB | 97 MB |
+| Same, after accessibility reads the table | +140 MB (200 results) | bounded by 100 results |
+| Peak during a run | 320–377 MB | 223 MB |
+
+Reading a SwiftUI `Table` through accessibility (VoiceOver, UI tests) builds every row, about 0.7 MB each, not just the visible ones. Lists are capped (`browseLimit` 200, `catalogueLimit` 100) and the per-bubble tooltips were dropped.
+
 ## How to measure
 
 - Build Release, launch in the background with `RELOAD_DATA_DIR=<tmp>`, keep it brief, and quit it afterwards. Never quit the user's own running copy ([development.md](../development.md#testing-without-touching-your-real-setup)).

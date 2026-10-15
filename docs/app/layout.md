@@ -29,7 +29,7 @@ Picker, sections, counts and search scope: [navigation.md](navigation.md).
 
 ## Flavor names
 
-Labels follow the selected installation's game, `installation.flavor.displayName` (Forever, Retail, Classic Era, TBC Anniversary, Wrath Classic, Titan, Cata Classic, Mists Classic; see [flavors.md](../architecture/flavors.md#flavors)): the Games tooltips, the filter toggle's help, Installed status, the inspector, the adopt sheet and the seeding sheet. The Games column and the filter toggle's label follow the installation's game family.
+Labels follow the selected installation's game, `installation.flavor.displayName` (Forever, Retail, Classic Era, TBC Anniversary, Wrath Classic, Titan, Cata Classic, Mists Classic; see [flavors.md](../architecture/flavors.md#flavors)): the filter toggle's help, Installed status, the inspector, the adopt sheet and the seeding sheet. The Games column and the filter toggle's label follow the installation's game family.
 
 Forever-specific on purpose: the app name, help text and the empty state that suggests adding `World of Warcraft/_classic_beta_`.
 
@@ -114,8 +114,8 @@ Which games an add-on's latest release ships builds for, replacing the old singl
 ```
 
 - Three fixed-position capsules: **R** blue, **F** teal, **C** orange (system colours, so light and dark mode work). Every present family is the same solid fill with a white letter, so R, F and C read alike; the installation's own game gets a thin outer ring instead of a different fill (a lighter fill read as "not supported"); absent ones are a faint outline in the same slot, so columns line up.
-- **Not checked** (no `release.json`, never checked): a dim "—", whose tooltip says why. Verdicts stored before the game list existed get it on their next check (opening the add-on, a visible-row check or a refresh), from the tag's `release.json`, quota-free.
-- Tooltips per bubble: "Classic: Era, TBC Anniversary, Wrath, Cata, Mists"; on Forever, R says "Retail build: may work on Forever, which lists it as out of date until you tick Load out of date AddOns"; "No Forever build".
+- **Not checked** (no `release.json`, never checked): a dim "—". Verdicts stored before the game list existed get it on their next check (opening the add-on, a visible-row check or a refresh), from the tag's `release.json`, quota-free.
+- **No tooltips.** The status bar's legend explains the letters, and the inspector has the full sentence ("Retail build only: may work on Forever…"). A tooltip per bubble was three more hosted views per row, which adds up when accessibility makes the table build every row.
 - **Cheap cells.** `GameBubblesModel` is built with the row (`BrowseRow.games`), so the cell reads stored values and no environment.
 - **Sorting:** own family present first, then the number of families; unchecked rows last. The column keeps the `support` sort key.
 - **Inspector and add-on window:** the bubbles plus `GameAvailability.sentence`: "Has a Forever build", "Retail build only: may work on Forever; it will show as out of date", "Classic only: won't load on Forever", "Not checked yet". For a Retail-only add-on on Forever the action is **Install Retail Build…**, whose confirmation sheet explains *Load out of date AddOns* and installs with `allowFamilyFallback: true`. Installed add-ons show **Build: Retail build**, and **Update to Forever build** once one appears ([release-selection.md](../features/release-selection.md#retail-build-on-forever)).

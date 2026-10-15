@@ -127,7 +127,7 @@ struct AddonDetailView: View {
                 Text(byline).foregroundStyle(.secondary).font(.callout)
             }
             HStack(spacing: 8) {
-                GameBubbles(model: GameBubblesModel(availableFlavors: availableFlavors, flavor: flavor, support: support))
+                GameBubbles(model: GameBubblesModel(availableFlavors: availableFlavors, flavor: flavor))
                 Text(GameAvailability.sentence(availableFlavors: availableFlavors, for: flavor))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
