@@ -14,7 +14,7 @@ fi
 # The feed comes first, so a missing key fails the run before anything is tagged. Without it
 # installed copies would find no update: they read the latest release's appcast.xml.
 if [[ -z ${SPARKLE_ED_PRIVATE_KEY:-} ]]; then
-  echo "::error::the SPARKLE_ED_PRIVATE_KEY secret is missing (docs/app/updates.md#signing-key)"
+  echo "::error::the release environment has no SPARKLE_ED_PRIVATE_KEY secret (docs/app/updates.md#signing-key)"
   exit 1
 fi
 # The notes are the PR description, minus the Claude Code attribution line.
