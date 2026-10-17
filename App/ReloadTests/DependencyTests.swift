@@ -139,6 +139,13 @@ import Testing
         return state
     }
 
+    @Test func openingInstalledAppliesTheStaleCheck() async {
+        let state = await state()
+        #expect(state.installed.updateStates.isEmpty)
+        await state.queue.checkInstalledIfStale()?.value
+        #expect(state.installed.updateStates == Fixtures.updates)
+    }
+
     /// The inspector's Search for a required add-on (`AppModel.searchBrowse(for:)`).
     func revealSearch(_ text: String, in state: InstallationModel, typed: String? = nil) async {
         state.browse.revealQuery = text

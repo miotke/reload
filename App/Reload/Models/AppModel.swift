@@ -40,6 +40,7 @@ final class AppModel {
             searchText = ""
             // Library sections share one table, so a row selected in one may not be in the next.
             if section.isLibrary, oldValue.isLibrary { current?.inspector.selectedAddonID = nil }
+            if section == .library(.installed) { checkInstalledIfStale() }
         }
     }
     /// The toolbar search: filters a library section, queries the catalogue in Browse and categories.
@@ -246,6 +247,13 @@ final class AppModel {
         guard didInitialLoad, !isSeedingPresented, refreshesAutomatically,
               let state = state ?? current else { return }
         state.queue.startRefresh(force: false)
+    }
+
+    /// Opening Installed rechecks the add-ons whose answers are stale, under the same
+    /// conditions as the background refresh (docs/features/refresh.md#opening-installed).
+    func checkInstalledIfStale() {
+        guard didInitialLoad, !isSeedingPresented, refreshesAutomatically, let current else { return }
+        current.queue.checkInstalledIfStale()
     }
 
     static let autoRefreshInterval: Duration = .seconds(2 * 60 * 60)

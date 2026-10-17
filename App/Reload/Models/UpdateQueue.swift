@@ -80,6 +80,24 @@ final class UpdateQueue {
         if didWork { await didFinishRefresh?() }
     }
 
+    /// Opening Installed: an update check of the installed add-ons only, which the core limits
+    /// to answers past their lifetime (`.revalidateIfStale`), so reopening soon costs nothing.
+    /// Skipped while a refresh or another such check runs; failures stay silent, as in the
+    /// background refresh.
+    @discardableResult
+    func checkInstalledIfStale() -> Task<Void, Never>? {
+        guard !isRefreshing, staleCheck == nil else { return nil }
+        let task = Task {
+            defer { staleCheck = nil }
+            guard let updates = try? await manager.checkForUpdates(in: installation, policy: .revalidateIfStale),
+                  !Task.isCancelled, !isRefreshing else { return }
+            apply(updates)
+        }
+        staleCheck = task
+        return task
+    }
+    @ObservationIgnored private var staleCheck: Task<Void, Never>?
+
     /// Reads when the last refresh finished, for "Last fetched" before this session refreshes.
     func loadLastRefresh() async {
         guard lastChecked == nil else { return }

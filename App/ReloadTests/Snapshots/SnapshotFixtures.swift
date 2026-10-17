@@ -188,6 +188,7 @@ nonisolated struct FixtureManager: AddonManaging {
         return addon
     }
     func checkForUpdates(in installation: Installation) async throws -> [AddonRef: UpdateState] { Fixtures.updates }
+    func checkForUpdates(in installation: Installation, policy: CachePolicy) async throws -> [AddonRef: UpdateState] { Fixtures.updates }
     func update(_ refs: [AddonRef], in installation: Installation) -> AsyncStream<OperationEvent> { Self.finished() }
     func update(releases: [ResolvedRelease], in installation: Installation) -> AsyncStream<OperationEvent> { Self.finished() }
     func uninstall(_ ref: AddonRef, from installation: Installation) async throws {}
