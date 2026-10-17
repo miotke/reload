@@ -46,8 +46,8 @@ targets:
       path: Reload/Info.plist
       properties:
         CFBundleDisplayName: Reload
-        CFBundleShortVersionString: "0.1.8"
-        CFBundleVersion: "9"
+        CFBundleShortVersionString: "0.1.9"
+        CFBundleVersion: "10"
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         NSHumanReadableCopyright: "© 2026 miotke. MIT License. Not affiliated with Blizzard Entertainment."
