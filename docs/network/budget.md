@@ -47,6 +47,7 @@ Rows the 0017 changes affect. **Measured** rows come from the offline request-co
 | 2nd installation's first refresh, within 1 h | 0/0/343 | 0/0/0 (tags shared, verdicts from stored `release.json`) | measured |
 | 2nd installation's first refresh, later | 0/0/343 | up to 100 HEADs (smaller seed), `release.json` only for new tags | measured with 10 repos; 100 expected |
 | CLI update, nothing new | 0/0/40 | 0/0/20 | expected |
+| Opening Installed (0.1.9) | n/a | 0/0/0 within the hour; 0/0/20 (one HEAD each) once answers are older | measured (`openingInstalledChecksOnlyStaleAddons`) |
 | ⌘R ×2 at quota 0 | 0/0/60 | 0/0/40, HEADs only | expected |
 | ⌘R for add-ons only the API can decide | 1 core call each | 1 per repo every 6 h, or when its latest tag changes; one add-on's own update always asks | measured |
 | A github.com failure in a background check | could spend an API call and overwrote the verdict | 0 API calls; verdict kept, retried after 15 min | measured |

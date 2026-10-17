@@ -4,7 +4,11 @@ import Foundation
 extension AddonManager {
     /// An explicit check (⌘R, `reload outdated`): always asks for the latest tags.
     public func checkForUpdates(in installation: Installation) async throws -> [AddonRef: UpdateState] {
-        try await checkForUpdates(in: installation, policy: .forceRevalidate, progress: { _, _ in })
+        try await checkForUpdates(in: installation, policy: .forceRevalidate)
+    }
+
+    public func checkForUpdates(in installation: Installation, policy: CachePolicy) async throws -> [AddonRef: UpdateState] {
+        try await checkForUpdates(in: installation, policy: policy, progress: { _, _ in })
     }
 
     /// `progress` is called once per add-on as its check lands, with the number done so far.
@@ -286,6 +290,29 @@ extension AddonManager {
         release.downloadURL = archive
         // Pin so the next update doesn't immediately undo the rollback.
         try await install(release, into: installation, channel: nil, force: false, pin: true, progress: { _ in })
+    }
+
+    public func repair(
+        _ ref: AddonRef, in installation: Installation, progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> InstalledAddon {
+        guard let addon = try await store.addons(in: installation).first(where: { $0.id == ref }) else {
+            throw AddonError.notInstalled(ref)
+        }
+        var release = ResolvedRelease(
+            ref: ref, name: addon.name, version: addon.version, releaseID: addon.releaseID,
+            publishedAt: addon.publishedAt, downloadURL: URL(filePath: "/"), assetName: addon.assetName,
+            changelog: addon.changelog, flavorBuild: addon.installedFlavorBuild
+        )
+        let archive = downloader.archiveURL(for: release)
+        if FileManager.default.fileExists(atPath: archive.path(percentEncoded: false)) {
+            release.downloadURL = archive
+        } else {
+            release = try await resolve(ref, for: installation, channel: addon.channel,
+                                        allowFamilyFallback: addon.installedFlavorBuild != nil)
+        }
+        // Forced: whatever is left of its folders is replaced, even if something else put a
+        // folder of the same name back. Channel and pin stay as they were.
+        return try await install(release, into: installation, channel: nil, force: true, pin: nil, progress: progress)
     }
 
     public func setPinned(_ pinned: Bool, for ref: AddonRef, in installation: Installation) async throws {

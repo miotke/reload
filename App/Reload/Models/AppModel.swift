@@ -40,6 +40,7 @@ final class AppModel {
             searchText = ""
             // Library sections share one table, so a row selected in one may not be in the next.
             if section.isLibrary, oldValue.isLibrary { current?.inspector.selectedAddonID = nil }
+            if section == .library(.installed) { checkInstalledIfStale() }
         }
     }
     /// The toolbar search: filters a library section, queries the catalogue in Browse and categories.
@@ -67,7 +68,7 @@ final class AppModel {
         guard let state = current else { return }
         Task {
             switch request {
-            case .managed(let addon, _): await state.queue.uninstall(addon.id)
+            case .managed(let addon, _), .forget(let addon): await state.queue.uninstall(addon.id)
             case .unmanaged(let folder): await state.queue.removeUnmanaged(folder.folders, id: request.id)
             }
         }
@@ -248,6 +249,13 @@ final class AppModel {
         state.queue.startRefresh(force: false)
     }
 
+    /// Opening Installed rechecks the add-ons whose answers are stale, under the same
+    /// conditions as the background refresh (docs/features/refresh.md#opening-installed).
+    func checkInstalledIfStale() {
+        guard didInitialLoad, !isSeedingPresented, refreshesAutomatically, let current else { return }
+        current.queue.checkInstalledIfStale()
+    }
+
     static let autoRefreshInterval: Duration = .seconds(2 * 60 * 60)
     @ObservationIgnored private var autoRefreshTask: Task<Void, Never>?
 
@@ -417,10 +425,15 @@ final class AppModel {
         banner = Banner(message: message)
     }
 
-    /// Browse, searching for `text`: the inspector's Search for a required add-on.
+    /// Browse, searching for `text`: the inspector's Search for a required add-on. The add-on
+    /// that asked mustn't stay in the inspector as if it were the answer, so the selection is
+    /// cleared now and becomes the first result, or stays empty, when the search finishes.
     func searchBrowse(for text: String) {
+        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        current?.inspector.selectedBrowseID = nil
+        current?.browse.revealQuery = query
         section = .browse
-        searchText = text
+        searchText = query
     }
 
     /// "Search all add-ons" (or Return) in a library section: the same text, in Browse.

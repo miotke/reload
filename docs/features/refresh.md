@@ -62,6 +62,16 @@ flowchart LR
 - Skipped entirely while github.com is pausing requests (429/403 backoff) and on Low Data Mode (`NWPathMonitor` says the path is constrained). A pause mid-call stops the rest; so does cancelling the caller (a new query).
 - Answers go through the normal store, so `database.changes()` reports them and the rows patch live. Cost per call: at most 20 HEADs plus one `release.json` per new tag ([budget.md](../network/budget.md)).
 
+## Opening Installed
+
+Switching to the Installed section calls `checkForUpdates(in:policy: .revalidateIfStale)` (`UpdateQueue.checkInstalledIfStale`), so the list is current without a full refresh.
+
+- **Installed add-ons only:** no catalogue, listings or support targets.
+- **Only stale answers are asked about.** A latest tag stored under an hour ago (`SupportCache.defaultTTL`) is reused, WoWInterface and Tukui files keep their 1 h lifetime, and add-ons only the API can decide wait for their API check, as in any bulk check. Right after a refresh, or on a second click, it costs nothing.
+- The same conditions as the background refresh: after the first load, not during seeding, and only with *Check for updates automatically* on. It doesn't run while a refresh does, and doesn't overwrite one that started meanwhile.
+- No progress bar; changed rows update as the states arrive. Failures are silent, like the background refresh's.
+- Cost: at most one HEAD per installed add-on whose answer is over an hour old ([budget.md](../network/budget.md)).
+
 ## Progress
 
 - Coalesced to about 10 Hz: counts and a short message ("Checked BigWigs"), never result lists.

@@ -19,7 +19,7 @@ Shown for installed add-ons that need something, after the details (`RequiresSec
 |---|---|
 | a `suggested` candidate | **Install BigWigs** and the candidate's reason |
 | candidates, none suggested | each candidate with its reason and **Install** |
-| no candidates | "No add-on in the catalogue provides it." and **Search**, which opens Browse searching for the folder |
+| no candidates | "No add-on in the catalogue provides it." and **Search**, which opens Browse searching for the folder. The inspector clears at once, so the add-on that asked doesn't look like the answer; when the search finishes, its first result is selected, or nothing when it found none (`BrowseModel.revealQuery`). Typing another search first cancels that |
 
 - Every Install goes through `UpdateQueue.install`, so progress and errors show on the candidate's own row state, as in Browse, and its own dependencies are followed up in turn.
 - In an add-on window, Search switches the main window to Browse.

@@ -46,6 +46,11 @@ final class BrowseModel {
     /// How long scrolling must pause before the rows on screen are checked.
     static let visibleCheckDelay: Duration = .seconds(1)
 
+    /// Set by the inspector's Search for a required add-on: when the search for this text
+    /// finishes, `selectAfterSearch` gets its first row, or nil when nothing was found.
+    @ObservationIgnored var revealQuery: String?
+    @ObservationIgnored var selectAfterSearch: (@MainActor (BrowseRow.ID?) -> Void)?
+
     /// Bumped when many catalogue rows changed at once (a listing arrived, a source was
     /// turned on or off), so Browse re-runs the current search.
     private(set) var catalogueVersion = 0
@@ -105,6 +110,8 @@ final class BrowseModel {
     /// Passes the add-ons already loaded, so typing doesn't rescan `AddOns/`.
     func search(_ query: SearchQuery) async {
         cancelVisibleCheck()
+        // The user searched for something else before the revealed search finished.
+        if let revealQuery, revealQuery != query.text { self.revealQuery = nil }
         isSearching = true
         isSearchingGitHub = false
         isSearchComplete = false
@@ -119,6 +126,10 @@ final class BrowseModel {
             if update.results != searchResults { searchResults = update.results }
             isSearchingGitHub = update.isSearchingGitHub
             isSearchComplete = update.isComplete
+            if update.isComplete, revealQuery == query.text {
+                revealQuery = nil
+                selectAfterSearch?(rows.first?.id)
+            }
         }
     }
 

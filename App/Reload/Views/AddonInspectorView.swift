@@ -67,7 +67,7 @@ struct AddonDetailView: View {
                 header
                 RowProgress(rowState: rowState)
                 InspectorActions(installedModel: state.installed, queue: state.queue, ref: ref, installed: installed,
-                                 rowState: rowState, availableFlavors: availableFlavors, name: name)
+                                 missingFolders: missingFolders, rowState: rowState, availableFlavors: availableFlavors, name: name)
                 about
                 detailsStatus
                 if installed != nil {
@@ -356,11 +356,15 @@ private struct InspectorActions: View {
     var queue: UpdateQueue
     var ref: AddonRef
     var installed: InstalledAddon?
+    /// Its folders that were deleted outside Reload; with all of them gone there's nothing to
+    /// show or move to the Trash, so Repair and Remove replace the usual actions.
+    var missingFolders: [String] = []
     var rowState: RowState
     var availableFlavors: Set<Flavor>?
     var name: String
 
     @State private var confirmUninstall = false
+    @State private var confirmRemove = false
     /// Add-ons that stop loading without this one, read when Uninstall… is clicked.
     @State private var dependents: [InstalledAddon] = []
     @State private var confirmRollback = false
@@ -371,10 +375,39 @@ private struct InspectorActions: View {
         let action = installedModel.installAction(for: ref, availableFlavors: availableFlavors)
         let flavor = queue.installation.flavor
         HStack {
-            if let installed, let installedRef = action.installedRef {
-                Label("Installed \(installed.version)", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.secondary)
-                    .labelStyle(.titleAndIcon)
+            if let installed, let installedRef = action.installedRef, !missingFolders.isEmpty {
+                let allGone = Set(missingFolders) == Set(installed.folders)
+                Label {
+                    Text(allGone ? "Files missing" : "Some files missing").foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                }
+                .labelStyle(.titleAndIcon)
+                .help("Missing \(missingFolders.joined(separator: ", ")) in Interface/AddOns")
+                Button("Repair") { Task { await queue.repair(installedRef) } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(busy)
+                    .help("Download \(installed.name) \(installed.version) again and put its folders back")
+                Spacer()
+                if allGone {
+                    Button("Remove…", role: .destructive) { confirmRemove = true }
+                        .disabled(busy)
+                        .help("Stop managing \(installed.name)")
+                        .confirmationDialog("Remove \(installed.name) from Reload?", isPresented: $confirmRemove) {
+                            Button("Remove", role: .destructive) { Task { await queue.uninstall(installedRef) } }
+                        } message: {
+                            Text(RemovalRequest.forgetMessage)
+                        }
+                } else {
+                    uninstallButton(installed, installedRef, busy: busy)
+                }
+            } else if let installed, let installedRef = action.installedRef {
+                Label {
+                    Text("Installed \(installed.version)").foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+                .labelStyle(.titleAndIcon)
                 if case .update(_, _, let offer) = action {
                     Button("Update to \(offer.label)") { Task { await queue.update([installedRef]) } }
                         .buttonStyle(.borderedProminent)
@@ -391,23 +424,7 @@ private struct InspectorActions: View {
                         }
                 }
                 Spacer()
-                Button("Show in Finder", systemImage: "folder") {
-                    let urls = installed.folders.map { queue.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
-                    NSWorkspace.shared.activateFileViewerSelecting(urls)
-                }
-                .help("Reveal \(installed.folders.joined(separator: ", ")) in Interface/AddOns")
-                Button("Uninstall…", role: .destructive) {
-                    Task {
-                        dependents = await queue.removalDependents(of: installedRef)
-                        confirmUninstall = true
-                    }
-                }
-                .disabled(busy)
-                .confirmationDialog("Uninstall \(installed.name)?", isPresented: $confirmUninstall) {
-                    Button("Uninstall", role: .destructive) { Task { await queue.uninstall(installedRef) } }
-                } message: {
-                    Text(RemovalRequest.uninstallMessage(installed, dependents: dependents))
-                }
+                uninstallButton(installed, installedRef, busy: busy)
             } else if rowState.needsOverwrite {
                 Button("Overwrite Existing Folder", role: .destructive) {
                     Task { await queue.install(ref, channel: defaultChannel, force: true) }
@@ -428,6 +445,29 @@ private struct InspectorActions: View {
             RetailBuildSheet(name: name, flavor: queue.installation.flavor) {
                 Task { await queue.install(ref, channel: defaultChannel, allowFamilyFallback: true) }
             }
+        }
+    }
+
+    /// Show in Finder and Uninstall…, for an add-on with folders on disk.
+    @ViewBuilder
+    private func uninstallButton(_ installed: InstalledAddon, _ installedRef: AddonRef, busy: Bool) -> some View {
+        Button("Show in Finder", systemImage: "folder") {
+            let present = installed.folders.filter { !missingFolders.contains($0) }
+            let urls = present.map { queue.installation.addonsDirectory.appending(path: $0, directoryHint: .isDirectory) }
+            NSWorkspace.shared.activateFileViewerSelecting(urls)
+        }
+        .help("Reveal \(installed.folders.joined(separator: ", ")) in Interface/AddOns")
+        Button("Uninstall…", role: .destructive) {
+            Task {
+                dependents = await queue.removalDependents(of: installedRef)
+                confirmUninstall = true
+            }
+        }
+        .disabled(busy)
+        .confirmationDialog("Uninstall \(installed.name)?", isPresented: $confirmUninstall) {
+            Button("Uninstall", role: .destructive) { Task { await queue.uninstall(installedRef) } }
+        } message: {
+            Text(RemovalRequest.uninstallMessage(installed, dependents: dependents))
         }
     }
 }
