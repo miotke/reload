@@ -106,7 +106,7 @@ The **require tests** ruleset makes the `test` job a required check for merging 
 
 - **Language settings:** Swift 6 with strict concurrency; details in [architecture/concurrency.md](architecture/concurrency.md).
 - **Shared state:** actors or `Mutex`, not locks or `@unchecked Sendable`.
-- **Dependencies:** Apple frameworks only. The only third-party packages are ZIPFoundation and swift-argument-parser. Persistence uses the system SQLite (`import SQLite3`).
+- **Dependencies:** Apple frameworks only. The only third-party packages are ZIPFoundation, swift-argument-parser and, in the app only, Sparkle ([decision 0030](decisions/0030-sparkle-app-updates.md)). Persistence uses the system SQLite (`import SQLite3`).
 - **Tests:** Swift Testing (`@Test`, `#expect`), not XCTest.
 - **Real data only:** no mock managers or sample data in the app target ([decision 0007](decisions/0007-real-data-only.md)).
 - **Xcode project:** edit `App/project.yml`, never `project.pbxproj` by hand.

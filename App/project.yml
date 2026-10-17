@@ -18,6 +18,11 @@ packages:
   swift-argument-parser:
     url: https://github.com/apple/swift-argument-parser.git
     exactVersion: 1.5.0
+  # Reload's own updates (docs/app/updates.md, decision 0030). App target only; the CLI
+  # updates with the app it ships in. Bump with SPARKLE_VERSION in scripts/sparkle-tools.sh.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.0
 targets:
   Reload:
     type: application
@@ -27,6 +32,8 @@ targets:
     dependencies:
       - package: AddonKit
         product: AddonKit
+      - package: Sparkle
+        product: Sparkle
       # The CLI ships inside the app (docs/app/project.md) and is signed with it.
       - target: reload-cli
         link: false
@@ -44,6 +51,15 @@ targets:
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         NSHumanReadableCopyright: "© 2026 miotke. MIT License. Not affiliated with Blizzard Entertainment."
+        # Sparkle (docs/app/updates.md). The feed is a release asset behind GitHub's quota-free
+        # latest-release redirect; it and each zip are EdDSA-signed by the release workflow.
+        SUFeedURL: https://github.com/miotke/reload/releases/latest/download/appcast.xml
+        SUPublicEDKey: siovTTQwjUD6i5C2ODXdb5RZfesXe/HP/VC63/cwnsw=
+        SURequireSignedFeed: true
+        # Sparkle requires this with a signed feed: the zip's signature is checked before unzipping.
+        SUVerifyUpdateBeforeExtraction: true
+        # Settings has the switch, so no "check automatically?" prompt on the second launch.
+        SUEnableAutomaticChecks: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.miotke.Reload
@@ -51,6 +67,9 @@ targets:
         PRODUCT_NAME: Reload
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_HARDENED_RUNTIME: YES
+        # Ad-hoc signatures have no team ID, so the hardened runtime's library validation
+        # rejects the embedded Sparkle.framework and the app won't launch (decision 0030).
+        CODE_SIGN_ENTITLEMENTS: Reload/Reload.entitlements
         ENABLE_APP_SANDBOX: NO
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
@@ -96,7 +115,9 @@ targets:
       - path: Reload
         excludes:
           - ReloadApp.swift
+          - Support/SparkleUpdater.swift
           - Info.plist
+          - Reload.entitlements
           - Assets.xcassets
     dependencies:
       - package: AddonKit

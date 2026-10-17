@@ -24,6 +24,7 @@
 		188F522C408B331385D7DED9 /* Metadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 464646B6D1ACB22E11D7D1B2 /* Metadata.swift */; };
 		1B14D5225C608A626D6C9E7E /* SidebarSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 769646514D7105D7FD50A7FC /* SidebarSections.swift */; };
 		1C052332A32D4907D7A38D49 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC25C3C0BE99EB458F86345C /* AppEnvironment.swift */; };
+		1D4FF4F3347548F45807F51D /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = A34F49F786470726AFBF9D39 /* SparkleUpdater.swift */; };
 		1D78F545E83E3EC4D53F163D /* TableSorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = B376512C2452B51BA30206A0 /* TableSorting.swift */; };
 		1EB1C6A57E81A615F31FC12C /* MemoryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6BAF3372201FA224706303 /* MemoryUITests.swift */; };
 		203E90C04482FB32C3DF9080 /* UnmanagedSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691D51603B94D724E6DDB2FC /* UnmanagedSupport.swift */; };
@@ -37,6 +38,7 @@
 		2C91D0DC1BEE8A935DBB335F /* DirectoryWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5816D0310480827C1B6AF4 /* DirectoryWatcher.swift */; };
 		2D33235C2648D6210EFEA98E /* AddonFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0527B2F5E7D98E237E6574EB /* AddonFormatting.swift */; };
 		2D5791E21ACC25BB3ADF905B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A21388EED93BCA066832F0 /* ContentView.swift */; };
+		2F67CE029342B2EFDF8E8D5F /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B2D54C6F2AD74C38020AD8 /* AppUpdater.swift */; };
 		304F4E3AAAC8F02FD955AC4F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2977E694E0F8024B14029D9 /* SettingsView.swift */; };
 		3AC75D0F83C9A884BF77F784 /* InstallationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01242C458AF6DB6D65D271B /* InstallationModel.swift */; };
 		3B5606B76CA743DD433407E4 /* BrowsePerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E4F6935D0F4A573D8678265 /* BrowsePerformanceTests.swift */; };
@@ -62,6 +64,7 @@
 		5ED49E47654E10C78CFA46A8 /* ScreenshotLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7143CE86A374FA893339E7 /* ScreenshotLoader.swift */; };
 		5EE649E57F4460DB0E6F1167 /* DependencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2F56358A855BBC7EF6C1CF4 /* DependencyTests.swift */; };
 		5F4A90F8F6E41D927FFD5322 /* AppearanceSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6497BF03C99F4D71F1074364 /* AppearanceSettings.swift */; };
+		64BEDBCE02D8E8DBA9E4BF83 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B2D54C6F2AD74C38020AD8 /* AppUpdater.swift */; };
 		67E926250A17E35B5B072E62 /* InstalledModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B872A098FA69660BDFC06C28 /* InstalledModel.swift */; };
 		6E70FA1F336FFBA40E58BA9B /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = B728FB151F454B9E22C45619 /* ArgumentParser */; };
 		7462D09AA9E46C370534FB15 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E6431034D11F2143B7C8AFB /* Components.swift */; };
@@ -80,6 +83,7 @@
 		95D5B27D711447C760AF9354 /* BrowseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3853E6374E7C1FF51F9075F3 /* BrowseModel.swift */; };
 		9C542FA8AE10FA9A12D75035 /* AppearanceSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6497BF03C99F4D71F1074364 /* AppearanceSettings.swift */; };
 		9FBC977405A9A6D9B629DECB /* SourcesCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96AFB1D60F4DEE4DF61A119 /* SourcesCommand.swift */; };
+		A0431A7CB0D944012107C511 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 348C0AFD119D5313F256C6A1 /* Sparkle */; };
 		A1A36296DEBB8B8F59489585 /* UpdateQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = C061E55B427340186C94FBB0 /* UpdateQueue.swift */; };
 		A20ECAEA88115C65846A9B9D /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2504A08A69EBE9D5E526EB5 /* AppModel.swift */; };
 		A5FE41CF4DD565CE3E60998B /* AddonWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 897C147D4DE0A99BDDC16ADB /* AddonWindow.swift */; };
@@ -179,6 +183,7 @@
 		111220DA9429E8C534244A87 /* CacheCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheCommand.swift; sourceTree = "<group>"; };
 		18D0AA6C8B6AC9450B9F5D49 /* Context.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Context.swift; sourceTree = "<group>"; };
 		1A0FA53BF8F18774F2F7CDBE /* MarkdownBlocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlocks.swift; sourceTree = "<group>"; };
+		1C2AAA41B665E1219F906987 /* Reload.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Reload.entitlements; sourceTree = "<group>"; };
 		1E6431034D11F2143B7C8AFB /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		29546A32999F49705829258E /* ExportImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportImport.swift; sourceTree = "<group>"; };
 		2B9FDCEF148BA0768FE52E92 /* CommandLineToolModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolModel.swift; sourceTree = "<group>"; };
@@ -224,6 +229,7 @@
 		97B6B2BD2117F530D4439C6E /* DoctorCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoctorCommand.swift; sourceTree = "<group>"; };
 		982CB76919B7A5682B31FD6B /* AddonInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddonInspectorView.swift; sourceTree = "<group>"; };
 		9A2D281979F98BF016AB7D3C /* MarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownView.swift; sourceTree = "<group>"; };
+		A34F49F786470726AFBF9D39 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
 		A5DF461888DC20EF9F88C3C8 /* EnvironmentUsageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentUsageTests.swift; sourceTree = "<group>"; };
 		A7D46A885F9D0F243BA364CD /* InspectorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorModel.swift; sourceTree = "<group>"; };
 		AABEEAA2EC9407DED8B4748B /* ScreenshotViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotViews.swift; sourceTree = "<group>"; };
@@ -258,6 +264,7 @@
 		EA35EF66B6F2F50011332010 /* GitHubSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubSettings.swift; sourceTree = "<group>"; };
 		EE5453F029DA2ED6B5C5820C /* BrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseView.swift; sourceTree = "<group>"; };
 		F4C40F9D186E204007EBD3B9 /* SearchCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchCommand.swift; sourceTree = "<group>"; };
+		F7B2D54C6F2AD74C38020AD8 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
 		F8FA5D9A23DC0C5E85E91A7E /* ListCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListCommands.swift; sourceTree = "<group>"; };
 		FB59728F390E817AF34C09D5 /* CommandLineToolViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolViews.swift; sourceTree = "<group>"; };
 		FC25C3C0BE99EB458F86345C /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
@@ -278,6 +285,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E452985DDB590E104B3D44F7 /* AddonKit in Frameworks */,
+				A0431A7CB0D944012107C511 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -388,6 +396,7 @@
 				0527B2F5E7D98E237E6574EB /* AddonFormatting.swift */,
 				FC25C3C0BE99EB458F86345C /* AppEnvironment.swift */,
 				926606054110532ECF54FDC6 /* AppSupport.swift */,
+				F7B2D54C6F2AD74C38020AD8 /* AppUpdater.swift */,
 				512E66BBBCBCE1373D4418DA /* CLIInstaller.swift */,
 				DDC949048959B4BE1D5A7109 /* DependencySupport.swift */,
 				7A5816D0310480827C1B6AF4 /* DirectoryWatcher.swift */,
@@ -395,6 +404,7 @@
 				4C7143CE86A374FA893339E7 /* ScreenshotLoader.swift */,
 				BFD5308B2C9FEFA7F4D6101F /* SettingsSupport.swift */,
 				769646514D7105D7FD50A7FC /* SidebarSections.swift */,
+				A34F49F786470726AFBF9D39 /* SparkleUpdater.swift */,
 				34C446D3738F8E9CB0A6BD33 /* TableRows.swift */,
 				B376512C2452B51BA30206A0 /* TableSorting.swift */,
 				691D51603B94D724E6DDB2FC /* UnmanagedSupport.swift */,
@@ -482,6 +492,7 @@
 			children = (
 				3473899258C70FB200B81D01 /* Assets.xcassets */,
 				94E245A97ACA72136F9DC66B /* Info.plist */,
+				1C2AAA41B665E1219F906987 /* Reload.entitlements */,
 				2D1A9F705F4EB7A588663162 /* ReloadApp.swift */,
 				658687EAA77C80F5033283C3 /* Models */,
 				8AA22D601FCBA60983258DF9 /* Support */,
@@ -580,6 +591,7 @@
 			name = Reload;
 			packageProductDependencies = (
 				559A76457B76735FCF298FE2 /* AddonKit */,
+				348C0AFD119D5313F256C6A1 /* Sparkle */,
 			);
 			productName = Reload;
 			productReference = BB79FC5563BFEB84C57497A8 /* Reload.app */;
@@ -623,6 +635,7 @@
 			mainGroup = A54A144612CF6F1ACB527F80;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				E3BD0C51772DD279E19B1376 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				5B0718581124673EF5EDC5A3 /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
 				A1FDEADE131EBAF3566EB49B /* XCLocalSwiftPackageReference ".." */,
 			);
@@ -662,6 +675,7 @@
 				BBBA288AF602BA4EE3ACD27E /* AppEnvironment.swift in Sources */,
 				446419F5BACF4F7908B37B05 /* AppModel.swift in Sources */,
 				0453CF57812AD46E4673801B /* AppSupport.swift in Sources */,
+				2F67CE029342B2EFDF8E8D5F /* AppUpdater.swift in Sources */,
 				5F4A90F8F6E41D927FFD5322 /* AppearanceSettings.swift in Sources */,
 				3F90AE95FD12788CE4C9046D /* BrowseModel.swift in Sources */,
 				4933594409B1127E8E544CD8 /* BrowseView.swift in Sources */,
@@ -694,6 +708,7 @@
 				1B14D5225C608A626D6C9E7E /* SidebarSections.swift in Sources */,
 				B13709F4F031F7118312D8FE /* SidebarView.swift in Sources */,
 				B8DC97A1662DBF28713D773A /* SourcesSettings.swift in Sources */,
+				1D4FF4F3347548F45807F51D /* SparkleUpdater.swift in Sources */,
 				B966B7EBAE57E9DC5B583C9D /* TableRows.swift in Sources */,
 				1D78F545E83E3EC4D53F163D /* TableSorting.swift in Sources */,
 				293E4C4818EF5A6D3677DAE2 /* UnmanagedInspector.swift in Sources */,
@@ -714,6 +729,7 @@
 				E870DA4F5A99D34DBDE92E9F /* AppHelpersTests.swift in Sources */,
 				A20ECAEA88115C65846A9B9D /* AppModel.swift in Sources */,
 				BB334854E4EE42317C94824E /* AppSupport.swift in Sources */,
+				64BEDBCE02D8E8DBA9E4BF83 /* AppUpdater.swift in Sources */,
 				9C542FA8AE10FA9A12D75035 /* AppearanceSettings.swift in Sources */,
 				A983AD39368BF7B5BF09BB47 /* ArchitectureTests.swift in Sources */,
 				95D5B27D711447C760AF9354 /* BrowseModel.swift in Sources */,
@@ -911,6 +927,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Reload/Reload.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1016,6 +1033,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Reload/Reload.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1185,9 +1203,22 @@
 				version = 1.5.0;
 			};
 		};
+		E3BD0C51772DD279E19B1376 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.10.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		348C0AFD119D5313F256C6A1 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E3BD0C51772DD279E19B1376 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
 		40B41283208B25DAFFCC3E44 /* AddonKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AddonKit;

@@ -5,6 +5,8 @@ import SwiftUI
 @main
 struct ReloadApp: App {
     private static let environment = AppEnvironment.current()
+    /// Reload's own updates; nil in Debug builds (docs/app/updates.md).
+    private static let updater = SparkleUpdater.make()
     @State private var model = AppModel(
         manager: environment.manager, offersCommandLineTool: environment.offersCommandLineTool,
         usesStandardDefaults: environment.usesStandardDefaults)
@@ -37,6 +39,13 @@ struct ReloadApp: App {
             // SwiftUI adds File ▸ New with an item per WindowGroup. A second main window only
             // duplicates the first, and an add-on window needs an add-on, so they open from rows.
             CommandGroup(replacing: .newItem) { }
+            CommandGroup(after: .appInfo) {
+                if let updater = Self.updater {
+                    // "Reload" in the title: Add-ons ▸ Check for Updates (⌘R) checks add-ons.
+                    Button("Check for Reload Updates…") { updater.checkForUpdates() }
+                        .disabled(!updater.canCheckForUpdates)
+                }
+            }
             CommandGroup(after: .textEditing) {
                 Button("Find Add-ons") { SearchFieldFocus.focus() }
                     .keyboardShortcut("f", modifiers: .command)
@@ -76,7 +85,7 @@ struct ReloadApp: App {
         .keyboardShortcut("a", modifiers: [.command, .option])
 
         Settings {
-            SettingsView()
+            SettingsView(updater: Self.updater)
                 .environment(model)
         }
 

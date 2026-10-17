@@ -13,7 +13,7 @@ Code: `App/Reload/Views/SettingsView.swift` (scene root, General and Advanced), 
 
 | Tab | Symbol | Contents |
 |---|---|---|
-| General | `gearshape` | default channel, check for updates automatically, default installation (only with more than one), [dependencies](#dependencies), show add-ons for other games, update count in the menu bar |
+| General | `gearshape` | default channel, check for updates automatically, default installation (only with more than one), [dependencies](#dependencies), show add-ons for other games, update count in the menu bar, Reload's own updates ([updates.md](updates.md); Release builds only) |
 | Appearance | `paintpalette` | Light / Dark / System cards, app icon grid |
 | Sources | `shippingbox` | a switch per source (GitHub, WoWInterface, Tukui) for search and Browse ([sources.md](../features/sources.md)) |
 | GitHub | `person.badge.key` | token field with Save and Remove, which token is in use, rate limits, links about tokens |
@@ -33,6 +33,7 @@ All in the app's user defaults (`SettingsKey`), except the token and the sources
 | Warn before removing an add-on others need | `warnBeforeRemovingDependencies` (on when unset) |
 | Show add-ons for other games | `browseShowOtherGames` (off when unset; Browse then hides what won't load, [search.md](../features/search.md#in-the-app)) |
 | Show update count in the menu bar | `showMenuBarExtra` |
+| Check for Reload updates automatically | `SUEnableAutomaticChecks`, Sparkle's own (on from Info.plist when unset) |
 | Appearance | `appearance` (`AppAppearance`, also View ▸ Appearance) |
 | App icon | `appIcon` (`AppIconChoice`) |
 | Selected tab | `settingsTab` |

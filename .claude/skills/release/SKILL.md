@@ -51,14 +51,15 @@ Merging the release PR publishes the release by itself: the Release workflow tes
 
 1. Find the release PR: `gh pr list --head release/vX.Y.Z --state merged`. Stop if it isn't merged yet; merging is the user's call, so don't merge it yourself unless they ask.
 2. Watch its run: `gh run list --workflow release.yml --event pull_request -L 1`, then `gh run watch <id>`.
-3. **If it passed:** check that `https://github.com/miotke/reload/releases/latest` redirects to `vX.Y.Z` and the DMG downloads. `git switch main && git pull --ff-only && git branch -d release/vX.Y.Z`. Reply with the release link.
+3. **If it passed:** check that `https://github.com/miotke/reload/releases/latest` redirects to `vX.Y.Z`, the DMG downloads, and `releases/latest/download/appcast.xml` names X.Y.Z. `git switch main && git pull --ff-only && git branch -d release/vX.Y.Z`. Reply with the release link.
 4. **If it failed,** report the failing step plainly, then publish from this Mac:
    1. `git switch main && git pull --ff-only`. Check `AppInfo.version` is X.Y.Z and `HEAD` is the PR's merge commit (`gh pr view <number> --json mergeCommit -q .mergeCommit.oid`).
    2. `swift test`, `swift scripts/check-docs.swift` and the app tests (`xcodebuild … test`). Stop on a failure.
    3. If the run didn't get as far as tagging: `git tag -m "Reload X.Y.Z" vX.Y.Z && git push origin vX.Y.Z`. The tag starts a second run that drafts the release; let it, or build here with `scripts/release.sh X.Y.Z`.
    4. Save the notes: `gh pr view <number> --json body -q .body | grep -v '^🤖 Generated with' > build/release/notes-X.Y.Z.md`.
-   5. Publish: `gh release edit vX.Y.Z --notes-file build/release/notes-X.Y.Z.md --draft=false --latest` if a draft exists, otherwise `gh release create vX.Y.Z build/release/Reload-X.Y.Z.dmg* build/release/Reload-X.Y.Z.zip* --verify-tag --latest --title "Reload X.Y.Z" --notes-file build/release/notes-X.Y.Z.md`.
-   6. Check `releases/latest` as in step 3, delete the branch (`git push origin --delete release/vX.Y.Z`), and reply with the release link.
+   5. Write the signed update feed: `scripts/appcast.sh X.Y.Z build/release/notes-X.Y.Z.md` (reads the Sparkle key from the login keychain; `docs/app/updates.md`). Every release needs it, or installed copies find no update.
+   6. Publish: `gh release edit vX.Y.Z --notes-file build/release/notes-X.Y.Z.md --draft=false --latest` and `gh release upload vX.Y.Z build/release/appcast.xml --clobber` if a draft exists, otherwise `gh release create vX.Y.Z build/release/Reload-X.Y.Z.dmg* build/release/Reload-X.Y.Z.zip* build/release/appcast.xml --verify-tag --latest --title "Reload X.Y.Z" --notes-file build/release/notes-X.Y.Z.md`.
+   7. Check `releases/latest` as in step 3, delete the branch (`git push origin --delete release/vX.Y.Z`), and reply with the release link.
 
 ## Release notes
 

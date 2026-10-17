@@ -38,6 +38,7 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0027](0027-release-branches.md) | One `release/vX.Y.Z` branch per version; its PR carries the notes and merging it is the release | Accepted | 2026-10-12 |
 | [0028](0028-macos-26-minimum.md) | Minimum macOS 26 and Swift 6.2, Apple silicon only | Accepted | 2026-10-12 |
 | [0029](0029-wowinterface-and-tukui-sources.md) | WoWInterface and Tukui as sources, switchable per source | Accepted | 2026-10-14 |
+| [0030](0030-sparkle-app-updates.md) | Sparkle for Reload's own updates, from a signed feed on each release | Accepted | 2026-10-17 |
 
 ## By area
 
@@ -45,8 +46,8 @@ Each record explains one decision: its context, what was decided, the alternativ
 |---|---|
 | Architecture | 0001, 0004, 0005, 0008, 0024, 0026, 0028 |
 | Sources and flavor support | 0002, 0003, 0016, 0018, 0019, 0029 |
-| Network | 0009, 0010, 0011, 0017, 0019, 0029 |
-| App | 0006, 0007, 0012, 0013, 0015, 0019, 0021, 0022, 0023, 0024, 0025, 0026, 0027 |
+| Network | 0009, 0010, 0011, 0017, 0019, 0029, 0030 |
+| App | 0006, 0007, 0012, 0013, 0015, 0019, 0021, 0022, 0023, 0024, 0025, 0026, 0027, 0030 |
 | Performance | 0008, 0013, 0023 |
 | Docs | 0014 |
 

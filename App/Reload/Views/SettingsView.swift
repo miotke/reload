@@ -5,6 +5,7 @@ import SwiftUI
 /// The Settings scene: toolbar tabs, each a grouped `Form` sized to its content, so the
 /// window resizes per tab and takes the tab's name as its title (docs/app/settings.md).
 struct SettingsView: View {
+    var updater: AppUpdater?
     @Environment(AppModel.self) private var model
     @AppStorage(SettingsKey.settingsTab) private var tab: SettingsTab = .general
     @AppStorage(SettingsKey.appIcon) private var appIcon: AppIconChoice = .classic
@@ -15,7 +16,8 @@ struct SettingsView: View {
         @Bindable var model = model
         TabView(selection: $tab) {
             Tab(SettingsTab.general.title, systemImage: SettingsTab.general.systemImage, value: .general) {
-                GeneralSettingsTab(installations: model.installations, selectedInstallationID: $model.selectedInstallationID)
+                GeneralSettingsTab(installations: model.installations, selectedInstallationID: $model.selectedInstallationID,
+                                   updater: updater)
             }
             Tab(SettingsTab.appearance.title, systemImage: SettingsTab.appearance.systemImage, value: .appearance) {
                 AppearanceSettingsTab()
@@ -65,6 +67,8 @@ enum SettingsLayout {
 struct GeneralSettingsTab: View {
     var installations: [Installation]
     @Binding var selectedInstallationID: Installation.ID?
+    /// Nil in Debug builds, which never update themselves.
+    var updater: AppUpdater?
 
     @AppStorage(SettingsKey.defaultChannel) private var defaultChannel: Channel = .stable
     @AppStorage(SettingsKey.checkForUpdatesOnLaunch) private var checkForUpdatesOnLaunch = true
@@ -125,8 +129,33 @@ struct GeneralSettingsTab: View {
             Section("Menu Bar") {
                 Toggle("Show update count in the menu bar", isOn: $showMenuBarExtra)
             }
+
+            if let updater {
+                ReloadUpdatesSection(updater: updater)
+            }
         }
         .settingsTab()
+    }
+}
+
+/// Reload's own updates, through Sparkle (docs/app/updates.md).
+struct ReloadUpdatesSection: View {
+    @Bindable var updater: AppUpdater
+
+    var body: some View {
+        Section {
+            Toggle("Check for Reload updates automatically", isOn: $updater.automaticallyChecks)
+            LabeledContent {
+                Button("Check Now") { updater.checkForUpdates() }
+                    .disabled(!updater.canCheckForUpdates)
+            } label: {
+                Text("Version \(AppInfo.version)")
+            }
+        } header: {
+            Text("Reload")
+        } footer: {
+            SettingsFootnote("Once a day. New versions download from GitHub and are checked against Reload's signing key before they install.")
+        }
     }
 }
 

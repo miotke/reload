@@ -98,6 +98,8 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | `DayLabel`, `FetchLabel`, `GameBubblesModel`, filter labels, `UpdateOffer.label`, Retail build wording | `App/Reload/Support/AddonFormatting.swift` |
 | Adopt targets, removal requests (with dependents), `AdoptForm`, adoption preview state | `App/Reload/Support/UnmanagedSupport.swift` |
 | Required add-ons: status and removal wording, the policy's follow-up (`DependencyFollowUp`), the install prompt, stored policy | `App/Reload/Support/DependencySupport.swift` |
+| Reload's own updates as the menu and Settings see them | `App/Reload/Support/AppUpdater.swift` |
+| Starting Sparkle, the test-feed override (Release builds only; not in the unit-test bundle) | `App/Reload/Support/SparkleUpdater.swift` |
 | Settings keys, appearance choice, ⌘F search focus, small extensions, `RecentKeys` | `App/Reload/Support/AppSupport.swift` |
 | Settings tabs, app icon choice, first-launch reset, GitHub token source and model | `App/Reload/Support/SettingsSupport.swift` |
 | Store folder watcher | `App/Reload/Support/DirectoryWatcher.swift` |
