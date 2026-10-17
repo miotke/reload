@@ -292,6 +292,29 @@ extension AddonManager {
         try await install(release, into: installation, channel: nil, force: false, pin: true, progress: { _ in })
     }
 
+    public func repair(
+        _ ref: AddonRef, in installation: Installation, progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> InstalledAddon {
+        guard let addon = try await store.addons(in: installation).first(where: { $0.id == ref }) else {
+            throw AddonError.notInstalled(ref)
+        }
+        var release = ResolvedRelease(
+            ref: ref, name: addon.name, version: addon.version, releaseID: addon.releaseID,
+            publishedAt: addon.publishedAt, downloadURL: URL(filePath: "/"), assetName: addon.assetName,
+            changelog: addon.changelog, flavorBuild: addon.installedFlavorBuild
+        )
+        let archive = downloader.archiveURL(for: release)
+        if FileManager.default.fileExists(atPath: archive.path(percentEncoded: false)) {
+            release.downloadURL = archive
+        } else {
+            release = try await resolve(ref, for: installation, channel: addon.channel,
+                                        allowFamilyFallback: addon.installedFlavorBuild != nil)
+        }
+        // Forced: whatever is left of its folders is replaced, even if something else put a
+        // folder of the same name back. Channel and pin stay as they were.
+        return try await install(release, into: installation, channel: nil, force: true, pin: nil, progress: progress)
+    }
+
     public func setPinned(_ pinned: Bool, for ref: AddonRef, in installation: Installation) async throws {
         try await modifyAddon(ref, in: installation) { $0.pinned = pinned }
     }

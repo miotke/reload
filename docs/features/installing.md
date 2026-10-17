@@ -112,3 +112,14 @@ Names compare case-insensitively and duplicates are removed once, so a whole gro
 - Asset downloads never send the GitHub token ([github-endpoints.md](../network/github-endpoints.md)).
 
 Cost: validating an 8 MB, 400-file zip takes 2.5 ms and extracting it 107 ms ([measurements](../performance/measurements.md)).
+
+## Repair
+
+When an add-on's folders are deleted outside Reload (in Finder, say), Installed marks it **Missing files**. `repair(_:in:progress:)` puts it back:
+
+- **The same release from the download cache** when its zip is there: no network, same version, channel, pin and build (`installedFlavorBuild`).
+- Without the cached zip, what its channel resolves to now (a download, possibly newer), still keeping the channel, pin and build choice.
+- Forced, so a folder of the same name that something else put back is replaced.
+
+In the app, **Repair** replaces Update and Roll Back while files are missing. With every folder gone, **Remove…** replaces Show in Finder and Uninstall…: `uninstall` skips folders that are gone, so it only forgets the add-on (`RemovalRequest.forget`). With some folders left, Show in Finder (the ones still there) and Uninstall… stay.
+

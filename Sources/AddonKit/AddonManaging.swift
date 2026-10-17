@@ -55,7 +55,13 @@ public protocol AddonManaging: Sendable {
     func update(_ refs: [AddonRef], in installation: Installation) -> AsyncStream<OperationEvent>
     /// Installs releases an earlier check already found, without checking again. Empty does nothing.
     func update(releases: [ResolvedRelease], in installation: Installation) -> AsyncStream<OperationEvent>
+    /// Removes a managed add-on: its folders go to the Trash and it leaves the list. Folders
+    /// already gone are skipped, so this also forgets an add-on whose files were deleted.
     func uninstall(_ ref: AddonRef, from installation: Installation) async throws
+    /// Puts back an add-on whose folders are missing (docs/features/installing.md#repair):
+    /// the installed release again from the download cache, with no network; without the
+    /// cached download, what its channel resolves to now. Keeps its channel, pin and build.
+    func repair(_ ref: AddonRef, in installation: Installation, progress: @escaping @Sendable (Double) -> Void) async throws -> InstalledAddon
     /// Reinstalls `previousRelease` from the download cache and pins the add-on.
     func rollback(_ ref: AddonRef, in installation: Installation) async throws
 
