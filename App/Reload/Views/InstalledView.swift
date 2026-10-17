@@ -327,7 +327,20 @@ private struct InstalledContextMenu: View {
     var openWindow: OpenWindowAction
 
     var body: some View {
-        if case .managed(let addon, _) = status {
+        if case .managed(let addon, let missing) = status, !missing.isEmpty {
+            let allGone = Set(missing) == Set(addon.folders)
+            Button("Repair") { Task { await queue.repair(addon.id) } }
+            if let url = addon.id.webURL {
+                Link("Open on \(addon.id.sourceName)", destination: url)
+            }
+            if !allGone { Button("Show in Finder") { showInFinder(addon.folders.filter { !missing.contains($0) }) } }
+            Divider()
+            if allGone {
+                Button("Remove…", role: .destructive) { model.pendingRemoval = .forget(addon) }
+            } else {
+                Button("Uninstall…", role: .destructive) { model.requestUninstall(addon) }
+            }
+        } else if case .managed(let addon, _) = status {
             if installed.availableRelease(for: addon.id) != nil, !addon.pinned {
                 Button("Update") { Task { await queue.update([addon.id]) } }
             }

@@ -25,11 +25,14 @@ struct AdoptTarget: Identifiable {
 enum RemovalRequest: Identifiable, Equatable {
     /// `dependents`: managed add-ons that stop loading without it (empty when Settings doesn't warn).
     case managed(InstalledAddon, dependents: [InstalledAddon] = [])
+    /// A managed add-on whose folders were all deleted outside Reload: removing it only
+    /// forgets it (the core's uninstall skips folders that are gone).
+    case forget(InstalledAddon)
     case unmanaged(UnmanagedFolder)
 
     var id: String {
         switch self {
-        case .managed(let addon, _): addon.id.description
+        case .managed(let addon, _), .forget(let addon): addon.id.description
         case .unmanaged(let folder): AddonStatus.unmanagedID(folder.folder)
         }
     }
@@ -37,6 +40,7 @@ enum RemovalRequest: Identifiable, Equatable {
     var title: String {
         switch self {
         case .managed(let addon, _): "Uninstall \(addon.name)?"
+        case .forget(let addon): "Remove \(addon.name) from Reload?"
         case .unmanaged(let folder): "Move \(folder.title) to the Trash?"
         }
     }
@@ -44,6 +48,7 @@ enum RemovalRequest: Identifiable, Equatable {
     var confirmLabel: String {
         switch self {
         case .managed: "Uninstall"
+        case .forget: "Remove"
         case .unmanaged: "Move to Trash"
         }
     }
@@ -52,6 +57,8 @@ enum RemovalRequest: Identifiable, Equatable {
         switch self {
         case .managed(let addon, let dependents):
             Self.uninstallMessage(addon, dependents: dependents)
+        case .forget:
+            Self.forgetMessage
         case .unmanaged(let folder):
             Self.trashMessage(folder.folders)
         }
@@ -63,6 +70,8 @@ enum RemovalRequest: Identifiable, Equatable {
         guard let warning = DependencyWording.dependentsSentence(dependents.map(\.name), removing: addon.name) else { return removes }
         return warning + " " + removes
     }
+
+    static let forgetMessage = "Its folders were already deleted. Reload stops tracking it; install it again from Browse any time."
 
     /// Lists every folder that will move; the Adopt sheet's own dialog uses it too.
     static func trashMessage(_ folders: [String]) -> String {

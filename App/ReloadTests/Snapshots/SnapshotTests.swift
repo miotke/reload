@@ -153,6 +153,12 @@ import UniformTypeIdentifiers
         }
     }
 
+    @Test func inspectorMissingFiles() throws {
+        try Snapshot.render("inspector-missing-files", width: 340, height: 420) {
+            AddonDetailView(state: state, ref: Fixtures.betterBags.id, missingFolders: Fixtures.betterBags.folders)
+        }
+    }
+
     @Test func inspectorRequires() async throws {
         let requires = InstallationModel(installation: Fixtures.installation,
                                          manager: FixtureManager(missing: Fixtures.missingDependencyKinds), reportError: { _ in })

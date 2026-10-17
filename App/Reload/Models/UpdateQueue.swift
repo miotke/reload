@@ -236,6 +236,14 @@ final class UpdateQueue {
         }
     }
 
+    /// Puts back an add-on whose folders were deleted (`AddonManaging.repair`): the same
+    /// release from the download cache, else what its channel offers now.
+    func repair(_ ref: AddonRef) async {
+        await perform(ref.description, label: "Repairing…") {
+            _ = try await self.manager.repair(ref, in: self.installation, progress: { _ in })
+        }
+    }
+
     func rollback(_ ref: AddonRef) async {
         await perform(ref.description, label: "Rolling back…") {
             try await self.manager.rollback(ref, in: self.installation)

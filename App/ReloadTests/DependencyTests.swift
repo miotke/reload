@@ -139,6 +139,25 @@ import Testing
         return state
     }
 
+    @Test func repairReportsWhatTheCoreSays() async {
+        var manager = FixtureManager()
+        manager.installable = [Fixtures.betterBags.id: Fixtures.betterBags]
+        let state = await state(manager)
+        await state.queue.repair(Fixtures.betterBags.id)
+        #expect(state.queue.row(Fixtures.betterBags.id.description).error == nil)
+        await state.queue.repair(Fixtures.littleWigs.id)
+        #expect(state.queue.row(Fixtures.littleWigs.id.description).error != nil)
+        #expect(state.queue.row(Fixtures.littleWigs.id.description).activity == nil)
+    }
+
+    @Test func removingAnAddonWhoseFilesAreGoneSaysItOnlyForgetsIt() {
+        let request = RemovalRequest.forget(Fixtures.betterBags)
+        #expect(request.title == "Remove BetterBags from Reload?")
+        #expect(request.confirmLabel == "Remove")
+        #expect(request.message.contains("already deleted"))
+        #expect(request.id == RemovalRequest.managed(Fixtures.betterBags).id)
+    }
+
     @Test func openingInstalledAppliesTheStaleCheck() async {
         let state = await state()
         #expect(state.installed.updateStates.isEmpty)

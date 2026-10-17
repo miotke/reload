@@ -68,7 +68,7 @@ final class AppModel {
         guard let state = current else { return }
         Task {
             switch request {
-            case .managed(let addon, _): await state.queue.uninstall(addon.id)
+            case .managed(let addon, _), .forget(let addon): await state.queue.uninstall(addon.id)
             case .unmanaged(let folder): await state.queue.removeUnmanaged(folder.folders, id: request.id)
             }
         }
