@@ -372,9 +372,12 @@ private struct InspectorActions: View {
         let flavor = queue.installation.flavor
         HStack {
             if let installed, let installedRef = action.installedRef {
-                Label("Installed \(installed.version)", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.secondary)
-                    .labelStyle(.titleAndIcon)
+                Label {
+                    Text("Installed \(installed.version)").foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+                .labelStyle(.titleAndIcon)
                 if case .update(_, _, let offer) = action {
                     Button("Update to \(offer.label)") { Task { await queue.update([installedRef]) } }
                         .buttonStyle(.borderedProminent)
