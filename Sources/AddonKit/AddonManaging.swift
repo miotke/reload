@@ -48,6 +48,10 @@ public protocol AddonManaging: Sendable {
     func checkVisible(_ refs: [AddonRef], in installation: Installation) async -> [AddonRef]
 
     func checkForUpdates(in installation: Installation) async throws -> [AddonRef: UpdateState]
+    /// The same bulk check with the caller's intent. `.revalidateIfStale` (opening Installed)
+    /// asks only about add-ons whose stored answer is past its lifetime, so repeating it soon
+    /// costs nothing; `.forceRevalidate` is `checkForUpdates(in:)`. The states are stored.
+    func checkForUpdates(in installation: Installation, policy: CachePolicy) async throws -> [AddonRef: UpdateState]
     func update(_ refs: [AddonRef], in installation: Installation) -> AsyncStream<OperationEvent>
     /// Installs releases an earlier check already found, without checking again. Empty does nothing.
     func update(releases: [ResolvedRelease], in installation: Installation) -> AsyncStream<OperationEvent>

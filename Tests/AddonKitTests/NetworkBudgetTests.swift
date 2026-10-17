@@ -57,6 +57,31 @@ import Testing
         #expect(h.http.requests.count == 23)
     }
 
+    @Test func openingInstalledChecksOnlyStaleAddons() async throws {
+        let h = try await ManagerHarness()
+        try await installTwenty(h)
+
+        // Just refreshed: every answer is fresh, so opening Installed asks nothing.
+        h.http.reset()
+        _ = try await h.manager.checkForUpdates(in: h.installation, policy: .revalidateIfStale)
+        #expect(h.http.requests.isEmpty)
+
+        // An hour later: one HEAD per add-on, and no catalogue, listings or API.
+        let later = await h.reopen()
+        await later.setClock { Date().addingTimeInterval(SupportCache.defaultTTL + 60) }
+        h.http.reset()
+        let states = try await later.checkForUpdates(in: h.installation, policy: .revalidateIfStale)
+        #expect(states.count == 20)
+        #expect(heads(h) == 20)
+        #expect(h.http.requests.count == 20)
+        #expect(h.http.apiRequests.isEmpty)
+
+        // Opening it again right away: the answers it just stored are fresh.
+        h.http.reset()
+        _ = try await later.checkForUpdates(in: h.installation, policy: .revalidateIfStale)
+        #expect(h.http.requests.isEmpty)
+    }
+
     @Test func aNewTagFetchesItsReleaseJSONOnce() async throws {
         let h = try await ManagerHarness()
         let ref = AddonRef(source: .github, identifier: "Test/Addon")

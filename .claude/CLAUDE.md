@@ -59,6 +59,7 @@ Read `docs/network/` before touching anything that makes requests.
 - **Network happens:**
   - on first launch: catalogue, plus a seed of about 200 recent add-ons and the installed ones
   - every 2 hours: installed add-ons, plus repos that changed in the catalogue
+  - when the user opens Installed: installed add-ons whose answers are over an hour old (`.revalidateIfStale`)
   - when the user opens, installs or updates a specific add-on
 - **Quota.** Prefer the quota-free `github.com/{owner}/{repo}/releases/latest` redirects and `raw.githubusercontent.com`. The API allows 60 calls per hour without a token, shared per IP. Keep a reserve, stop calling once the limit is hit, and store the rate-limit state.
 - Cache everything, failures included (with a TTL). Use ETags. Never refetch what's stored and fresh.

@@ -4,7 +4,11 @@ import Foundation
 extension AddonManager {
     /// An explicit check (⌘R, `reload outdated`): always asks for the latest tags.
     public func checkForUpdates(in installation: Installation) async throws -> [AddonRef: UpdateState] {
-        try await checkForUpdates(in: installation, policy: .forceRevalidate, progress: { _, _ in })
+        try await checkForUpdates(in: installation, policy: .forceRevalidate)
+    }
+
+    public func checkForUpdates(in installation: Installation, policy: CachePolicy) async throws -> [AddonRef: UpdateState] {
+        try await checkForUpdates(in: installation, policy: policy, progress: { _, _ in })
     }
 
     /// `progress` is called once per add-on as its check lands, with the number done so far.
