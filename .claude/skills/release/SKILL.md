@@ -50,7 +50,7 @@ When `xcode-select -p` points at the Command Line Tools, set `DEVELOPER_DIR` to 
 Merging the release PR publishes the release by itself: the Release workflow tests and builds the merge commit, tags it `vX.Y.Z`, publishes the release with the PR description as its notes, and deletes the branch. `/release publish` checks that it worked and recovers when it didn't.
 
 1. Find the release PR: `gh pr list --head release/vX.Y.Z --state merged`. Stop if it isn't merged yet; merging is the user's call, so don't merge it yourself unless they ask.
-2. Watch its run: `gh run list --workflow release.yml --event pull_request -L 1`, then `gh run watch <id>`.
+2. Watch its run: `gh run list --workflow release.yml --event push --branch main -L 1`, then `gh run watch <id>`.
 3. **If it passed:** check that `https://github.com/miotke/reload/releases/latest` redirects to `vX.Y.Z`, the DMG downloads, and `releases/latest/download/appcast.xml` names X.Y.Z. `git switch main && git pull --ff-only && git branch -d release/vX.Y.Z`. Reply with the release link.
 4. **If it failed,** report the failing step plainly, then publish from this Mac:
    1. `git switch main && git pull --ff-only`. Check `AppInfo.version` is X.Y.Z and `HEAD` is the PR's merge commit (`gh pr view <number> --json mergeCommit -q .mergeCommit.oid`).

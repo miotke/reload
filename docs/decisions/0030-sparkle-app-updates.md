@@ -38,4 +38,5 @@ The project took no third-party dependencies beyond ZIPFoundation and swift-argu
 - Losing the private key strands installed copies: they accept no other key.
 - The Keychain prompt for the GitHub token still returns after updates, because each ad-hoc build is a new signer. A stable self-signed certificate would fix that separately.
 - One more request a day, to github.com's redirect and the release-assets host, outside the add-on request budget ([network/budget.md](../network/budget.md#reloads-own-updates)). It isn't shown in Window ▸ Network Activity, which records the core's requests.
+- The key is a secret of a `release` environment that only deploys to `main` and `v*` tags. Publishing moved from the PR-closed event to the merge's push to `main` (0.1.8), because a PR-triggered run's ref is `refs/pull/N/merge` and the environment refused the 0.1.7 merge.
 - Details: [app/updates.md](../app/updates.md).

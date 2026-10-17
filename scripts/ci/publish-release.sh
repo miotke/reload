@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # After a merged release PR: tags the merge commit vX.Y.Z, publishes the release with the
-# built files, the signed Sparkle feed (appcast.xml) and the PR description ($BODY) as
-# notes, then deletes the release branch ($HEAD_REF). Runs only after the build
+# built files, the signed Sparkle feed (appcast.xml) and the description of PR $PR_NUMBER
+# as notes, then deletes the release branch ($HEAD_REF). Runs only after the build
 # succeeded, so a failed run leaves no tag. A tag pushed with the workflow's token doesn't
 # start the workflow again.
 set -euo pipefail
@@ -18,7 +18,7 @@ if [[ -z ${SPARKLE_ED_PRIVATE_KEY:-} ]]; then
   exit 1
 fi
 # The notes are the PR description, minus the Claude Code attribution line.
-printf '%s\n' "$BODY" | grep -v '^🤖 Generated with' > "$RUNNER_TEMP/notes.md"
+gh pr view "$PR_NUMBER" --json body -q .body | grep -v '^🤖 Generated with' > "$RUNNER_TEMP/notes.md"
 scripts/appcast.sh "$VERSION" "$RUNNER_TEMP/notes.md"
 
 git config user.name "github-actions[bot]"
