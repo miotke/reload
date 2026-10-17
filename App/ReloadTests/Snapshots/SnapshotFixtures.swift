@@ -164,12 +164,20 @@ nonisolated struct FixtureManager: AddonManaging {
     var dependentsByRef: [AddonRef: [InstalledAddon]] = [:]
     /// Refs `install` succeeds for, with the record it returns; the rest throw.
     var installable: [AddonRef: InstalledAddon] = [:]
+    /// What every search answers, in one batch.
+    var searchResults: [SearchResult] = []
 
     func installations() async throws -> [Installation] { [Fixtures.installation] }
     func detectInstallations() async throws -> [Installation] { [Fixtures.installation] }
     func addInstallation(at url: URL) async throws -> Installation { throw Unsupported() }
     func addons(in installation: Installation) async throws -> [AddonStatus] { addonList }
-    func search(_ query: SearchQuery, in installation: Installation) -> AsyncStream<[SearchResult]> { Self.finished() }
+    func search(_ query: SearchQuery, in installation: Installation) -> AsyncStream<[SearchResult]> {
+        let results = searchResults
+        return AsyncStream { continuation in
+            continuation.yield(results)
+            continuation.finish()
+        }
+    }
     func browse(in installation: Installation) async -> BrowseContent { content }
     func resolve(_ ref: AddonRef, for installation: Installation, channel: Channel) async throws -> ResolvedRelease { throw Unsupported() }
     func install(

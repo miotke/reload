@@ -139,6 +139,40 @@ import Testing
         return state
     }
 
+    /// The inspector's Search for a required add-on (`AppModel.searchBrowse(for:)`).
+    func revealSearch(_ text: String, in state: InstallationModel, typed: String? = nil) async {
+        state.browse.revealQuery = text
+        state.browse.options = BrowseOptions(query: typed ?? text)
+        await state.browse.search(SearchQuery(text: typed ?? text, flavor: Fixtures.installation.flavor))
+    }
+
+    @Test func searchForARequiredAddonSelectsTheFirstResult() async {
+        var manager = FixtureManager()
+        manager.searchResults = [Fixtures.browseNotInstalled, Fixtures.browseInstalled]
+        let state = await state(manager)
+        await revealSearch("BigWigs", in: state)
+        #expect(state.inspector.selectedBrowseID == state.browse.rows.first?.id)
+        #expect(state.inspector.selectedBrowseID != nil)
+        #expect(state.browse.revealQuery == nil)
+    }
+
+    @Test func searchForARequiredAddonThatFindsNothingClearsTheSelection() async {
+        let state = await state()
+        state.inspector.selectedBrowseID = state.browse.row(for: Fixtures.browseInstalled).id
+        await revealSearch("ArcaneWizardLibrary", in: state)
+        #expect(state.browse.rows.isEmpty)
+        #expect(state.inspector.selectedBrowseID == nil)
+    }
+
+    @Test func typingSomethingElseCancelsTheReveal() async {
+        var manager = FixtureManager()
+        manager.searchResults = [Fixtures.browseNotInstalled]
+        let state = await state(manager)
+        await revealSearch("BigWigs", in: state, typed: "bags")
+        #expect(state.inspector.selectedBrowseID == nil)
+        #expect(state.browse.revealQuery == nil)
+    }
+
     @Test func reloadMapsMissingDependenciesOntoRows() async {
         let state = await state()
         let row = state.installed.rows.first { $0.ref == Fixtures.littleWigs.id }

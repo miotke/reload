@@ -417,10 +417,15 @@ final class AppModel {
         banner = Banner(message: message)
     }
 
-    /// Browse, searching for `text`: the inspector's Search for a required add-on.
+    /// Browse, searching for `text`: the inspector's Search for a required add-on. The add-on
+    /// that asked mustn't stay in the inspector as if it were the answer, so the selection is
+    /// cleared now and becomes the first result, or stays empty, when the search finishes.
     func searchBrowse(for text: String) {
+        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        current?.inspector.selectedBrowseID = nil
+        current?.browse.revealQuery = query
         section = .browse
-        searchText = text
+        searchText = query
     }
 
     /// "Search all add-ons" (or Return) in a library section: the same text, in Browse.
