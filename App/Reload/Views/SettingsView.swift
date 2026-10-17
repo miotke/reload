@@ -71,6 +71,7 @@ struct GeneralSettingsTab: View {
     @AppStorage(SettingsKey.showMenuBarExtra) private var showMenuBarExtra = false
     @AppStorage(SettingsKey.dependencyPolicy) private var dependencyPolicy: DependencyPolicy = .ask
     @AppStorage(SettingsKey.warnBeforeRemovingDependencies) private var warnBeforeRemovingDependencies = true
+    @AppStorage(SettingsKey.showOtherGames) private var showsOtherGames = false
 
     private static let checkHelp = "On launch, when the app becomes active, and every 2 hours. Check for Updates (⌘R) always works."
 
@@ -111,6 +112,14 @@ struct GeneralSettingsTab: View {
                 Text("Dependencies")
             } footer: {
                 SettingsFootnote("Some add-ons only load with another one installed, like LittleWigs with BigWigs. Installed shows what's missing either way; Reload only installs an add-on it's sure provides it.")
+            }
+
+            Section {
+                Toggle("Show add-ons for other games", isOn: $showsOtherGames)
+            } header: {
+                Text("Browse")
+            } footer: {
+                SettingsFootnote("Off, Browse and search hide add-ons that won't load on the selected game, like Classic-only ones on Forever. Add-ons not checked yet, and Retail builds that may work on Forever, always show.")
             }
 
             Section("Menu Bar") {
