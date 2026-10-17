@@ -126,7 +126,7 @@ import UniformTypeIdentifiers
                     .frame(width: 220)
                 Divider()
                 VStack(alignment: .leading, spacing: 0) {
-                    BrowseFilterBar(isHome: false, category: bags, home: .constant(.popular), games: .constant(.forever))
+                    BrowseFilterBar(isHome: false, category: bags, home: .constant(.popular))
                     Divider()
                     TableSnapshot(columns: BrowseRowSnapshot.columns) {
                         ForEach(rows) { row in BrowseRowSnapshot(state: state, row: row) }
@@ -217,7 +217,8 @@ import UniformTypeIdentifiers
         let classic = Installation(id: "snapshot-era", root: URL(filePath: "/tmp/ReloadSnapshots/World of Warcraft/_classic_era_"),
                                    flavor: .vanilla, gameVersion: "1.15.7.61582")
         try Snapshot.render("settings-general", width: SettingsLayout.width) {
-            GeneralSettingsTab(installations: [Fixtures.installation, classic], selectedInstallationID: .constant(Fixtures.installation.id))
+            GeneralSettingsTab(installations: [Fixtures.installation, classic], selectedInstallationID: .constant(Fixtures.installation.id),
+                               updater: AppUpdater(automaticallyChecks: true, check: {}, setAutomaticallyChecks: { _ in }))
         }
     }
 

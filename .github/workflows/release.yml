@@ -2,7 +2,8 @@
 # this tests and builds the merge commit, tags it vX.Y.Z and publishes the release with the
 # PR description as its notes. Pushing a v* tag by hand still builds a draft release, the
 # fallback when a merged run fails. Signing and notarization run only when the secrets
-# exist; without them the release is an unsigned build. The steps live in scripts/ci/.
+# exist; without them the release is an unsigned build. Publishing also needs the Sparkle
+# key (SPARKLE_ED_PRIVATE_KEY, a `release` environment secret) for the update feed. The steps live in scripts/ci/.
 name: Release
 
 on:
@@ -29,6 +30,10 @@ jobs:
         startsWith(github.event.pull_request.head.ref, 'release/v') &&
         github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: macos-26
+    # The Sparkle key lives in the `release` environment, which only runs on main (a merged
+    # PR's ref) and v* tags, so a workflow from any other branch can't read it. Manual test
+    # builds don't need it and run without the environment (docs/app/updates.md#signing-key).
+    environment: ${{ github.event_name != 'workflow_dispatch' && 'release' || '' }}
     env:
       HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
       HAS_NOTARY: ${{ secrets.NOTARY_KEY_P8 != '' }}
@@ -80,6 +85,7 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
           BODY: ${{ github.event.pull_request.body }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: scripts/ci/publish-release.sh
@@ -88,6 +94,7 @@ jobs:
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
         run: scripts/ci/draft-release.sh
 
       - name: Keep the build

@@ -11,6 +11,7 @@ enum SettingsKey {
     static let settingsTab = "settingsTab"
     static let dependencyPolicy = "dependencyPolicy"
     static let warnBeforeRemovingDependencies = "warnBeforeRemovingDependencies"
+    static let showOtherGames = "browseShowOtherGames"
 }
 
 /// Light, dark or the system's choice, set in Settings or View ▸ Appearance.

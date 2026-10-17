@@ -45,7 +45,7 @@ Native macOS add-on manager for World of Warcraft: Forever. A SwiftUI app (`App/
 
 - Swift 6 language mode with strict concurrency, `NonisolatedNonsendingByDefault` and `InferIsolatedConformances`. The app target makes code run on the main actor by default, so off-main helpers need `nonisolated`.
 - Shared state lives in actors or `Mutex`. No `NSLock`, no `@unchecked Sendable` in library code.
-- **Use Apple frameworks; no new third-party dependencies.** The only ones are ZIPFoundation and swift-argument-parser. Persistence uses the system SQLite (`import SQLite3`).
+- **Use Apple frameworks; no new third-party dependencies.** The only ones are ZIPFoundation, swift-argument-parser and, in the app target only, Sparkle (Reload's own updates, decision 0030). Persistence uses the system SQLite (`import SQLite3`).
 - Tests use Swift Testing (`@Test`, `#expect`), not XCTest.
 - Match the surrounding file's style. Comments explain *why*, not *what*.
 - The app uses real data only. No mock managers or sample data in the app target.

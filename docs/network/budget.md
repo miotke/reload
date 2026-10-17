@@ -84,3 +84,7 @@ A window whose reset time has passed is reported full (`remaining` = limit, no r
 - `releases/latest/download/release.json` takes 3 hops and about 350 ms; use the `releases/latest` redirect plus `releases/download/<tag>/release.json` instead ([github-endpoints.md](github-endpoints.md)).
 - Seeding all ~1,877 candidate repos on first launch was rejected: about 7,500 requests and ~3 minutes.
 - A stored `release.json` is about 600 B; 200 seeded repos add about 120 KB to `metadata.sqlite`.
+
+## Reload's own updates
+
+Sparkle, in Release builds ([app/updates.md](../app/updates.md)): once a day, `github.com/miotke/reload/releases/latest/download/appcast.xml` (a quota-free redirect to the release-assets host), and the zip only when a newer version is installed. Never the API, and not counted in the add-on flows above.

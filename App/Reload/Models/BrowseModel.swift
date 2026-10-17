@@ -6,8 +6,8 @@ import Observation
 struct BrowseOptions: Equatable {
     var query = ""
     var home: BrowseHome = .popular
-    /// The games picker; nil shows every game.
-    var games: GameFamily?
+    /// Settings' "Show add-ons for other games"; off hides what won't load on this game.
+    var showsOtherGames = false
     var sort: ColumnSort<BrowseColumn>?
 }
 
@@ -88,8 +88,9 @@ final class BrowseModel {
             results = searchResults
         }
         // The home lists come back unfiltered, and live patches can fill in a search result's games.
-        if let games = options.games {
-            results = results.filter { !BrowseFilter.isHidden($0, games: games, isInstalled: installed.addon(for: $0.id) != nil) }
+        if !options.showsOtherGames {
+            let flavor = installation.flavor
+            results = results.filter { !BrowseFilter.isHidden($0, for: flavor, isInstalled: installed.addon(for: $0.id) != nil) }
         }
         var rows = results.map { row(for: $0, now: now) }
         if let sort = options.sort { rows.sort(using: sort) }

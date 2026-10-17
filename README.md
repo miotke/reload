@@ -60,7 +60,7 @@ Needs macOS 26 or later on Apple silicon. For the `reload` command, open Setting
 2. In Xcode's toolbar, choose the **Reload** scheme and **My Mac** as the run destination.
 3. Press **⌘R** (Product ▸ Run).
 
-   Xcode resolves the Swift packages (ZIPFoundation and swift-argument-parser) the first time, which takes a minute. The app is signed for local running ("Sign to Run Locally"), so you don't need an Apple developer account.
+   Xcode resolves the Swift packages (ZIPFoundation, swift-argument-parser and Sparkle) the first time, which takes a minute. The app is signed for local running ("Sign to Run Locally"), so you don't need an Apple developer account.
 
 ### First launch
 
@@ -174,7 +174,7 @@ RELOAD_LIVE_TESTS=1 swift test
 
 ## Acknowledgements
 
-The design borrows heavily from [instawow](https://github.com/layday/instawow) and [WowUp](https://github.com/WowUp/WowUp), and depends on the [BigWigs packager](https://github.com/BigWigsMods/packager) ecosystem. Libraries: [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) (MIT) and [Swift Argument Parser](https://github.com/apple/swift-argument-parser) (Apache 2.0).
+The design borrows heavily from [instawow](https://github.com/layday/instawow) and [WowUp](https://github.com/WowUp/WowUp), and depends on the [BigWigs packager](https://github.com/BigWigsMods/packager) ecosystem. Libraries: [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) (MIT), [Swift Argument Parser](https://github.com/apple/swift-argument-parser) (Apache 2.0) and [Sparkle](https://sparkle-project.org) (MIT).
 
 ## License
 
