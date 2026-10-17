@@ -1,16 +1,19 @@
 # Merging a release/vX.Y.Z pull request into main is the release (docs/app/releases.md):
-# this tests and builds the merge commit, tags it vX.Y.Z and publishes the release with the
-# PR description as its notes. Pushing a v* tag by hand still builds a draft release, the
-# fallback when a merged run fails. Signing and notarization run only when the secrets
-# exist; without them the release is an unsigned build. Publishing also needs the Sparkle
-# key (SPARKLE_ED_PRIVATE_KEY, a `release` environment secret) for the update feed. The steps live in scripts/ci/.
+# the merge's push to main tests and builds the merge commit, tags it vX.Y.Z and publishes
+# the release with the PR description as its notes. Pushing a v* tag by hand still builds a
+# draft release, the fallback when a merged run fails. Signing and notarization run only
+# when the secrets exist; without them the release is an unsigned build. Publishing also
+# needs the Sparkle key (SPARKLE_ED_PRIVATE_KEY, a `release` environment secret) for the
+# update feed. The steps live in scripts/ci/.
+#
+# It runs on the push, not on the PR closing: that run's ref is main, which the `release`
+# environment allows (a PR run's is refs/pull/N/merge), and it uses the workflow as merged,
+# so no pull request can change the code that sees the key.
 name: Release
 
 on:
-  pull_request:
-    types: [closed]
-    branches: [main]
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -20,20 +23,41 @@ on:
 
 permissions:
   contents: write
+  # The publish step reads the release PR's description for the notes.
+  pull-requests: read
 
 jobs:
+  # A push to main releases only when it's the merge commit of a release/vX.Y.Z PR from this
+  # repo. Every other push stops here, before the macOS runner or the environment.
+  find-release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      number: ${{ steps.pr.outputs.number }}
+      head_ref: ${{ steps.pr.outputs.head_ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: scripts/ci/find-release-pr.sh
+
   release:
-    # A closed PR only releases when it's a merged release branch from this repo.
+    needs: find-release
+    # find-release is skipped for tags and manual runs, so `always()` keeps this job; it then
+    # runs for those, and for a push to main only when find-release named a release PR.
     if: >-
-      github.event_name != 'pull_request' || (
-        github.event.pull_request.merged &&
-        startsWith(github.event.pull_request.head.ref, 'release/v') &&
-        github.event.pull_request.head.repo.full_name == github.repository)
+      always() && needs.find-release.result != 'failure' && needs.find-release.result != 'cancelled' && (
+        github.event_name != 'push' || github.ref_type == 'tag' || needs.find-release.outputs.head_ref != '')
     runs-on: macos-26
-    # The Sparkle key lives in the `release` environment, which only runs on main (a merged
-    # PR's ref) and v* tags, so a workflow from any other branch can't read it. Manual test
-    # builds don't need it and run without the environment (docs/app/updates.md#signing-key).
-    environment: ${{ github.event_name != 'workflow_dispatch' && 'release' || '' }}
+    # The Sparkle key lives in the `release` environment, which only deploys to main and v*
+    # tags, so a workflow run from any other branch can't read it. Manual test builds don't
+    # need it and run without the environment (docs/app/updates.md#signing-key).
+    environment: ${{ github.event_name == 'push' && 'release' || '' }}
     env:
       HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
       HAS_NOTARY: ${{ secrets.NOTARY_KEY_P8 != '' }}
@@ -41,12 +65,10 @@ jobs:
       RELOAD_PERF_SLACK: "3"
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
       - name: Work out the version
         env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REF: ${{ needs.find-release.outputs.head_ref }}
           INPUT_VERSION: ${{ inputs.version }}
         run: scripts/ci/release-version.sh
 
@@ -82,16 +104,16 @@ jobs:
         run: scripts/release.sh "$VERSION"
 
       - name: Tag and publish the release
-        if: github.event_name == 'pull_request'
+        if: needs.find-release.outputs.head_ref != ''
         env:
           GH_TOKEN: ${{ github.token }}
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
-          BODY: ${{ github.event.pull_request.body }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ needs.find-release.outputs.number }}
+          HEAD_REF: ${{ needs.find-release.outputs.head_ref }}
         run: scripts/ci/publish-release.sh
 
       - name: Draft the GitHub release
-        if: github.event_name == 'push'
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
