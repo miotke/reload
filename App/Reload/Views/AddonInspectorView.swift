@@ -384,11 +384,11 @@ private struct InspectorActions: View {
                 }
                 .labelStyle(.titleAndIcon)
                 .help("Missing \(missingFolders.joined(separator: ", ")) in Interface/AddOns")
+                Spacer()
                 Button("Repair") { Task { await queue.repair(installedRef) } }
                     .buttonStyle(.borderedProminent)
                     .disabled(busy)
                     .help("Download \(installed.name) \(installed.version) again and put its folders back")
-                Spacer()
                 if allGone {
                     Button("Remove…", role: .destructive) { confirmRemove = true }
                         .disabled(busy)
