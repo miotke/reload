@@ -77,7 +77,9 @@ public struct AddonRef: Codable, Hashable, Sendable, CustomStringConvertible {
     /// The whole repo, without a tag prefix: what catalogue rows, READMEs and stats belong to.
     public var repo: AddonRef { AddonRef(source: source, identifier: identifier) }
 
-    public var description: String { "\(source.rawValue):\(key)" }
+    public var description: String {
+        "\(source.rawValue):\(identifier)" + (tagPrefix.map { "#\($0)" } ?? "")
+    }
 
     /// `owner/repo` (or `owner/repo#prefix`) for GitHub, `wowinterface:3826` for the others:
     /// the key the metadata database stores the ref under, and the short form messages and
