@@ -76,6 +76,9 @@ struct AddonDetailView: View {
                         RequiresSection(queue: state.queue, name: name, missing: missing, search: searchBrowse)
                     }
                 }
+                if let installed, let parts = state.inspector.optionalParts[installed.id] {
+                    OptionalPartsSection(queue: state.queue, list: parts, name: name)
+                }
                 if let loaded {
                     // The core already drops badges, SVGs and tiny icons.
                     let screenshots = Array(loaded.screenshots.prefix(ScreenshotLoader.maxImagesPerAddon))
@@ -108,6 +111,16 @@ struct AddonDetailView: View {
                 guard !Task.isCancelled else { return }
             }
             await state.inspector.loadDetails(for: ref)
+        }
+        // Only managed add-ons have parts. Debounced like the details, since this may ask
+        // GitHub; the task also follows changes until the selection moves on.
+        .task(id: installed?.id) {
+            guard let partsRef = installed?.id else { return }
+            if style == .inspector {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+            }
+            await state.inspector.loadOptionalParts(for: partsRef)
         }
     }
 
@@ -384,11 +397,11 @@ private struct InspectorActions: View {
                 }
                 .labelStyle(.titleAndIcon)
                 .help("Missing \(missingFolders.joined(separator: ", ")) in Interface/AddOns")
+                Spacer()
                 Button("Repair") { Task { await queue.repair(installedRef) } }
                     .buttonStyle(.borderedProminent)
                     .disabled(busy)
                     .help("Download \(installed.name) \(installed.version) again and put its folders back")
-                Spacer()
                 if allGone {
                     Button("Remove…", role: .destructive) { confirmRemove = true }
                         .disabled(busy)

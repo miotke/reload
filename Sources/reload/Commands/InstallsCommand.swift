@@ -46,7 +46,7 @@ struct InstallsCommand: AsyncParsableCommand {
 
         @OptionGroup var global: GlobalOptions
 
-        @Argument(help: "The flavor folder (e.g. …/World of Warcraft/_classic_beta_), its Interface/AddOns, or the World of Warcraft folder.", completion: .directory)
+        @Argument(help: "The flavor folder (e.g. …/World of Warcraft/_forever_), its Interface/AddOns, or the World of Warcraft folder.", completion: .directory)
         var path: String
 
         func run(_ context: CLIContext) async throws {

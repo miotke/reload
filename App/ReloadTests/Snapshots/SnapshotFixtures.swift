@@ -166,6 +166,9 @@ nonisolated struct FixtureManager: AddonManaging {
     var installable: [AddonRef: InstalledAddon] = [:]
     /// What every search answers, in one batch.
     var searchResults: [SearchResult] = []
+    /// What `optionalParts(of:in:policy:)` reports for each policy; it throws for a policy
+    /// with no entry. Every ref gets the same answer.
+    var optionalPartsByPolicy: [CachePolicy: [OptionalPart]] = [.preferStored: [], .revalidateIfStale: []]
 
     func installations() async throws -> [Installation] { [Fixtures.installation] }
     func detectInstallations() async throws -> [Installation] { [Fixtures.installation] }
@@ -222,6 +225,10 @@ nonisolated struct FixtureManager: AddonManaging {
         missing.filter { $0.requiredBy.contains(ref) }
     }
     func dependents(of ref: AddonRef, in installation: Installation) async -> [InstalledAddon] { dependentsByRef[ref] ?? [] }
+    func optionalParts(of ref: AddonRef, in installation: Installation, policy: CachePolicy) async throws -> [OptionalPart] {
+        guard let parts = optionalPartsByPolicy[policy] else { throw Unsupported() }
+        return parts
+    }
 
     private static func finished<T>() -> AsyncStream<T> {
         AsyncStream { $0.finish() }

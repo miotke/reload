@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Synchronization
 
 /// Finds WoW installations and works out their flavor (docs/features/finding-wow.md).
 /// Only reads the file system; never writes.
@@ -49,7 +50,7 @@ public struct InstallationLocator: Sendable {
     }
 
     /// An installation from a folder the user picked: the flavor folder itself
-    /// (`…/_classic_beta_`), its `Interface/AddOns`, or the `World of Warcraft` folder
+    /// (`…/_forever_`), its `Interface/AddOns`, or the `World of Warcraft` folder
     /// when it holds exactly one flavor folder.
     /// - Throws: `AddonError.installationNotFound` if no single installation matches.
     public func installation(at url: URL) throws -> Installation {
@@ -62,10 +63,12 @@ public struct InstallationLocator: Sendable {
            parts[parts.count - 2].caseInsensitiveCompare("Interface") == .orderedSame {
             return try makeInstallation(root: url.deletingLastPathComponent().deletingLastPathComponent())
         }
-        if Self.isFlavorFolderName(url.lastPathComponent) || Self.looksLikeInstallationRoot(url) {
+        // The `World of Warcraft` folder holds `World of Warcraft Launcher.app`, so it looks
+        // like a root by the `.app` test alone; its flavor folders win.
+        let flavorFolders = Self.flavorFolders(in: url)
+        if Self.isFlavorFolderName(url.lastPathComponent) || (flavorFolders.isEmpty && Self.looksLikeInstallationRoot(url)) {
             return try makeInstallation(root: url)
         }
-        let flavorFolders = Self.flavorFolders(in: url)
         guard flavorFolders.count == 1 else { throw AddonError.installationNotFound(url.path) }
         return try makeInstallation(root: flavorFolders[0])
     }
@@ -178,28 +181,47 @@ public struct InstallationLocator: Sendable {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-        } catch {
-            return ""
+
+        // Read while it runs, so a full pipe can't stall it.
+        let reader = pipe.fileHandleForReading
+        let output = Mutex(Data())
+        reader.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            output.withLock { $0.append(chunk) }
         }
 
-        // Terminating the process closes the pipe, which ends the read loop below.
-        let pid = process.processIdentifier
-        let watchdog = Task {
-            try await Task.sleep(for: .seconds(timeout))
-            kill(pid, SIGTERM)
-        }
-        defer { watchdog.cancel() }
-
-        var output = Data()
-        do {
-            for try await byte in pipe.fileHandleForReading.bytes {
-                output.append(byte)
+        // Finish when the process exits, not at the pipe's EOF: a process spawned elsewhere at
+        // the same moment can inherit the pipe's write end and hold it open long after this
+        // one is gone. The kill is a Dispatch timer so a busy cooperative pool can't delay it.
+        let exited = Mutex(false)
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            process.terminationHandler = { _ in
+                exited.withLock { $0 = true }
+                continuation.resume()
             }
-        } catch {
-            // Keep whatever arrived before the read failed.
+            do {
+                try process.run()
+            } catch {
+                process.terminationHandler = nil
+                continuation.resume()
+                return
+            }
+            let pid = process.processIdentifier
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
+                if !exited.withLock({ $0 }) { kill(pid, SIGTERM) }
+            }
         }
-        return String(decoding: output, as: UTF8.self)
+        reader.readabilityHandler = nil
+
+        // Whatever is still buffered, without waiting for an EOF that may not come.
+        let fd = reader.fileDescriptor
+        _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while true {
+            let count = read(fd, &buffer, buffer.count)
+            guard count > 0 else { break }
+            output.withLock { $0.append(contentsOf: buffer[..<count]) }
+        }
+        return String(decoding: output.withLock { $0 }, as: UTF8.self)
     }
 }

@@ -11,10 +11,26 @@ public enum ZipExtractor {
     /// Real add-ons unpack to tens of MB in a few thousand files.
     public static let maxUncompressedBytes: UInt64 = 1024 * 1024 * 1024
     public static let maxEntries = 50_000
+    /// The most a large archive may unpack to, however big it is.
+    static let ceilingBytes: UInt64 = 8 * 1024 * 1024 * 1024
+    static let ceilingEntries = 500_000
+
+    /// The limits for an archive of `size` bytes. A voice pack is already-compressed audio:
+    /// 1.5 GB of zip unpacks to about 1.5 GB in tens of thousands of files. So the limits grow
+    /// with the archive (twice its size, a file per 16 KB), which a small zip bomb can't use.
+    static func limits(forArchiveSize size: UInt64) -> (bytes: UInt64, entries: Int) {
+        (min(ceilingBytes, max(maxUncompressedBytes, size * 2)), min(ceilingEntries, max(maxEntries, Int(size / 16_384))))
+    }
+
+    static func validate(_ zip: Archive, at url: URL) throws -> Plan {
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map { UInt64(max(0, $0)) } ?? 0
+        let limits = limits(forArchiveSize: size)
+        return try validate(zip, byteLimit: limits.bytes, entryLimit: limits.entries)
+    }
 
     /// Top-level folder names in `archive`, after full validation. Extracts nothing.
     public static func topLevelFolders(in archive: URL) throws -> [String] {
-        try validate(openArchive(archive)).folders
+        try validate(openArchive(archive), at: archive).folders
     }
 
     /// Validates `archive`, then extracts it into `destination` (created if missing).
@@ -22,7 +38,7 @@ public enum ZipExtractor {
     @discardableResult
     public static func extract(_ archive: URL, to destination: URL) throws -> [String] {
         let zip = try openArchive(archive)
-        let plan = try validate(zip)
+        let plan = try validate(zip, at: archive)
         let fm = FileManager.default
         try fm.createDirectory(at: destination, withIntermediateDirectories: true)
         let root = destination.standardizedFileURL

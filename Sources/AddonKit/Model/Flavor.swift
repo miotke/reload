@@ -60,7 +60,8 @@ extension Flavor {
                 tocSuffixes: ["Camelot", "Forever"],
                 sharedTocSuffixes: ["Mainline"],
                 releaseJSONFlavors: ["forever", "camelot"],
-                knownSubfolders: ["_classic_beta_": "wow_classic_beta"]
+                // `_classic_beta_` is the pre-launch beta, kept for installs that still have it.
+                knownSubfolders: ["_forever_": "wowf", "_classic_beta_": "wow_classic_beta"]
             )
         case .vanilla:
             FlavorRules(

@@ -45,6 +45,7 @@ flowchart LR
 | [search.md](features/search.md) | you're changing search layers, ranking, aliases, the GitHub fallback, catalogue import or Browse |
 | [refresh.md](features/refresh.md) | you're changing the background refresh: its phases, targets, politeness or progress |
 | [dependencies.md](features/dependencies.md) | you're working on required add-ons: missing-dependency warnings, installing them alongside, or the removal guard |
+| [optional-parts.md](features/optional-parts.md) | you're working on optional parts: extra add-ons such as voice packs that a repo publishes as their own tag stream, `AddonRef.tagPrefix` |
 | [sources.md](features/sources.md) | you're working on GitHub, WoWInterface or Tukui as sources, hosted listings, `AddonRef.key`, or turning sources on and off |
 | [details-and-screenshots.md](features/details-and-screenshots.md) | you're working on the inspector, where its details come from, README fetching and rendering, or screenshots |
 
@@ -76,6 +77,7 @@ flowchart LR
 | [first-launch.md](app/first-launch.md) | you're touching the seeding sheet, refresh progress or the 2-hour auto refresh |
 | [live-data.md](app/live-data.md) | you're changing how the app follows database changes, CLI writes or the install store |
 | [required-addons.md](app/required-addons.md) | you're working on how the app shows missing required add-ons, offers to install them, or warns before removing one |
+| [optional-parts.md](app/optional-parts.md) | you're working on the inspector's Optional Parts section (voice packs and other add-ons from the same repo) or how refs with a tag prefix show in the app |
 | [settings.md](app/settings.md) | you're changing the Settings window, a setting's key, or the app icon picker |
 | [network-activity.md](app/network-activity.md) | you're working on Window ▸ Network Activity, or how the core records requests and downloads |
 | [cli-install.md](app/cli-install.md) | you're changing how the app installs `reload` into `/usr/local/bin` |

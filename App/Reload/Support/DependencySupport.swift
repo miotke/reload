@@ -81,7 +81,7 @@ nonisolated enum DependencyFollowUp: Equatable {
             guard let suggested = dependency.suggested else { continue }
             folders.append(dependency.folder)
             // One add-on often ships several required folders.
-            if !candidates.contains(where: { $0.ref.isSameRepo(as: suggested.ref) }) { candidates.append(suggested) }
+            if !candidates.contains(where: { $0.ref.isSameAddon(as: suggested.ref) }) { candidates.append(suggested) }
         }
         guard !candidates.isEmpty else {
             self = .nothing

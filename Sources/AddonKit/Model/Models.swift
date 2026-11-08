@@ -3,10 +3,10 @@ import Foundation
 public struct Installation: Codable, Sendable, Identifiable, Hashable {
     /// Stable hash of the resolved root path.
     public var id: String
-    /// e.g. `…/World of Warcraft/_classic_beta_`
+    /// e.g. `…/World of Warcraft/_forever_`
     public var root: URL
     public var flavor: Flavor
-    /// e.g. `wow_classic_beta`, from `.build.info`.
+    /// e.g. `wowf`, from `.build.info`.
     public var productCode: String?
     /// e.g. `1.60.1.70338`
     public var gameVersion: String?
@@ -63,23 +63,38 @@ public struct AddonRef: Codable, Hashable, Sendable, CustomStringConvertible {
     public var source: SourceID
     /// `owner/repo` for GitHub, the file ID for WoWInterface (`3826`), the slug for Tukui (`elvui`).
     public var identifier: String
+    /// GitHub only: one of several add-ons published from the same repo, told apart by tag
+    /// prefix. `places-audio` follows only `places-audio/…` tags (docs/features/optional-parts.md).
+    /// Nil follows the whole repo, as before. Absent from older stored refs.
+    public var tagPrefix: String?
 
-    public init(source: SourceID, identifier: String) {
+    public init(source: SourceID, identifier: String, tagPrefix: String? = nil) {
         self.source = source
         self.identifier = identifier
+        self.tagPrefix = tagPrefix
     }
 
-    public var description: String { "\(source.rawValue):\(identifier)" }
+    /// The whole repo, without a tag prefix: what catalogue rows, READMEs and stats belong to.
+    public var repo: AddonRef { AddonRef(source: source, identifier: identifier) }
 
-    /// `owner/repo` for GitHub, `wowinterface:3826` for the others: the key the metadata
-    /// database stores the ref under, and the short form messages and tables show. GitHub
-    /// names can't contain a colon, so the two forms never collide.
-    public var key: String { source == .github ? identifier : description }
+    public var description: String {
+        "\(source.rawValue):\(identifier)" + (tagPrefix.map { "#\($0)" } ?? "")
+    }
+
+    /// `owner/repo` (or `owner/repo#prefix`) for GitHub, `wowinterface:3826` for the others:
+    /// the key the metadata database stores the ref under, and the short form messages and
+    /// tables show. GitHub names can't contain a colon or `#`, so the forms never collide.
+    public var key: String {
+        guard source == .github else { return "\(source.rawValue):\(identifier)" }
+        return tagPrefix.map { "\(identifier)#\($0)" } ?? identifier
+    }
 
     /// Reverses `key`.
     public init(key: String) {
         if let colon = key.firstIndex(of: ":"), let source = SourceID(rawValue: String(key[..<colon])), source != .github {
             self.init(source: source, identifier: String(key[key.index(after: colon)...]))
+        } else if let hash = key.firstIndex(of: "#"), key.index(after: hash) < key.endIndex {
+            self.init(source: .github, identifier: String(key[..<hash]), tagPrefix: String(key[key.index(after: hash)...]))
         } else {
             self.init(source: .github, identifier: key)
         }

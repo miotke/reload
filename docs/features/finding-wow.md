@@ -30,15 +30,15 @@ Detection only reads. It never writes anything into the game folder.
 ## Adding a folder by hand
 
 `installation(at:)` (behind `AddonManager.addInstallation(at:)`, **Add Installation…** in the app and `reload installs add`) accepts any of these:
-- the game-version folder itself, e.g. `World of Warcraft/_classic_beta_`
+- the game-version folder itself, e.g. `World of Warcraft/_forever_`
 - its `Interface/AddOns` folder
-- the `World of Warcraft` folder, when it holds exactly one game-version folder
+- the `World of Warcraft` folder, when it holds exactly one game-version folder. Its game-version folders are checked first, because `World of Warcraft Launcher.app` sits beside them and would otherwise make the folder look like a root.
 
 Anything else throws `installationNotFound`.
 
 ## When detection runs
 
-- `installations()` returns what's stored. Only the first call in a process with nothing stored runs detection.
+- `installations()` returns what's stored. The first call in a process runs detection when nothing is stored, or when a stored installation's folder is gone.
 - After that, only `detectInstallations()` runs it (`reload installs` does).
 - With `RELOAD_DATA_DIR` set, auto-detection is off, so only folders you add exist ([development.md](../development.md#testing-without-touching-your-real-setup)).
 
@@ -49,12 +49,22 @@ Anything else throws `installationNotFound`.
 | `_retail_` | `wow` | Retail (`mainline`) |
 | `_ptr_` | `wowt` | Retail |
 | `_beta_` | `wow_beta` | Retail |
-| `_classic_beta_` | `wow_classic_beta` | Forever (beta) |
+| `_forever_` | `wowf` | Forever |
+| `_classic_beta_` | `wow_classic_beta` | Forever (pre-launch beta) |
 | `_classic_era_` | `wow_classic_era` | Classic Era (`vanilla`) |
 | `_anniversary_` | `wow_anniversary` | TBC Anniversary (`tbc`) |
 | `_classic_` | `wow_classic` | Mists Classic (`mists`) today |
 
-Folder names only seed the product code. `_classic_` has held different games over time, which is why the version decides. Forever's folder and product may change at launch; update its [FlavorRules](../architecture/flavors.md) entry when they do.
+Folder names only seed the product code. `_classic_` has held different games over time, which is why the version decides. A folder that isn't listed still works when `.build.info` and `.flavor.info` name its product; a new one only needs a [FlavorRules](../architecture/flavors.md) entry.
+
+## Renamed folders
+
+At launch Forever moved from `_classic_beta_` to `_forever_`, and Blizzard moved the `AddOns` folder with it. The ID hashes the root, so the new folder is a new installation. `detectInstallations()` hands a stored installation's add-on records to the new one (`InstallStore.move`) when:
+- the stored root no longer exists
+- the new installation has the same flavor and the same `World of Warcraft` folder
+- it's the only match each way, so two installs are never merged by guess
+
+Otherwise the new one is saved alongside. The moved records are reconciled against disk as usual, so folders that didn't come across show as missing with Repair ([installing.md](installing.md#repair)). The refresh state starts fresh, so the next refresh checks everything.
 
 ## Saved installations from older versions
 

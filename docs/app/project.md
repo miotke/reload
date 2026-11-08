@@ -68,7 +68,8 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | Add-ons, update states, missing required add-ons, library rows (sort, filter, section) and section counts, install action | `App/Reload/Models/InstalledModel.swift` |
 | Search stream, home lists, Browse rows (sort, family filter), visible-row checks | `App/Reload/Models/BrowseModel.swift` |
 | Live Browse patches from `metadataChanges()` | `App/Reload/Models/LiveMetadata.swift` |
-| Inspector selection, details cache (LRU), release notes | `App/Reload/Models/InspectorModel.swift` |
+| Inspector selection, details cache (LRU), release notes, loading optional parts | `App/Reload/Models/InspectorModel.swift` |
+| One add-on's optional parts as rows (`OptionalPartsList`) | `App/Reload/Models/OptionalPartsList.swift` |
 | Refresh, update, Update All, install (and installing what it requires), pin, adopt, Move to Trash, dependents before uninstall | `App/Reload/Models/UpdateQueue.swift` |
 | Per-row progress and errors (`RowState`), refresh progress (`RefreshStatus`) | `App/Reload/Models/RowState.swift` |
 | CLI install state (first-launch offer, Settings) | `App/Reload/Models/CommandLineToolModel.swift` |
@@ -78,6 +79,7 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | Browse table, filter bar, status bar and cells | `App/Reload/Views/BrowseView.swift` |
 | Inspector pane, `AddonDetailView`, install actions, Retail build sheet | `App/Reload/Views/AddonInspectorView.swift` |
 | Inspector's Requires section: missing required add-ons with Install or Search | `App/Reload/Views/RequiresSection.swift` |
+| Inspector's Optional Parts section: parts with Install, Manage or Installed | `App/Reload/Views/OptionalPartsSection.swift` |
 | Unmanaged folder inspector | `App/Reload/Views/UnmanagedInspector.swift` |
 | Adopt sheet | `App/Reload/Views/AdoptSheet.swift` |
 | Add-on window | `App/Reload/Views/AddonWindow.swift` |
@@ -98,6 +100,7 @@ Every Swift file of the app target, by responsibility. Update it in the same com
 | `DayLabel`, `FetchLabel`, `GameBubblesModel`, filter labels, `UpdateOffer.label`, Retail build wording | `App/Reload/Support/AddonFormatting.swift` |
 | Adopt targets, removal requests (with dependents), `AdoptForm`, adoption preview state | `App/Reload/Support/UnmanagedSupport.swift` |
 | Required add-ons: status and removal wording, the policy's follow-up (`DependencyFollowUp`), the install prompt, stored policy | `App/Reload/Support/DependencySupport.swift` |
+| Optional part row wording (`OptionalPartRow`) | `App/Reload/Support/OptionalPartSupport.swift` |
 | Reload's own updates as the menu and Settings see them | `App/Reload/Support/AppUpdater.swift` |
 | Starting Sparkle, the test-feed override (Release builds only; not in the unit-test bundle) | `App/Reload/Support/SparkleUpdater.swift` |
 | Settings keys, appearance choice, ⌘F search focus, small extensions, `RecentKeys` | `App/Reload/Support/AppSupport.swift` |

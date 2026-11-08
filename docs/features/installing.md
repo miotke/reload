@@ -34,7 +34,7 @@ Nothing touches disk until the whole archive passes these checks:
 - Every entry must stay inside the destination. `..`, absolute paths, `C:` paths and symlink entries are rejected (`unsafeArchivePath`); this blocks "zip-slip" attacks.
 - `__MACOSX/`, `.DS_Store` and loose top-level files (READMEs, `BUILD_INFO.txt`) are skipped, not extracted. WoW ignores files in AddOns, so they're no reason to fail.
 - There must be at least one top-level folder containing a `.toc`. Otherwise the archive is `invalidArchive`.
-- It may unpack to at most 1 GB and 50,000 entries (`ZipExtractor.maxUncompressedBytes`, `maxEntries`), so a small "zip bomb" can't fill the disk. Downloads themselves stop past 200 MB (`URLSessionDownloadTransport.defaultMaxBytes`).
+- It may unpack to at most 1 GB and 50,000 entries (`ZipExtractor.maxUncompressedBytes`, `maxEntries`), or for a larger zip twice its size and a file per 16 KB, at most 8 GB and 500,000 (`ZipExtractor.limits(forArchiveSize:)`), so a small "zip bomb" can't fill the disk. Downloads themselves stop past 4 GB (`URLSessionDownloadTransport.defaultMaxBytes`).
 - `Blizzard_*` folders are rejected.
 
 ### 2. Ownership (`Installer`)
@@ -107,11 +107,20 @@ Names compare case-insensitively and duplicates are removed once, so a whole gro
 - Zips inspected during a resolve are stored at the same paths, so the install reuses them.
 - **Checks the host's checksum** when the release has one (`ResolvedRelease.md5`, from WoWInterface's `UIMD5`): a mismatch throws `invalidArchive` before the file enters the cache, so it's never installed or reused. Hashing runs off the downloader's actor in 1 MB chunks. GitHub and Tukui publish no checksum.
 - Runs up to 4 downloads at once.
-- Keeps the newest **2** zips per add-on, which is what rollback uses.
+- Keeps the newest **2** zips per add-on, which is what rollback uses. Each ref has its own folder: a part (`owner/repo#prefix`) is cached in `owner+repo+prefix`, apart from its add-on.
 - The transport is a protocol (`DownloadTransport`), so tests serve zips without the network.
 - Asset downloads never send the GitHub token ([github-endpoints.md](../network/github-endpoints.md)).
 
 Cost: validating an 8 MB, 400-file zip takes 2.5 ms and extracting it 107 ms ([measurements](../performance/measurements.md)).
+
+### Large downloads
+
+[Optional parts](optional-parts.md) are 0.4–1.6 GB of already-compressed audio.
+
+- The download goes straight to a file (`URLSessionDownloadTask`), never into memory. Progress is throttled to 1% steps at most every 100 ms (≤ 10 Hz), however large the file.
+- **An archive over 256 MB is cached alone** (`Downloader.largeArchiveBytes`): older zips of that ref are pruned at once, so a 1.5 GB pack costs 1.5 GB of cache, not 3 GB. Rolling back such a part has no zip to use (`noRollbackAvailable`); repair downloads it again.
+- Zips over 200 MB are never downloaded just to be inspected (`GitHubReleaseResolver.maxInspectedBytes`): inspection holds the zip in memory. A stream's zip is picked by name instead ([optional-parts.md](optional-parts.md#resolving-a-stream)).
+- `adopt(folder:as:in:progress:)` reports download progress, for adopting a pack that's already in `AddOns/`.
 
 ## Repair
 

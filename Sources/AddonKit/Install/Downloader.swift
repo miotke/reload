@@ -11,9 +11,10 @@ public protocol DownloadTransport: Sendable {
 
 /// `URLSession` download tasks with progress from `URLSessionTask.progress`.
 public struct URLSessionDownloadTransport: DownloadTransport {
-    /// Add-on zips are a few MB; the largest UI suites are tens of MB. Anything past this is
-    /// cancelled rather than filling the disk.
-    public static let defaultMaxBytes: Int64 = 200 * 1024 * 1024
+    /// Add-on zips are a few MB and UI suites tens of MB, but optional voice packs reach
+    /// 1.6 GB (docs/features/installing.md#large-downloads). Anything past this is cancelled
+    /// rather than filling the disk.
+    public static let defaultMaxBytes: Int64 = 4 * 1024 * 1024 * 1024
 
     public let session: URLSession
     public let maxBytes: Int64
@@ -124,7 +125,8 @@ public struct URLSessionDownloadTransport: DownloadTransport {
 /// offline rollback (docs/features/installing.md).
 ///
 /// Layout: `<caches>/downloads/<source>/<identifier>/<releaseID>-<assetName>`, with the
-/// identifier's `/` replaced by `+` and other unsafe characters by `_`.
+/// identifier's `/` replaced by `+` and other unsafe characters by `_`. A ref with a tag
+/// prefix gets its own folder (`owner+repo+prefix`), so a part never prunes its add-on's zips.
 public actor Downloader {
     public nonisolated let downloadsDirectory: URL
     let transport: any DownloadTransport
@@ -264,14 +266,19 @@ public actor Downloader {
     nonisolated func addonDirectory(for ref: AddonRef) -> URL {
         downloadsDirectory
             .appending(path: ref.source.rawValue, directoryHint: .isDirectory)
-            .appending(path: Self.sanitize(ref.identifier.replacingOccurrences(of: "/", with: "+")), directoryHint: .isDirectory)
+            .appending(path: Self.sanitize((ref.identifier + (ref.tagPrefix.map { "+\($0)" } ?? "")).replacingOccurrences(of: "/", with: "+")), directoryHint: .isDirectory)
     }
 
     // MARK: - Cache maintenance
 
+    /// An archive this large is kept alone: two copies of a 1.5 GB voice pack would be 3 GB of
+    /// cache for a rollback nobody needs.
+    static let largeArchiveBytes: Int64 = 256 * 1024 * 1024
+
     private func prune(directory: URL, keeping current: URL) {
         let others = Self.archives(in: directory).filter { $0.lastPathComponent != current.lastPathComponent }
-        for url in others.dropFirst(keepPerAddon - 1) {
+        let size = (try? current.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
+        for url in others.dropFirst(size >= Self.largeArchiveBytes ? 0 : keepPerAddon - 1) {
             try? FileManager.default.removeItem(at: url)
         }
     }

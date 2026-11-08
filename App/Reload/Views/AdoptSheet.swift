@@ -89,7 +89,7 @@ struct AdoptSheet: View {
 
     @ViewBuilder private var repositorySection: some View {
         if unmanaged.candidates.count > 1 {
-            let picked = typedRef.flatMap { typed in unmanaged.candidates.first { $0.ref.isSameRepo(as: typed) }?.ref }
+            let picked = typedRef.flatMap { typed in unmanaged.candidates.first { $0.ref.isSameAddon(as: typed) }?.ref }
             Picker("Suggestions", selection: Binding(get: { picked }, set: { if let ref = $0 { choose(ref) } })) {
                 if picked == nil { Text("Other").tag(AddonRef?.none) }
                 ForEach(unmanaged.candidates) { candidate in
@@ -117,7 +117,7 @@ struct AdoptSheet: View {
 
     private func choose(_ ref: AddonRef) {
         repository = ref.identifier
-        if previewRef.map({ !$0.isSameRepo(as: ref) }) ?? true {
+        if previewRef.map({ !$0.isSameAddon(as: ref) }) ?? true {
             preview = nil
             previewRef = ref
         }
@@ -153,7 +153,7 @@ struct AdoptSheet: View {
     // MARK: Release
 
     @ViewBuilder private var releaseSection: some View {
-        if let ref = typedRef, previewRef.map({ !$0.isSameRepo(as: ref) }) ?? true {
+        if let ref = typedRef, previewRef.map({ !$0.isSameAddon(as: ref) }) ?? true {
             LabeledContent("Release") {
                 Button("Check Release") { choose(ref) }
                     .help("Finds the latest \(flavor.displayName) release and the folders it replaces")
@@ -193,7 +193,7 @@ struct AdoptSheet: View {
     private func adopt() {
         guard let ref = typedRef, !isAdopting else { return }
         var release: ResolvedRelease?
-        if case .ready(let found)? = preview, let previewRef, previewRef.isSameRepo(as: ref) { release = found.release }
+        if case .ready(let found)? = preview, let previewRef, previewRef.isSameAddon(as: ref) { release = found.release }
         isAdopting = true
         Task {
             let succeeded = await queue.adopt(folder: target.folder, as: release?.ref ?? ref, release: release)

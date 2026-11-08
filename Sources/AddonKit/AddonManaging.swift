@@ -69,6 +69,11 @@ public protocol AddonManaging: Sendable {
     func setChannel(_ channel: Channel, for ref: AddonRef, in installation: Installation) async throws
     /// Start managing an unmanaged folder as `ref` (reinstalls over it after confirmation).
     func adopt(folder: String, as ref: AddonRef, in installation: Installation) async throws -> InstalledAddon
+    /// Like `adopt(folder:as:in:)`, reporting download progress (`0...1`, throttled to about
+    /// 10 Hz): an optional part can be over 1 GB. Has a default that reports none.
+    func adopt(
+        folder: String, as ref: AddonRef, in installation: Installation, progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> InstalledAddon
     /// Installs the release an `adoptionPreview` resolved, over the unmanaged folders it ships.
     func adopt(_ release: ResolvedRelease, in installation: Installation) async throws -> InstalledAddon
     /// Likely repositories for an unmanaged folder, best first, with reasons. Local only.
@@ -104,6 +109,13 @@ public protocol AddonManaging: Sendable {
     /// Managed add-ons that would stop loading if `ref` were uninstalled: they require a
     /// folder only `ref` provides. Local only. Has a default that reports none.
     func dependents(of ref: AddonRef, in installation: Installation) async -> [InstalledAddon]
+
+    /// Optional parts of a managed GitHub add-on (docs/features/optional-parts.md): folders
+    /// its loaded TOCs list in `## OptionalDeps` that its own repo publishes as a separate
+    /// tag stream. Never installs anything. With `.preferStored`, no network; otherwise at
+    /// most one cached, ETag'd releases listing of the repo. Empty for other sources and
+    /// when nothing matches. Has a default that reports none.
+    func optionalParts(of ref: AddonRef, in installation: Installation, policy: CachePolicy) async throws -> [OptionalPart]
 
     /// Hosted sources that are on but have no listing yet. Search never downloads one; the
     /// next `refresh`, even inside its 2-hour window, does. Has a default that reports none.
@@ -198,6 +210,14 @@ extension AddonManaging {
     public func missingDependencies(of ref: AddonRef, in installation: Installation) async -> [MissingDependency] { [] }
 
     public func dependents(of ref: AddonRef, in installation: Installation) async -> [InstalledAddon] { [] }
+
+    public func adopt(
+        folder: String, as ref: AddonRef, in installation: Installation, progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> InstalledAddon {
+        try await adopt(folder: folder, as: ref, in: installation)
+    }
+
+    public func optionalParts(of ref: AddonRef, in installation: Installation, policy: CachePolicy) async throws -> [OptionalPart] { [] }
 
     public func networkActivity() -> AsyncStream<NetworkEvent> {
         AsyncStream { $0.finish() }

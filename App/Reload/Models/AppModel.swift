@@ -330,7 +330,10 @@ final class AppModel {
         guard let previous, previous != version else { return }
         // `reload sources` may have changed them.
         await loadSources()
-        for model in models.values { await model.browse.reloadMetadata() }
+        for model in models.values {
+            await model.browse.reloadMetadata()
+            model.inspector.reloadOptionalParts()
+        }
     }
 
     func loadInstallations() async {
@@ -370,7 +373,7 @@ final class AppModel {
     func addInstallationWithPanel() {
         let panel = NSOpenPanel()
         panel.title = "Add Installation"
-        panel.message = "Choose a World of Warcraft game folder, such as “_classic_beta_”."
+        panel.message = "Choose a World of Warcraft game folder, such as “_forever_”."
         panel.prompt = "Add"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false

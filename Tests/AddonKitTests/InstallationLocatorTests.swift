@@ -113,7 +113,7 @@ private struct FakeWoW {
         let fake = try FakeWoW()
         defer { fake.cleanUp() }
         try fake.buildInfo([("wow_forever", "1.61.0.80000")])
-        let root = try fake.flavorFolder("_forever_")
+        let root = try fake.flavorFolder("_forever_ptr_")
         try Data("Product Flavor!STRING:0\nwow_forever\n".utf8).write(to: root.appending(path: ".flavor.info"))
         let installation = try InstallationLocator(baseFolders: [], findApps: { [] }).installation(at: root)
         #expect(installation.flavor == .forever)
@@ -135,6 +135,20 @@ private struct FakeWoW {
         try fake.flavorFolder("_retail_")
         #expect(throws: AddonError.installationNotFound(fake.resolved(fake.wow).path)) { try locator.installation(at: fake.wow) }
         #expect(throws: AddonError.self) { try locator.installation(at: fake.base.appending(path: "nope")) }
+    }
+
+    /// The launch layout: `_forever_` / `wowf`, with the launcher app beside it.
+    @Test func acceptsLaunchWoWFolderWithLauncher() throws {
+        let fake = try FakeWoW()
+        defer { fake.cleanUp() }
+        try fake.buildInfo([("wowf", "1.60.1.70862")])
+        let root = try fake.flavorFolder("_forever_")
+        try FileManager.default.createDirectory(at: fake.wow.appending(path: "World of Warcraft Launcher.app/Contents"), withIntermediateDirectories: true)
+        let installation = try InstallationLocator(baseFolders: [], findApps: { [] }).installation(at: fake.wow)
+        #expect(installation.root == fake.resolved(root))
+        #expect(installation.flavor == .forever)
+        #expect(installation.productCode == "wowf")
+        #expect(installation.gameVersion == "1.60.1.70862")
     }
 
     @Test func locateCombinesSpotlightAndBaseFolder() async throws {
@@ -185,5 +199,10 @@ private struct FakeWoW {
         let output = await InstallationLocator.runProcess(URL(filePath: "/bin/sleep"), arguments: ["10"], timeout: 0.2)
         #expect(output.isEmpty)
         #expect(ContinuousClock.now - start < .seconds(5))
+    }
+
+    @Test func runProcessReturnsOutput() async {
+        let output = await InstallationLocator.runProcess(URL(filePath: "/bin/echo"), arguments: ["/a/World of Warcraft.app"], timeout: 5)
+        #expect(output == "/a/World of Warcraft.app\n")
     }
 }

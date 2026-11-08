@@ -2,22 +2,47 @@ import Foundation
 
 /// Installations and the add-ons in them (docs/features/finding-wow.md).
 extension AddonManager {
-    /// Stored installations. The first call in a process runs detection if nothing is stored yet.
+    /// Stored installations. The first call in a process runs detection if nothing is stored
+    /// yet, or if a stored installation's folder is gone (it may have been renamed).
     public func installations() async throws -> [Installation] {
         let stored = try await store.installations()
-        guard stored.isEmpty, !didAutoDetect else { return stored }
+        guard !didAutoDetect, stored.isEmpty || stored.contains(where: Self.isMissing) else { return stored }
         didAutoDetect = true
         return try await detectInstallations()
     }
 
-    /// Scans for WoW installs and stores any that aren't known yet. Returns all stored installations.
+    /// Scans for WoW installs and stores any that aren't known yet. A new install that
+    /// replaces a stored one whose folder is gone (Forever moved from `_classic_beta_` to
+    /// `_forever_` at launch) takes over its records. Returns all stored installations.
     @discardableResult
     public func detectInstallations() async throws -> [Installation] {
-        let known = Set(try await store.installations().map(\.id))
-        for installation in await locator.locate() where !known.contains(installation.id) {
-            try await store.save(installation)
+        let stored = try await store.installations()
+        let known = Set(stored.map(\.id))
+        let found = await locator.locate().filter { !known.contains($0.id) }
+        for installation in found {
+            if let old = Self.predecessor(of: installation, stored: stored, found: found) {
+                try await store.move(installationID: old.id, to: installation)
+            } else {
+                try await store.save(installation)
+            }
         }
         return try await store.installations()
+    }
+
+    /// The stored installation `installation` replaces: missing from disk, same flavor, same
+    /// `World of Warcraft` folder, and the only match each way, so a guess never merges two installs.
+    static func predecessor(of installation: Installation, stored: [Installation], found: [Installation]) -> Installation? {
+        func sameGame(_ a: Installation, _ b: Installation) -> Bool {
+            a.flavor == b.flavor && a.root.deletingLastPathComponent().standardizedFileURL == b.root.deletingLastPathComponent().standardizedFileURL
+        }
+        let candidates = stored.filter { isMissing($0) && sameGame($0, installation) }
+        guard candidates.count == 1, let old = candidates.first,
+              found.filter({ sameGame($0, old) }).count == 1 else { return nil }
+        return old
+    }
+
+    static func isMissing(_ installation: Installation) -> Bool {
+        !FileManager.default.fileExists(atPath: installation.root.path(percentEncoded: false))
     }
 
     public func addInstallation(at url: URL) async throws -> Installation {
@@ -59,6 +84,12 @@ extension AddonManager {
             addon.name.caseInsensitiveCompare(text) == .orderedSame
                 || addon.id.identifier.split(separator: "/").last.map { $0.caseInsensitiveCompare(text) == .orderedSame } == true
                 || addon.folders.contains { $0.caseInsensitiveCompare(text) == .orderedSame }
+        }
+        // A repo name matches its optional parts too; the add-on itself is the one meant.
+        if installedMatches.count > 1, Set(installedMatches.map { $0.id.repo.key.lowercased() }).count == 1,
+           let whole = installedMatches.first(where: { $0.id.tagPrefix == nil }),
+           !installedMatches.contains(where: { $0.id.tagPrefix != nil && $0.name.caseInsensitiveCompare(text) == .orderedSame }) {
+            return [whole.id]
         }
         if !installedMatches.isEmpty { return installedMatches.map(\.id) }
 

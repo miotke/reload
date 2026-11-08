@@ -16,7 +16,7 @@ Code: `Sources/AddonKit/Store/` (`AppDirectories`, `InstallStore`, `MetadataData
 | Downloaded zips | `~/Library/Caches/io.github.miotke.Reload/downloads/<source>/<owner+repo>/<releaseID>-<asset>` |
 | Downloaded `release.json` files | `~/Library/Caches/io.github.miotke.Reload/github/release-json/` |
 | Screenshot cache (app) | `~/Library/Caches/io.github.miotke.Reload/screenshots/` (`AppDirectories.screenshotsDirectory`) |
-| Add-ons | `<WoW>/_classic_beta_/Interface/AddOns/` |
+| Add-ons | `<WoW>/_forever_/Interface/AddOns/` |
 
 Data stored under an earlier bundle ID (`LegacyDataMigration.legacyBundleIDs`) is moved here once at startup ([decision 0024](../decisions/0024-rename-to-reload.md), [decision 0026](../decisions/0026-bundle-id-without-personal-name.md)).
 
@@ -69,6 +69,7 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 | `repo_meta` | `full_name` | latest tag and when it was seen, publish date if known (from an API call, or free from the `Last-Modified` of the tag's `release.json` asset), stars, README path and ETag, when the API was last asked (`api_checked_at`) and the latest tag then (`api_checked_tag`), and every flavor the latest release ships (`available_flavors`, comma-separated; NULL = not known), with the tag it describes and its source (`release_json` or `inspection`) |
 | `release_json` | `full_name` + `tag` | the decoded `release.json` of that release (NULL: it has none), about 600 B each |
 | `release_folders` | `full_name` | the tag last downloaded and the top-level folders its zip shipped (JSON), for grouping unmanaged folders and finding missing dependencies |
+| `release_listing` | `full_name` | the releases of a repo's tag streams (trimmed JSON), page 1's ETag, when it was fetched, the latest stable tag it's current against, `not_found`, `failed_at` ([optional-parts.md](../features/optional-parts.md#the-release-listing)) |
 | `details` | `full_name` + `flavor` | README, screenshot URLs, and release notes with the tag they belong to (`latest_version`) |
 | `refresh_state` | installation ID | last refresh time and the update states the last check found (refreshes and bulk checks write them; `last_refresh_at` stays NULL until a refresh finishes) |
 | `search_cache` | normalised query | repos a live search returned, and when |
@@ -92,6 +93,7 @@ Everything AddonKit knows about add-ons it hasn't installed lives in `metadata.s
 | 5 | Adds `repo_meta.available_flavors`, `flavors_tag`, `flavors_source` ([decision 0019](../decisions/0019-available-games-and-visible-row-checks.md)) and backfills them from the `release_json` row of each repo's latest tag (JSON1, packager names mapped like `Flavor.from(releaseJSONName:)`) |
 | 6 | Adds `catalogue.author` / `screenshots_json`, `source_state`, `source_settings` and `hosted_files` ([decision 0029](../decisions/0029-wowinterface-and-tukui-sources.md)) |
 | 7 | Adds `catalogue.folders_json` ([dependencies.md](../features/dependencies.md#candidates)). Stored hosted listings get `fetched_at = 0`, so the next refresh downloads them again and fills it, instead of waiting out their 24 hours |
+| 8 | Adds `release_listing` ([optional-parts.md](../features/optional-parts.md#the-release-listing)) |
 
 ### Change stream
 

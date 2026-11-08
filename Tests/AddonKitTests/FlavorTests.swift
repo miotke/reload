@@ -190,3 +190,16 @@ import Testing
         #expect(ReleaseSelector.zipCandidates(release, flavor: .vanilla).first?.name == "A-v1-classic.zip")
     }
 }
+
+@Suite struct AddonRefKeyTests {
+    @Test func descriptionAndKeyRoundTrip() {
+        let wowi = AddonRef(source: .wowinterface, identifier: "3826")
+        #expect(wowi.description == "wowinterface:3826")
+        #expect(AddonRef(key: wowi.key) == wowi)
+        let part = AddonRef(source: .github, identifier: "rusty-key/spoken-wow", tagPrefix: "places-audio")
+        #expect(part.key == "rusty-key/spoken-wow#places-audio")
+        #expect(part.description == "github:rusty-key/spoken-wow#places-audio")
+        #expect(AddonRef(key: part.key) == part)
+        #expect(part.repo == AddonRef(source: .github, identifier: "rusty-key/spoken-wow"))
+    }
+}

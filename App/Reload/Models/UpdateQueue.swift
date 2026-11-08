@@ -166,6 +166,28 @@ final class UpdateQueue {
         let row = row(ref.description)
         row.error = nil
         row.needsOverwrite = false
+        let result = await withDownloadProgress(on: row) { progress in
+            try await self.manager.install(
+                ref, into: self.installation, channel: channel, force: force, allowFamilyFallback: allowFamilyFallback, progress: progress
+            )
+        }
+
+        switch result {
+        case .success(let addon):
+            didInstall?(addon)
+            await installed.reload()
+            await followUpDependencies(of: addon)
+        case .failure(let error):
+            if case .unmanagedFolderExists = error as? AddonError { row.needsOverwrite = true }
+            row.error = error.localizedDescription
+        }
+    }
+
+    /// Runs a download-and-install `body`, showing its progress on `row` and then the
+    /// installing phase. The row's activity is cleared before returning.
+    private func withDownloadProgress(
+        on row: RowState, _ body: @escaping (@escaping @Sendable (Double) -> Void) async throws -> InstalledAddon
+    ) async -> Result<InstalledAddon, any Error> {
         row.activity = .downloading(0)
         // Progress arrives on arbitrary threads; funnel it through a stream (newest value
         // wins) so the row is updated on the main actor and nothing lands after we finish.
@@ -177,27 +199,14 @@ final class UpdateQueue {
         }
         let result: Result<InstalledAddon, any Error>
         do {
-            result = .success(try await manager.install(
-                ref, into: installation, channel: channel, force: force, allowFamilyFallback: allowFamilyFallback
-            ) { fraction in
-                continuation.yield(fraction)
-            })
+            result = .success(try await body { continuation.yield($0) })
         } catch {
             result = .failure(error)
         }
         continuation.finish()
         await progressTask.value
         row.activity = nil
-
-        switch result {
-        case .success(let addon):
-            didInstall?(addon)
-            await installed.reload()
-            await followUpDependencies(of: addon)
-        case .failure(let error):
-            if case .unmanagedFolderExists = error as? AddonError { row.needsOverwrite = true }
-            row.error = error.localizedDescription
-        }
+        return result
     }
 
     // MARK: Required add-ons
@@ -276,12 +285,22 @@ final class UpdateQueue {
     /// installed as is; otherwise `ref` is resolved first.
     func adopt(folder: String, as ref: AddonRef, release: ResolvedRelease? = nil) async -> Bool {
         var adopted: InstalledAddon?
-        await perform(AddonStatus.unmanagedID(folder), label: "Adopting…") {
-            if let release, release.ref == ref {
+        let id = AddonStatus.unmanagedID(folder)
+        if let release, release.ref == ref {
+            await perform(id, label: "Adopting…") {
                 adopted = try await self.manager.adopt(release, in: self.installation)
-            } else {
-                adopted = try await self.manager.adopt(folder: folder, as: ref, in: self.installation)
             }
+        } else {
+            // Resolving downloads the release, which can be over 1 GB for an optional part.
+            let row = row(id)
+            row.error = nil
+            switch await withDownloadProgress(on: row, { progress in
+                try await self.manager.adopt(folder: folder, as: ref, in: self.installation, progress: progress)
+            }) {
+            case .success(let addon): adopted = addon
+            case .failure(let error): row.error = error.localizedDescription
+            }
+            await installed.reload()
         }
         // Not awaited, so the sheet closes first; the window asks once it has.
         if let adopted { Task { await followUpDependencies(of: adopted) } }

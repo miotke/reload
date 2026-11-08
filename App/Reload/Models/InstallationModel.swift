@@ -26,7 +26,11 @@ final class InstallationModel {
         self.inspector = inspector
         self.queue = queue
 
-        installed.didChangeInstallState = { [weak browse] in browse?.rebuildRows() }
+        installed.didChangeInstallState = { [weak browse, weak inspector] in
+            browse?.rebuildRows()
+            // Installing, adopting or removing a part changes its state.
+            inspector?.reloadOptionalParts()
+        }
         queue.didInstall = { [weak browse] addon in browse?.markInstalled(addon) }
         queue.didFinishRefresh = { [weak browse] in
             if let browse, browse.content != nil { await browse.loadBrowse() }

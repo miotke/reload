@@ -126,6 +126,22 @@ public actor InstallStore {
         }
     }
 
+    /// Re-keys `installationID`'s records under `installation` (a new root), then forgets the
+    /// old one. Does nothing if the old one is gone or `installation` is already stored, so
+    /// existing records are never overwritten.
+    /// - Returns: true if the records moved.
+    @discardableResult
+    public func move(installationID: String, to installation: Installation) throws -> Bool {
+        try withLock { store in
+            guard installationID != installation.id,
+                  let old = try store.read(installationID),
+                  try store.read(installation.id) == nil else { return false }
+            try store.write(StoreFile(schemaVersion: Self.schemaVersion, installation: installation, addons: old.addons))
+            try FileManager.default.removeItem(at: store.fileURL(installationID))
+            return true
+        }
+    }
+
     /// Forgets an installation and all its records. Doesn't touch the game folder.
     public func remove(installationID: String) throws {
         try withLock { store in

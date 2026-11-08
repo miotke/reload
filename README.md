@@ -65,7 +65,7 @@ Needs macOS 26 or later on Apple silicon. For the `reload` command, open Setting
 ### First launch
 
 - **Command-line tool.** The app asks whether to install `reload`. Choose **Install** and enter your admin password. This creates a link at `/usr/local/bin/reload` pointing to the tool inside the app, so the tool stays up to date when the app does. Choose **Not Now** to skip it; you can install it later from **Settings ▸ Command Line**.
-- **Finding WoW.** The app looks for World of Warcraft automatically. If it can't find your Forever install, click **Add Installation…** and choose the Forever folder. During the beta that's `World of Warcraft/_classic_beta_`.
+- **Finding WoW.** The app looks for World of Warcraft automatically. If it can't find your Forever install, click **Add Installation…** and choose the Forever folder, `World of Warcraft/_forever_`. Add-ons you managed in the beta (`_classic_beta_`) carry over when that folder is gone.
 
 ### Building outside Xcode
 

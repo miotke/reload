@@ -12,7 +12,8 @@ extension AddonManager {
         guard ref.source == .github else { return try await hostedDetails(for: ref, in: installation) }
         let (owner, repo) = try GitHubReleaseResolver.split(ref)
         let flavor = installation.flavor
-        let entry = await catalogue.entry(for: ref)
+        // Catalogue rows, READMEs and stars belong to the whole repo; a part's version is its stream's.
+        let entry = await catalogue.entry(for: ref.repo)
         let installed = try? await store.addons(in: installation).first { $0.id == ref }
         let stars = await supportCache.stars()[ref.identifier.lowercased()]
 
@@ -24,12 +25,12 @@ extension AddonManager {
         if stale {
             stored = await fetchDetails(ref, owner: owner, repo: repo, flavor: flavor, previous: stored) ?? stored
         }
-        var notes = stored.flatMap { Self.notes(in: $0, tag: latest.tag) }
+        var notes = ref.tagPrefix != nil ? await streamNotes(ref, flavor: flavor) : stored.flatMap { Self.notes(in: $0, tag: latest.tag) }
         // With a token the API has quota to spare, so the notes come along automatically.
         if notes == nil, latest.tag != nil, await github.api.hasToken(), await github.api.quotaIsComfortable() {
             notes = try? await releaseNotes(for: ref, in: installation)
         }
-        let storedPublishedAt = await supportCache.latestPublishedAt(for: ref)
+        let storedPublishedAt = ref.tagPrefix != nil ? latest.publishedAt : await supportCache.latestPublishedAt(for: ref)
         let publishedAt = notes?.publishedAt ?? storedPublishedAt
 
         return AddonDetails(
@@ -58,6 +59,8 @@ extension AddonManager {
     public func releaseNotes(for ref: AddonRef, in installation: Installation) async throws -> (version: String, publishedAt: Date?, markdown: String)? {
         guard ref.source == .github else { return try await hostedReleaseNotes(for: ref) }
         let flavor = installation.flavor
+        // A stream's notes are in its stored listing: no API call, nothing to store.
+        if ref.tagPrefix != nil { return await streamNotes(ref, flavor: flavor) }
         let tag = await github.latest.latestRelease(for: ref, flavor: flavor, policy: .preferStored).tag
         if let stored = await storedDetails(ref, flavor: flavor), let notes = Self.notes(in: stored, tag: tag) {
             return notes

@@ -31,7 +31,7 @@ Picker, sections, counts and search scope: [navigation.md](navigation.md).
 
 Labels follow the selected installation's game, `installation.flavor.displayName` (Forever, Retail, Classic Era, TBC Anniversary, Wrath Classic, Titan, Cata Classic, Mists Classic; see [flavors.md](../architecture/flavors.md#flavors)): the filter toggle's help, Installed status, the inspector, the adopt sheet and the seeding sheet. The Games column and the filter toggle's label follow the installation's game family.
 
-Forever-specific on purpose: the app name, help text and the empty state that suggests adding `World of Warcraft/_classic_beta_`.
+Forever-specific on purpose: the app name, help text and the empty state that suggests adding `World of Warcraft/_forever_`.
 
 ## Models
 
@@ -41,7 +41,7 @@ Each installation has one `InstallationModel`, which only owns and wires four fe
 |---|---|
 | `InstalledModel` | add-ons, stored update states, the library rows (sort, filter, section) and counts, `installAction(for:)` |
 | `BrowseModel` | search stream, home lists, Browse rows (sort, family filter), visible-row checks; `LiveMetadata` patches its rows |
-| `InspectorModel` | the selection in each table, loaded details (the 20 most recent), release notes |
+| `InspectorModel` | the selection in each table, loaded details (the 20 most recent), release notes, optional parts ([optional-parts.md](optional-parts.md)) |
 | `UpdateQueue` | refresh and its `RefreshStatus`, update, Update All, install, pin, adopt, and each row's `RowState` |
 
 - Views take the model they need as a property: cells take `UpdateQueue`, `BrowseModel` or a pre-built row; tables take their section's models. `AddonDetailView`, `InspectorPane` and `AddonWindow` combine all four, so they take `InstallationModel` and read its parts directly. There are no forwarding methods.

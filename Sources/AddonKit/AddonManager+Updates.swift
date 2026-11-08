@@ -97,6 +97,11 @@ extension AddonManager {
             guard addon.id.source == .github else {
                 return (await hostedUpdateState(of: addon, in: installation, policy: hostedPolicy ?? policy), nil)
             }
+            // One stream of a repo that publishes several (a part, or a plain ref installed at
+            // `spoken/v3.8.4`): only that stream's tags count (docs/features/optional-parts.md).
+            if let prefix = ReleaseStreams.followedPrefix(ref: addon.id, installedTag: addon.version) {
+                return try await streamUpdateState(of: addon, prefix: prefix, build: build, own: own, policy: policy, background: background)
+            }
             // Stable channel: the latest release (the same lookup support checks use) settles
             // most add-ons. An unchanged tag is up to date, with no release.json needed; a new
             // tag whose release.json has the flavor is the update. Only when neither decides
@@ -307,6 +312,7 @@ extension AddonManager {
         if FileManager.default.fileExists(atPath: archive.path(percentEncoded: false)) {
             release.downloadURL = archive
         } else {
+            // Follows the add-on's tag stream like any resolve of an installed add-on.
             release = try await resolve(ref, for: installation, channel: addon.channel,
                                         allowFamilyFallback: addon.installedFlavorBuild != nil)
         }

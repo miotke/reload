@@ -18,6 +18,7 @@ Why: [decision 0011](../decisions/0011-single-cache-owner.md).
 | Support verdicts (per repo and flavor), latest tags, failures | `LatestReleaseStore` (`latestRelease` / `check`, through `SupportCache`) | `support`, `repo_meta` tables |
 | Decoded `release.json` by `repo@tag` | `LatestReleaseStore` | `release_json` table, plus memory |
 | Every flavor a repo's latest release ships | `LatestReleaseStore` (`latestRelease`), plus the installer's TOC inspection for repos without `release.json` | `repo_meta.available_flavors`, `flavors_tag`, `flavors_source` |
+| Release listing of repos with tag streams | `LatestReleaseStore` (`listing`) | `release_listing` |
 | Last API call per repo (the 6 h throttle) | `LatestReleaseStore` (`apiCheckIsDue`); written by `GitHubAPIClient` on each releases request | `repo_meta.api_checked_at`, `api_checked_tag` |
 | Catalogue | `CatalogueSource` | `catalogue`, `catalogue_state` |
 | Inspector details, release notes by tag | `AddonManager.details`, `releaseNotes` | `details` |
@@ -60,7 +61,8 @@ A stored verdict is **shown** as long as it's stored. These lifetimes only decid
 | `release.json` by tag (github.com path) | `release_json` table (about 600 B each), no expiry: tags don't change. Fetched once per tag, not once per process |
 | API checks per repo | 6 h for bulk and background checks, unless the latest tag changed |
 | API release lists | in memory for the last 64 repos, revalidated with ETags |
-| Downloaded zips | newest 2 per add-on (rollback) |
+| Release listing (tag streams) | while the repo's latest stable tag is the one it was fetched with; under 6 h when github.com doesn't answer; failures 15 min, 404 24 h. Page 1 revalidated with its ETag |
+| Downloaded zips | newest 2 per add-on (rollback); only the newest for an archive over 256 MB |
 | Screenshots | `URLCache` 32 MB memory / 200 MB disk in `<caches>/screenshots/`, written and read by the loader itself, so headers don't decide; decoded images in an `NSCache` |
 
 The refresh also re-checks repos whose catalogue entry changed after `checked_at`, and a slice older than 14 days.
@@ -74,6 +76,6 @@ The refresh also re-checks repos whose catalogue entry changed after `checked_at
 
 ## Clearing
 
-- `AddonManager.clearCaches()` empties the `support`, `repo_meta`, `details` and `release_json` tables and deletes everything under Caches (downloads, `release.json` files), including rollback zips.
+- `AddonManager.clearCaches()` empties the `support`, `repo_meta`, `details`, `release_json` and `release_listing` tables and deletes everything under Caches (downloads, `release.json` files), including rollback zips.
 - `reload cache clear` empties only Caches; `cache clear --metadata` also empties the metadata tables except `rate_limit` ([cli/maintenance.md](../cli/maintenance.md#cache)).
 - `reload cache info` shows the sizes.

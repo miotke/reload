@@ -253,7 +253,7 @@ import Testing
         }
 
         let database = try MetadataDatabase(url: url)
-        #expect(try await database.schemaVersion() == 7)
+        #expect(try await database.schemaVersion() == MetadataDatabase.migrations.count)
         #expect(try await database.query("SELECT folders_json FROM catalogue").first?[0] == .null)
         #expect(try await database.sourceState(.wowinterface).fetchedAt == Date(timeIntervalSince1970: 0))
         #expect(try await database.sourceState(.tukui).fetchedAt == nil)
