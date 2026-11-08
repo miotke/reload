@@ -15,7 +15,7 @@ Every `reload` command, how `<ref>` arguments are resolved, and how the installa
 |---|---|---|
 | `search <query…>` | `s` | Same local-first search as the Browse tab; see [search](#search). Prints NAME / REPO / GAMES / UPDATED ([GAMES](output.md#terminal-output): `R F C`). `--github` adds a deeper live GitHub search, `--all` keeps add-ons the [hide-incompatible rule](../features/search.md#hide-incompatible) drops (classic-only ones on Forever), `--limit N` (default 20) |
 | `info <ref>` | `show` | Description, website, the games it ships builds for with a sentence on what that means here, latest version, installed version, update status, owned folders, rollback target; see [info](#info). `--changelog` adds release notes, `--prerelease` looks at prereleases |
-| `install <ref…>` | `i`, `add` | Installs one after another with a progress row each. `--prerelease`, `--force` (overwrite unmanaged folders), `--version <tag>` (pins it; see [limits](config.md#limits)), `--retail-build` / `--allow-family-fallback` (Forever only: install the Retail build of an add-on with no Forever build; [release-selection.md](../features/release-selection.md#retail-build-on-forever)). Without the flag, an add-on with no Forever build is offered its Retail build at the end: a `[Y/n]` prompt, accepted by `--yes`; with no terminal it fails with a hint. Re-installing keeps the add-on's channel unless `--prerelease` is given; new installs use `default-channel`. Afterwards it [checks required add-ons](#install-and-required-add-ons); `--no-deps` only warns |
+| `install <ref…>` | `i`, `add` | Installs one after another with a progress row each. `--prerelease`, `--force` (overwrite unmanaged folders), `--version <tag>` (pins it; see [limits](config.md#limits)), `--retail-build` / `--allow-family-fallback` (Forever only: install the Retail build of an add-on with no Forever build; [release-selection.md](../features/release-selection.md#retail-build-on-forever)). Without the flag, an add-on with no Forever build is offered its Retail build at the end: a `[Y/n]` prompt, accepted by `--yes`; with no terminal it fails with a hint. Re-installing keeps the add-on's channel unless `--prerelease` is given; new installs use `default-channel`. Afterwards it [checks required add-ons](#install-and-required-add-ons); `--no-deps` only warns. `--with-optional` then offers [optional parts](#install---with-optional) |
 | `remove <ref…>` | `rm`, `uninstall` | Moves folders to the Trash after confirmation, which names add-ons that need a removed one and will stop loading ("LittleWigs needs BigWigs and will stop loading"; with `--yes`, a warning). `--unmanaged <folder…>` moves unmanaged folders instead; it refuses `Blizzard_*`, managed folders and anything outside `AddOns/` before moving any ([installing.md](../features/installing.md#removing-unmanaged-folders)) |
 | `update [<ref…>]` | `upgrade`, `up` | Checks, then installs only what has an update; see [update](#update). Pinned add-ons are listed as skipped. `--dry-run` shows the `outdated` table and what would be skipped |
 | `outdated` | | NAME / INSTALLED / LATEST / CHANNEL / PUBLISHED for available updates. Always revalidates. Exit code 10 if any |
@@ -54,11 +54,20 @@ After installing, `install` checks the TOCs of what it installed for required ad
 - `--json` never asks (unless `--yes`) and lists what's missing in `missingDependencies`.
 - The exit code counts dependency installs in the batch: one that fails makes it a partial failure (3).
 
+## install --with-optional
+
+After the required add-ons, asks about each [optional part](../features/optional-parts.md) the new add-ons' TOCs list and their repo publishes (`optionalParts(of:in:policy:)`, `.revalidateIfStale`):
+
+- `VoicesPlacesAudio (places-audio/v2.1.0, 456 MB, for Voices_Places) is optional. Install it? [y/N]`: no by default, since parts can be over 1 GB. `--yes` accepts every one.
+- A part already in `AddOns/` but unmanaged gets the `reload adopt <folder> owner/repo#prefix` command instead. With no terminal and no `--yes`, each available part is a note with its `reload install` command.
+- Accepted parts install like the rest and count towards the exit code. `--json` adds `optionalParts[]` (`OptionalPartJSON`) as they stand afterwards.
+
 ## info
 
 - Reads stored details (`catalogueEntry(for:)`, `details(for:in:)`), which refresh after a day. Stale details may spend one API call on release notes when more than 30 calls remain.
 - Shows the GAMES letters and the sentence ("Has a Forever build", "Retail build only: may work on Forever; it will show as out of date", "Classic only: won't load on Forever", "Not checked yet"), "Build: Retail build" for a fallback install, latest version and date, README path, screenshots, when details were fetched and any fetch error, last updated, and the changelog with `--changelog`.
 - "Asset" and "Why this release" (the [reasoning trail](../features/release-selection.md#reasoning-trail)) appear only for prereleases.
+- For an installed add-on, **Optional parts:** lists each part with its version, size, the folders that use it, its state (available, not managed, installed) and its ref. Looking them up may cost one API call ([optional-parts.md](../features/optional-parts.md#network-cost)).
 - `updateState` can be `unknown`, or `available` with just a `version`. JSON fields: [output.md](output.md#json---json).
 
 ## update
@@ -73,10 +82,11 @@ Accepted forms:
 - `owner/repo`
 - `https://github.com/owner/repo` (also `/releases…`, `.git`)
 - `github:owner/repo`
+- `owner/repo#prefix` or `github:owner/repo#prefix`: one tag stream of the repo, such as an optional part (`AddonRef.tagPrefix`); a URL's `#anchor` is ignored
 - `wowinterface:3826` or a `wowinterface.com/downloads/…` URL, `tukui:elvui` or `tukui.org/elvui` ([sources.md](../features/sources.md))
 - a name
 
-Names go through `AddonManager.lookup`: installed add-ons first (name, repo name or folder, case-insensitive), then an exact catalogue name.
+Names go through `AddonManager.lookup`: installed add-ons first (name, repo name or folder, case-insensitive), then an exact catalogue name. A repo name that matches an add-on and its installed parts means the add-on.
 
 | Matches | Result |
 |---|---|

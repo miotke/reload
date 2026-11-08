@@ -34,7 +34,7 @@ enum WoWProcess {
 enum RefCompletion {
     private struct StoreFile: Decodable {
         struct Addon: Decodable {
-            struct ID: Decodable { var identifier: String }
+            struct ID: Decodable { var identifier: String; var tagPrefix: String? }
             var id: ID
             var name: String
         }
@@ -54,7 +54,7 @@ enum RefCompletion {
                   let store = try? JSONDecoder().decode(StoreFile.self, from: data) else { continue }
             for addon in store.addons {
                 if !addon.name.contains(where: \.isWhitespace) { names.insert(addon.name) }
-                names.insert(addon.id.identifier)
+                names.insert(addon.id.identifier + (addon.id.tagPrefix.map { "#\($0)" } ?? ""))
             }
         }
         return names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
