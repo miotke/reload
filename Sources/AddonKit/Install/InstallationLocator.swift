@@ -186,12 +186,11 @@ public struct InstallationLocator: Sendable {
             return ""
         }
 
-        // Terminating the process closes the pipe, which ends the read loop below.
+        // Terminating the process closes the pipe, which ends the read loop below. A
+        // Dispatch timer rather than a Task, so a busy cooperative pool can't delay the kill.
         let pid = process.processIdentifier
-        let watchdog = Task {
-            try await Task.sleep(for: .seconds(timeout))
-            kill(pid, SIGTERM)
-        }
+        let watchdog = DispatchWorkItem { kill(pid, SIGTERM) }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: watchdog)
         defer { watchdog.cancel() }
 
         var output = Data()
