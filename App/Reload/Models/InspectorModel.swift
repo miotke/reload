@@ -100,6 +100,67 @@ final class InspectorModel {
         }
     }
 
+    // MARK: Optional parts
+
+    /// Optional parts of the managed add-ons recently shown, by installed ref
+    /// (docs/app/optional-parts.md). Each list is its own object, so reloading one re-renders
+    /// only its section.
+    private(set) var optionalParts: [AddonRef: OptionalPartsList] = [:]
+    @ObservationIgnored private var partsUse = RecentKeys<AddonRef>(limit: InspectorModel.detailsLimit)
+    @ObservationIgnored private var partsReload: Task<Void, Never>?
+    @ObservationIgnored private var partsReloadPending = false
+
+    /// Opening a managed add-on: the stored answer first (no network), then the core
+    /// revalidates it if stale, which opening an add-on is allowed to do. Then follows the
+    /// app's own metadata writes for the repo until the inspector cancels the task.
+    func loadOptionalParts(for ref: AddonRef) async {
+        let list: OptionalPartsList
+        if let existing = optionalParts[ref] {
+            list = existing
+        } else {
+            list = OptionalPartsList(ref: ref)
+            optionalParts[ref] = list
+        }
+        for evicted in partsUse.use(ref) { optionalParts[evicted] = nil }
+        await load(list, policy: .preferStored)
+        guard !Task.isCancelled else { return }
+        await load(list, policy: .revalidateIfStale)
+        let repo = ref.repo.key.lowercased()
+        for await change in manager.metadataChanges() {
+            guard change.refs.isEmpty || change.refs.contains(where: { $0.repo.key.lowercased() == repo }) else { continue }
+            await load(list, policy: .preferStored)
+        }
+    }
+
+    /// The install store or another process's metadata changed: re-reads the stored parts of
+    /// every list shown (local), once however many changes arrive meanwhile.
+    @discardableResult
+    func reloadOptionalParts() -> Task<Void, Never>? {
+        guard !optionalParts.isEmpty else { return nil }
+        partsReloadPending = true
+        if let partsReload { return partsReload }
+        let task = Task {
+            while partsReloadPending {
+                partsReloadPending = false
+                for list in optionalParts.values { await load(list, policy: .preferStored) }
+            }
+            partsReload = nil
+        }
+        partsReload = task
+        return task
+    }
+
+    private func load(_ list: OptionalPartsList, policy: CachePolicy) async {
+        do {
+            let parts = try await manager.optionalParts(of: list.ref, in: installation, policy: policy)
+            guard !Task.isCancelled else { return }
+            list.apply(parts)
+        } catch {
+            guard !Task.isCancelled, !(error is CancellationError) else { return }
+            list.fail(error.localizedDescription)
+        }
+    }
+
     /// Stores `state` for `ref`, dropping the least recently viewed beyond `detailsLimit`.
     func setDetails(_ state: DetailsState?, for ref: AddonRef) {
         details[ref] = state
@@ -108,6 +169,30 @@ final class InspectorModel {
             return
         }
         for evicted in detailsUse.use(ref) { details[evicted] = nil }
+    }
+}
+
+/// One managed add-on's optional parts, as rows. Empty until the core reports some, and then
+/// the inspector shows the section.
+@Observable @MainActor
+final class OptionalPartsList {
+    let ref: AddonRef
+    private(set) var rows: [OptionalPartRow] = []
+    /// The last listing failed; the rows already shown stay.
+    private(set) var error: String?
+
+    init(ref: AddonRef) {
+        self.ref = ref
+    }
+
+    func apply(_ parts: [OptionalPart]) {
+        let rows = parts.map(OptionalPartRow.init)
+        if rows != self.rows { self.rows = rows }
+        if error != nil { error = nil }
+    }
+
+    func fail(_ message: String) {
+        if error != message { error = message }
     }
 }
 

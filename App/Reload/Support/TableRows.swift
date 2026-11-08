@@ -6,11 +6,22 @@ import Foundation
 // skip rows that didn't change.
 
 extension AddonRef {
-    /// Table row ID: `AddonRef.description` ("github:owner/repo"), stable across reloads.
+    /// Table row ID: `AddonRef.description` ("github:owner/repo", or "github:owner/repo#prefix"
+    /// for an optional part), stable across reloads.
     nonisolated init?(rowID: String) {
         let parts = rowID.split(separator: ":", maxSplits: 1).map(String.init)
         guard parts.count == 2, let source = SourceID(rawValue: parts[0]) else { return nil }
-        self.init(source: source, identifier: parts[1])
+        if source == .github {
+            self.init(key: parts[1])
+        } else {
+            self.init(source: source, identifier: parts[1])
+        }
+    }
+
+    /// The Installed table's subtitle: "owner/repo", and the release stream for an add-on that
+    /// shares its repo with others ("owner/repo · places-audio").
+    nonisolated var repositoryText: String {
+        tagPrefix.map { "\(identifier) · \($0)" } ?? identifier
     }
 }
 
@@ -151,7 +162,7 @@ nonisolated struct InstalledRow: Identifiable, Hashable, Sendable {
         case .managed(let addon, let missing):
             ref = addon.id
             name = addon.name
-            subtitle = addon.id.identifier
+            subtitle = addon.id.repositoryText
             version = addon.version
             channel = addon.channel
             installedAt = addon.installedAt
