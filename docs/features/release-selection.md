@@ -23,6 +23,8 @@ flowchart TD
 ```
 
 - Walking back to older releases handles authors who dropped support for a game: users stay on the last build that works.
+- A release that ships a desktop installer (`.dmg`, `.exe`, `.AppImage` …) is skipped, and zips named for a platform (`-mac-arm64`) are never candidates: a repo that also publishes an app never has the app's zip downloaded ([optional-parts.md](optional-parts.md#the-whole-repo)).
+- **Tag streams:** a ref with a `tagPrefix`, or an installed add-on whose tag has one, resolves within `<prefix>/…` tags over the stored listing instead ([optional-parts.md](optional-parts.md#resolving-a-stream)).
 - `ReleaseSelector` is pure and synchronous. When it needs data it doesn't have yet, it returns `.needsReleaseJSON` or `.needsInspection`. `GitHubReleaseResolver` fetches that data and asks again, adding releases whose zips didn't match to an exclusion list.
 - **`release.json` names per flavor:** a build counts when its metadata lists one of the flavor's names, e.g. `forever` or `camelot` for Forever, `classic` or `vanilla` for Classic Era, `bcc` or `tbc` for TBC ([flavors.md](../architecture/flavors.md#flavors)).
 - `noCompatibleRelease` shows as "No <flavor> build yet" in the app, using the flavor's display name.
@@ -58,7 +60,7 @@ The same check runs on an add-on folder already on disk, which adopting uses. Su
 
 ## Inspection limits
 
-- At most 2 candidate zips are inspected per release without a `release.json`, and at most 3 releases.
+- At most 2 candidate zips are inspected per release without a `release.json`, and at most 3 releases. A zip over 200 MB is never inspected (`maxInspectedBytes`).
 - Inspected zips are saved at the `Downloader`'s archive path, so the install reuses them and pruning cleans them up ([installing.md](installing.md#downloader)).
 
 ## Support checks
@@ -106,7 +108,7 @@ Forever loads the `_Mainline` family TOC, so a Retail build often works there ([
 ## Parsing refs
 
 `parse(_:)` accepts:
-- `owner/repo` and `github:owner/repo`
+- `owner/repo` and `github:owner/repo`, each optionally with `#prefix` for one tag stream (`AddonRef.tagPrefix`); a URL's `#fragment` is ignored
 - `https://github.com/owner/repo`, with or without `www.`, `.git` or a trailing slash
 - repo URLs ending in `/releases…`, `/tags`, `/tree/…` or `/blob/…`
 

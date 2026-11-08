@@ -64,6 +64,20 @@ Rows the 0017 changes affect. **Measured** rows come from the offline request-co
 
 How: [decision 0009](../decisions/0009-local-first-search.md), [0010](../decisions/0010-quota-free-endpoints.md), [0011](../decisions/0011-single-cache-owner.md), [0017](../decisions/0017-details-without-quota-release-json-by-tag.md), [0019](../decisions/0019-available-games-and-visible-row-checks.md).
 
+### Optional parts
+
+Since 0.1.10. Measured in `OptionalPartsTests` over stubbed HTTP, unauthenticated, for a repo shaped like Spoken.
+
+| Flow | Cost | |
+|---|---|---|
+| Inspector opens, first time | 1/0/0–1: one listing page (up to 3 for a repo past 100 releases), plus the HEAD when the verdict is over an hour old | measured |
+| Inspector opens again, any process, latest tag unchanged | 0/0/0–1 | measured |
+| `.preferStored` | 0/0/0 | measured |
+| Update check, the add-on and its parts, nothing new | 0/0/1 per add-on (HEAD) | measured |
+| Update check after another stream's release | 1/0/1 per add-on, one listing shared by all of them | measured |
+| Install a part | 0/0/1 HEAD + the zip (0.4–1.6 GB); +1 API call when no current listing is stored | measured |
+| A plain install of a repo that also ships an app | as before, never the app's zip | measured |
+
 ## Quota status
 
 `gitHubStatus()` (`AddonManager+Maintenance.swift`) reports what the settings screen shows, without a request:

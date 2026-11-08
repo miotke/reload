@@ -575,6 +575,19 @@ public actor MetadataDatabase {
         ALTER TABLE catalogue ADD COLUMN folders_json TEXT;
         UPDATE source_state SET fetched_at = 0 WHERE fetched_at IS NOT NULL;
         """,
+        // 8: the release listing of repos with tag-prefix streams (docs/features/optional-parts.md#the-release-listing):
+        // trimmed releases as JSON, page 1's ETag, and the latest stable tag it's current against.
+        """
+        CREATE TABLE release_listing (
+            full_name TEXT PRIMARY KEY COLLATE NOCASE,
+            releases_json TEXT NOT NULL,
+            etag TEXT,
+            checked_at REAL NOT NULL,
+            latest_tag TEXT,
+            not_found INTEGER NOT NULL DEFAULT 0,
+            failed_at REAL
+        ) WITHOUT ROWID;
+        """,
     ]
 }
 

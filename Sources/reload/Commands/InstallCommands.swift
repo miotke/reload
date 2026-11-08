@@ -13,7 +13,7 @@ struct InstallCommand: ContextCommand {
 
     @OptionGroup var global: GlobalOptions
 
-    @Argument(help: "Add-ons: owner/repo, a GitHub URL, or a name.", completion: .installedAddons)
+    @Argument(help: "Add-ons: owner/repo, owner/repo#prefix (one tag stream), a GitHub URL, or a name.", completion: .installedAddons)
     var refs: [String]
 
     @Flag(help: "Use the prerelease channel.")
@@ -32,6 +32,9 @@ struct InstallCommand: ContextCommand {
 
     @Flag(name: .customLong("no-deps"), help: "Don't offer to install add-ons the new ones require; only warn about them.")
     var noDeps = false
+
+    @Flag(name: .customLong("with-optional"), help: "Offer the optional parts the new add-ons can use, such as voice packs, one by one with their size ([y/N]; --yes accepts all).")
+    var withOptional = false
 
     func validate() throws {
         guard !refs.isEmpty else { throw ValidationError("Name at least one add-on to install.") }
@@ -52,15 +55,19 @@ struct InstallCommand: ContextCommand {
         var outcome = await BatchInstaller.run(requests, force: force, context: context, installation: installation)
         try await offerFallbackBuilds(&outcome, requests: requests, context: context, installation: installation)
         let dependencies = try await DependencyOffer.run(after: &outcome, noDeps: noDeps, force: force, context: context, installation: installation)
+        let optional = withOptional
+            ? try await OptionalPartsOffer.run(after: &outcome, force: force, context: context, installation: installation)
+            : nil
         if context.json {
             try context.emit(InstallOutput(
                 installation: installation.id, installed: outcome.installed, failed: outcome.failedJSON,
-                missingDependencies: dependencies.missing.map(MissingDependencyJSON.init)))
+                missingDependencies: dependencies.missing.map(MissingDependencyJSON.init),
+                optionalParts: optional.map { $0.parts.map(OptionalPartJSON.init) }))
         } else {
             context.say("Installed \(outcome.installed.count) add-on\(outcome.installed.count == 1 ? "" : "s").")
             context.noteIfGameRunning(changed: outcome.installed.count)
         }
-        let total = requests.count + dependencies.attempted
+        let total = requests.count + dependencies.attempted + (optional?.attempted ?? 0)
         if let error = ExitStatus.batchError(failures: outcome.failures.map(\.error), total: total) { throw error }
     }
 
@@ -107,6 +114,8 @@ struct InstallOutput: Encodable {
     var failed: [FailureJSON]
     /// Required add-ons the installed ones still lack (docs/features/dependencies.md).
     var missingDependencies: [MissingDependencyJSON] = []
+    /// With `--with-optional`: the new add-ons' optional parts, as they stand afterwards.
+    var optionalParts: [OptionalPartJSON]? = nil
 }
 
 struct FailureJSON: Encodable {

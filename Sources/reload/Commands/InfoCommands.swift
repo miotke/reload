@@ -42,7 +42,8 @@ struct InfoCommand: ContextCommand {
         } catch {
             detailsError = error
         }
-        let readmePath = await MetadataInfo.readmePath(for: addonRef, in: manager.database)
+        let readmePath = await MetadataInfo.readmePath(for: addonRef.repo, in: manager.database)
+        let parts = installed == nil ? [] : await OptionalPartsOffer.gather([addonRef], context: context, installation: installation)
         // Stable answers come from the stored details; prereleases only the API knows.
         var release: ResolvedRelease?
         var releaseError: (any Error)?
@@ -80,7 +81,8 @@ struct InfoCommand: ContextCommand {
                 channel: channel, latest: release.map { ReleaseJSON($0, includeChangelog: changelog) },
                 latestError: releaseError.map(ExitStatus.message(for:)),
                 changelog: changelog ? notes : nil,
-                installed: installed, updateState: state
+                installed: installed, updateState: state,
+                optionalParts: parts.map(OptionalPartJSON.init)
             ))
             return
         }
@@ -123,6 +125,17 @@ struct InfoCommand: ContextCommand {
             rows.append(["Installed", style.dim("no")])
         }
         context.print(Table(headers: [], rows: rows.map { [style.dim($0[0]), $0[1]] }).render(style: style))
+        if !parts.isEmpty {
+            context.print("")
+            context.print(style.bold("Optional parts:"))
+            for part in parts {
+                let state = part.state == .installed ? style.green(OptionalPartsOffer.stateName(part.state)) : style.dim(OptionalPartsOffer.stateName(part.state))
+                context.print("  • \(OptionalPartsOffer.describe(part))  \(state)  " + style.dim(Format.ref(part.ref)))
+            }
+            if parts.contains(where: { $0.state == .available }) {
+                context.print(style.dim("  Install one with `reload install <ref>`, or all with `reload install \(Format.ref(addonRef)) --with-optional`."))
+            }
+        }
         if let release, !release.reasoning.isEmpty {
             context.print("")
             context.print(style.bold("Why this release:"))
@@ -203,6 +216,8 @@ struct InfoCommand: ContextCommand {
         var changelog: String?
         var installed: InstalledAddon?
         var updateState: UpdateStateJSON?
+        /// Optional parts of an installed add-on (docs/features/optional-parts.md).
+        var optionalParts: [OptionalPartJSON] = []
     }
 }
 

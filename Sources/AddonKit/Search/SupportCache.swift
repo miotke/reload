@@ -219,6 +219,7 @@ public actor SupportCache {
             try db.execute("DELETE FROM repo_meta")
             try db.execute("DELETE FROM details")
             try db.execute("DELETE FROM release_json")
+            try db.execute("DELETE FROM release_listing")
         }
         await database.notify(["support", "repo_meta", "details"])
     }

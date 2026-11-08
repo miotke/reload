@@ -110,9 +110,20 @@ extension AddonRef {
     }
 
     /// The same repo, ignoring case: GitHub names are case-insensitive, and search results
-    /// don't always match the stored case.
+    /// don't always match the stored case. Ignores `tagPrefix`: an optional part is the same
+    /// repo as its add-on (use `isSameAddon` to tell them apart).
     public func isSameRepo(as other: AddonRef) -> Bool {
         source == other.source && identifier.caseInsensitiveCompare(other.identifier) == .orderedSame
+    }
+
+    /// The same add-on, ignoring case: the same repo and the same tag stream (or neither has one).
+    public func isSameAddon(as other: AddonRef) -> Bool {
+        guard isSameRepo(as: other) else { return false }
+        switch (tagPrefix, other.tagPrefix) {
+        case (nil, nil): return true
+        case let (a?, b?): return a.caseInsensitiveCompare(b) == .orderedSame
+        default: return false
+        }
     }
 }
 

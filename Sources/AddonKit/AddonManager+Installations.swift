@@ -85,6 +85,12 @@ extension AddonManager {
                 || addon.id.identifier.split(separator: "/").last.map { $0.caseInsensitiveCompare(text) == .orderedSame } == true
                 || addon.folders.contains { $0.caseInsensitiveCompare(text) == .orderedSame }
         }
+        // A repo name matches its optional parts too; the add-on itself is the one meant.
+        if installedMatches.count > 1, Set(installedMatches.map { $0.id.repo.key.lowercased() }).count == 1,
+           let whole = installedMatches.first(where: { $0.id.tagPrefix == nil }),
+           !installedMatches.contains(where: { $0.id.tagPrefix != nil && $0.name.caseInsensitiveCompare(text) == .orderedSame }) {
+            return [whole.id]
+        }
         if !installedMatches.isEmpty { return installedMatches.map(\.id) }
 
         let entries = try await catalogue.entries()

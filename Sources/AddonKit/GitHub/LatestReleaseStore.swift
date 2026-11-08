@@ -47,8 +47,8 @@ public actor LatestReleaseStore: SupportChecking {
     /// Stored support verdicts and latest tags. `check` is the only writer of verdicts.
     public nonisolated let store: SupportCache
 
-    private let web: GitHubWebClient
-    private let api: GitHubAPIClient
+    let web: GitHubWebClient
+    let api: GitHubAPIClient
     /// The releases-API check, for the foreground fallback when github.com fails.
     private let source: GitHubReleaseResolver
     var now: @Sendable () -> Date = { Date() }
@@ -60,6 +60,8 @@ public actor LatestReleaseStore: SupportChecking {
     private var uploadDates: [String: Date] = [:]
     /// Latest-release lookups in flight, so two callers asking at once share one request.
     private var inFlightLatest: [String: Task<LatestRelease, Never>] = [:]
+    /// Stream listings in flight by lowercased `owner/repo` (`listing`, LatestReleaseStore+Listing.swift).
+    var inFlightListings: [String: Task<ReleaseListing?, any Error>] = [:]
 
     public init(store: SupportCache, web: GitHubWebClient, api: GitHubAPIClient, source: GitHubReleaseResolver) {
         self.store = store
@@ -112,6 +114,8 @@ public actor LatestReleaseStore: SupportChecking {
         guard ref.source == .github, let (owner, repo) = try? GitHubReleaseResolver.split(ref) else {
             return LatestRelease(tag: nil, status: .unknown)
         }
+        // `releases/latest` is repo-wide: it can't answer for one stream of the repo.
+        if ref.tagPrefix != nil { return await streamVerdict(for: ref, flavor: flavor, policy: policy, background: background) }
         let stored = await store.storedSupport(for: ref, flavor: flavor)
         let usable = stored.flatMap { row -> LatestRelease? in
             guard let status = row.status else { return nil }
@@ -212,7 +216,8 @@ public actor LatestReleaseStore: SupportChecking {
     /// - nothing known for this tag yet: with `mayFetch`, the tag's release.json (quota-free),
     ///   so verdicts reused from before the flavor list existed still get one; else whatever is stored.
     private func withFlavors(_ answer: LatestRelease, ref: AddonRef, mayFetch: Bool, background: Bool) async -> LatestRelease {
-        guard answer.availableFlavors == nil, ref.source == .github else { return answer }
+        // A stream's answer already carries what's known (`streamVerdict`).
+        guard answer.availableFlavors == nil, ref.source == .github, ref.tagPrefix == nil else { return answer }
         if case .noReleases = answer.status { return answer }
         var answer = answer
         let stored = await store.storedFlavors(for: ref)
@@ -351,7 +356,7 @@ public actor LatestReleaseStore: SupportChecking {
 
     /// release.json of `ref`'s release `tag` from memory or the database, without a request:
     /// nil when it was never fetched, `.some(nil)` when that release has none.
-    private func knownReleaseJSON(_ ref: AddonRef, tag: String) async -> ReleaseJSON?? {
+    func knownReleaseJSON(_ ref: AddonRef, tag: String) async -> ReleaseJSON?? {
         let key = "\(GitHubReleaseResolver.cacheKey(ref))@\(tag)"
         if let hit = tagReleaseJSON[key] { return .some(hit) }
         guard let stored = await store.releaseJSON(for: ref, tag: tag) else { return nil }
@@ -361,7 +366,7 @@ public actor LatestReleaseStore: SupportChecking {
 
     /// release.json of the release tagged `tag`, or nil if it has none. Stored by `repo@tag`
     /// (tags are effectively immutable), so each one is downloaded once, not once per process.
-    private func webReleaseJSON(owner: String, repo: String, ref: AddonRef, tag: String, background: Bool) async throws -> ReleaseJSON? {
+    func webReleaseJSON(owner: String, repo: String, ref: AddonRef, tag: String, background: Bool) async throws -> ReleaseJSON? {
         if let known = await knownReleaseJSON(ref, tag: tag) { return known }
         let (json, uploadedAt) = try await web.fetchReleaseJSON(owner: owner, repo: repo, tag: tag, background: background)
         let key = "\(GitHubReleaseResolver.cacheKey(ref))@\(tag)"
