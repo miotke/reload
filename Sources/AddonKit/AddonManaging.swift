@@ -105,6 +105,13 @@ public protocol AddonManaging: Sendable {
     /// folder only `ref` provides. Local only. Has a default that reports none.
     func dependents(of ref: AddonRef, in installation: Installation) async -> [InstalledAddon]
 
+    /// Optional parts of a managed GitHub add-on (docs/features/optional-parts.md): folders
+    /// its loaded TOCs list in `## OptionalDeps` that its own repo publishes as a separate
+    /// tag stream. Never installs anything. With `.preferStored`, no network; otherwise at
+    /// most one cached, ETag'd releases listing of the repo. Empty for other sources and
+    /// when nothing matches. Has a default that reports none.
+    func optionalParts(of ref: AddonRef, in installation: Installation, policy: CachePolicy) async throws -> [OptionalPart]
+
     /// Hosted sources that are on but have no listing yet. Search never downloads one; the
     /// next `refresh`, even inside its 2-hour window, does. Has a default that reports none.
     func missingListings() async -> [SourceID]
@@ -198,6 +205,8 @@ extension AddonManaging {
     public func missingDependencies(of ref: AddonRef, in installation: Installation) async -> [MissingDependency] { [] }
 
     public func dependents(of ref: AddonRef, in installation: Installation) async -> [InstalledAddon] { [] }
+
+    public func optionalParts(of ref: AddonRef, in installation: Installation, policy: CachePolicy) async throws -> [OptionalPart] { [] }
 
     public func networkActivity() -> AsyncStream<NetworkEvent> {
         AsyncStream { $0.finish() }

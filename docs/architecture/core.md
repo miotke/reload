@@ -91,7 +91,7 @@ Sources/reload/            the CLI (docs/cli/)
 | Refs, installations, installed add-ons, releases, update states, operation events | `Sources/AddonKit/Model/Models.swift` |
 | Catalogue entries, search queries and results, support status | `Sources/AddonKit/Model/SearchModels.swift` |
 | Decisions front ends display: `InstallAction`, `UpdateOffer`, `BrowseFilter`, `AddonRef(parsing:)` | `Sources/AddonKit/Model/InstallAction.swift` |
-| Unmanaged folders, TOC hints, adoption candidates and previews; missing dependencies and `DependencyPolicy` | `Sources/AddonKit/Model/Adoption.swift`, `Sources/AddonKit/Model/Dependencies.swift` |
+| Unmanaged folders, TOC hints, adoption candidates and previews; missing dependencies and `DependencyPolicy`; optional parts (`OptionalPart`) | `Sources/AddonKit/Model/Adoption.swift`, `Sources/AddonKit/Model/Dependencies.swift`, `Sources/AddonKit/Model/OptionalParts.swift` |
 | `AddonError` | `Sources/AddonKit/Model/AddonError.swift` |
 | TOC, `release.json`, `.build.info` and WoWInterface BBCode parsing | `Sources/AddonKit/Parsing/` |
 | Release selection (pure) | `Sources/AddonKit/Selection/ReleaseSelector.swift` |

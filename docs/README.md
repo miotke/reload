@@ -45,6 +45,7 @@ flowchart LR
 | [search.md](features/search.md) | you're changing search layers, ranking, aliases, the GitHub fallback, catalogue import or Browse |
 | [refresh.md](features/refresh.md) | you're changing the background refresh: its phases, targets, politeness or progress |
 | [dependencies.md](features/dependencies.md) | you're working on required add-ons: missing-dependency warnings, installing them alongside, or the removal guard |
+| [optional-parts.md](features/optional-parts.md) | you're working on optional parts: extra add-ons such as voice packs that a repo publishes as their own tag stream, `AddonRef.tagPrefix` |
 | [sources.md](features/sources.md) | you're working on GitHub, WoWInterface or Tukui as sources, hosted listings, `AddonRef.key`, or turning sources on and off |
 | [details-and-screenshots.md](features/details-and-screenshots.md) | you're working on the inspector, where its details come from, README fetching and rendering, or screenshots |
 
