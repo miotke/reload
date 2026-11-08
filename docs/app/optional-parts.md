@@ -2,7 +2,7 @@
 
 How the inspector shows a managed add-on's optional parts: extra add-ons its own GitHub repo publishes as separate tag streams, such as Spoken's voice packs. Which folders are parts, their state, ref, version and size are the core's ([optional-parts.md](../features/optional-parts.md)); the app only maps them to rows and never installs one on its own.
 
-Code: `App/Reload/Models/InspectorModel.swift` (loading, `OptionalPartsList`), `Support/DependencySupport.swift` (`OptionalPartRow`), `Views/RequiresSection.swift` (`OptionalPartsSection`), `Views/AddonInspectorView.swift` (placement and the load task).
+Code: `App/Reload/Models/InspectorModel.swift` (loading), `Models/OptionalPartsList.swift`, `Support/OptionalPartSupport.swift` (`OptionalPartRow`), `Views/OptionalPartsSection.swift`, `Views/AddonInspectorView.swift` (placement and the load task). Tests: `App/ReloadTests/OptionalPartTests.swift`.
 
 ## The section
 
