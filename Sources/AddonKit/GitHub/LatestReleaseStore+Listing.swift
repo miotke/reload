@@ -25,9 +25,29 @@ extension LatestReleaseStore {
         for ref: AddonRef, flavor: Flavor, policy: CachePolicy, background: Bool = false, keepReserve: Bool = false
     ) async throws -> ReleaseListing? {
         let repo = ref.repo
-        guard repo.source == .github, let (owner, name) = try? GitHubReleaseResolver.split(repo) else { return nil }
+        guard repo.source == .github, (try? GitHubReleaseResolver.split(repo)) != nil else { return nil }
+        if policy == .preferStored { return await store.storedListing(for: repo) }
+        // The decision and the fetch are shared, so callers that start together (an add-on
+        // and its parts in one update check) can't each see the old listing and fetch.
+        let key = "\(GitHubReleaseResolver.cacheKey(repo))|\(policy)|\(background)|\(keepReserve)"
+        let task: Task<ReleaseListing?, any Error>
+        if let running = inFlightListings[key] {
+            task = running
+        } else {
+            task = Task {
+                defer { self.inFlightListings[key] = nil }
+                return try await self.revalidatedListing(repo, flavor: flavor, policy: policy, background: background, keepReserve: keepReserve)
+            }
+            inFlightListings[key] = task
+        }
+        return try await task.value
+    }
+
+    private func revalidatedListing(
+        _ repo: AddonRef, flavor: Flavor, policy: CachePolicy, background: Bool, keepReserve: Bool
+    ) async throws -> ReleaseListing? {
+        let (owner, name) = try GitHubReleaseResolver.split(repo)
         let stored = await store.storedListing(for: repo)
-        if policy == .preferStored { return stored }
         let date = now()
         if let stored {
             if let failed = stored.failedAt, date.timeIntervalSince(failed) < SupportCache.errorTTL { return stored }
@@ -42,20 +62,7 @@ extension LatestReleaseStore {
                 : policy == .revalidateIfStale && date.timeIntervalSince(stored.checkedAt) < SupportCache.apiCheckInterval
             if current { return stored }
         }
-
-        let key = GitHubReleaseResolver.cacheKey(repo)
-        let task: Task<ReleaseListing?, any Error>
-        if let running = inFlightListings[key] {
-            task = running
-        } else {
-            let latestTag = known ? latest.tag : nil
-            task = Task {
-                defer { self.inFlightListings[key] = nil }
-                return try await self.fetchListing(repo, owner: owner, name: name, stored: stored, latestTag: latestTag, keepReserve: keepReserve)
-            }
-            inFlightListings[key] = task
-        }
-        return try await task.value
+        return try await fetchListing(repo, owner: owner, name: name, stored: stored, latestTag: known ? latest.tag : nil, keepReserve: keepReserve)
     }
 
     /// - Parameter latestTag: the repo's latest stable tag now, which the new listing is current against.
