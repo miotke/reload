@@ -39,14 +39,15 @@ Each record explains one decision: its context, what was decided, the alternativ
 | [0028](0028-macos-26-minimum.md) | Minimum macOS 26 and Swift 6.2, Apple silicon only | Accepted | 2026-10-12 |
 | [0029](0029-wowinterface-and-tukui-sources.md) | WoWInterface and Tukui as sources, switchable per source | Accepted | 2026-10-14 |
 | [0030](0030-sparkle-app-updates.md) | Sparkle for Reload's own updates, from a signed feed on each release | Accepted | 2026-10-17 |
+| [0031](0031-tag-streams-and-optional-parts.md) | Several add-ons per repo by tag prefix, and optional parts from the same repo | Accepted | 2026-11-08 |
 
 ## By area
 
 | Area | Records |
 |---|---|
 | Architecture | 0001, 0004, 0005, 0008, 0024, 0026, 0028 |
-| Sources and flavor support | 0002, 0003, 0016, 0018, 0019, 0029 |
-| Network | 0009, 0010, 0011, 0017, 0019, 0029, 0030 |
+| Sources and flavor support | 0002, 0003, 0016, 0018, 0019, 0029, 0031 |
+| Network | 0009, 0010, 0011, 0017, 0019, 0029, 0030, 0031 |
 | App | 0006, 0007, 0012, 0013, 0015, 0019, 0021, 0022, 0023, 0024, 0025, 0026, 0027, 0030 |
 | Performance | 0008, 0013, 0023 |
 | Docs | 0014 |
