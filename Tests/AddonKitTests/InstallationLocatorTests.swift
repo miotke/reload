@@ -113,7 +113,7 @@ private struct FakeWoW {
         let fake = try FakeWoW()
         defer { fake.cleanUp() }
         try fake.buildInfo([("wow_forever", "1.61.0.80000")])
-        let root = try fake.flavorFolder("_forever_")
+        let root = try fake.flavorFolder("_forever_ptr_")
         try Data("Product Flavor!STRING:0\nwow_forever\n".utf8).write(to: root.appending(path: ".flavor.info"))
         let installation = try InstallationLocator(baseFolders: [], findApps: { [] }).installation(at: root)
         #expect(installation.flavor == .forever)
