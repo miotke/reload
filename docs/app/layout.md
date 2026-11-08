@@ -41,7 +41,7 @@ Each installation has one `InstallationModel`, which only owns and wires four fe
 |---|---|
 | `InstalledModel` | add-ons, stored update states, the library rows (sort, filter, section) and counts, `installAction(for:)` |
 | `BrowseModel` | search stream, home lists, Browse rows (sort, family filter), visible-row checks; `LiveMetadata` patches its rows |
-| `InspectorModel` | the selection in each table, loaded details (the 20 most recent), release notes |
+| `InspectorModel` | the selection in each table, loaded details (the 20 most recent), release notes, optional parts ([optional-parts.md](optional-parts.md)) |
 | `UpdateQueue` | refresh and its `RefreshStatus`, update, Update All, install, pin, adopt, and each row's `RowState` |
 
 - Views take the model they need as a property: cells take `UpdateQueue`, `BrowseModel` or a pre-built row; tables take their section's models. `AddonDetailView`, `InspectorPane` and `AddonWindow` combine all four, so they take `InstallationModel` and read its parts directly. There are no forwarding methods.
