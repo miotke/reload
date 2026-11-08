@@ -24,7 +24,7 @@ v0.3.0 · 12 MB
 | `OptionalPart.state` | Action |
 |---|---|
 | `available` | **Install (435 MB)**: `UpdateQueue.install(part.ref, …)`, with the usual download progress and errors on the part's own row state |
-| `unmanaged` | **Manage…**: a confirmation saying the release is downloaded over the folder, then `UpdateQueue.adopt(folder:as: part.ref)`, which shows "Adopting…" and errors on the folder's row |
+| `unmanaged` | **Manage…**: a confirmation saying the release is downloaded over the folder, then `UpdateQueue.adopt(folder:as: part.ref)`, which shows download progress (the core's `adopt(folder:as:in:progress:)`) and errors on the folder's row |
 | `installed` | a quiet green check and "Installed" |
 
 - The name is the folder. The version drops the tag prefix (`places-audio/v2.1.0` reads `v2.1.0`). Sizes use `ByteCountFormatter` (file style); the Install button carries the size, so the detail line leaves it out there.
