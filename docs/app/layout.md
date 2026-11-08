@@ -31,7 +31,7 @@ Picker, sections, counts and search scope: [navigation.md](navigation.md).
 
 Labels follow the selected installation's game, `installation.flavor.displayName` (Forever, Retail, Classic Era, TBC Anniversary, Wrath Classic, Titan, Cata Classic, Mists Classic; see [flavors.md](../architecture/flavors.md#flavors)): the filter toggle's help, Installed status, the inspector, the adopt sheet and the seeding sheet. The Games column and the filter toggle's label follow the installation's game family.
 
-Forever-specific on purpose: the app name, help text and the empty state that suggests adding `World of Warcraft/_classic_beta_`.
+Forever-specific on purpose: the app name, help text and the empty state that suggests adding `World of Warcraft/_forever_`.
 
 ## Models
 

@@ -370,7 +370,7 @@ final class AppModel {
     func addInstallationWithPanel() {
         let panel = NSOpenPanel()
         panel.title = "Add Installation"
-        panel.message = "Choose a World of Warcraft game folder, such as “_classic_beta_”."
+        panel.message = "Choose a World of Warcraft game folder, such as “_forever_”."
         panel.prompt = "Add"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false

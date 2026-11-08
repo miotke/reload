@@ -91,7 +91,7 @@ private struct NoInstallationView: View {
         } description: {
             Text("""
                 Reload couldn't find World of Warcraft Forever. Choose its game folder, \
-                usually “/Applications/World of Warcraft/_classic_beta_”, to manage its add-ons. \
+                usually “/Applications/World of Warcraft/_forever_”, to manage its add-ons. \
                 If you've just installed the game, scan again.
                 """)
         } actions: {

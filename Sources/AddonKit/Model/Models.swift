@@ -3,10 +3,10 @@ import Foundation
 public struct Installation: Codable, Sendable, Identifiable, Hashable {
     /// Stable hash of the resolved root path.
     public var id: String
-    /// e.g. `…/World of Warcraft/_classic_beta_`
+    /// e.g. `…/World of Warcraft/_forever_`
     public var root: URL
     public var flavor: Flavor
-    /// e.g. `wow_classic_beta`, from `.build.info`.
+    /// e.g. `wowf`, from `.build.info`.
     public var productCode: String?
     /// e.g. `1.60.1.70338`
     public var gameVersion: String?

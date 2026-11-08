@@ -137,6 +137,20 @@ private struct FakeWoW {
         #expect(throws: AddonError.self) { try locator.installation(at: fake.base.appending(path: "nope")) }
     }
 
+    /// The launch layout: `_forever_` / `wowf`, with the launcher app beside it.
+    @Test func acceptsLaunchWoWFolderWithLauncher() throws {
+        let fake = try FakeWoW()
+        defer { fake.cleanUp() }
+        try fake.buildInfo([("wowf", "1.60.1.70862")])
+        let root = try fake.flavorFolder("_forever_")
+        try FileManager.default.createDirectory(at: fake.wow.appending(path: "World of Warcraft Launcher.app/Contents"), withIntermediateDirectories: true)
+        let installation = try InstallationLocator(baseFolders: [], findApps: { [] }).installation(at: fake.wow)
+        #expect(installation.root == fake.resolved(root))
+        #expect(installation.flavor == .forever)
+        #expect(installation.productCode == "wowf")
+        #expect(installation.gameVersion == "1.60.1.70862")
+    }
+
     @Test func locateCombinesSpotlightAndBaseFolder() async throws {
         let base = try FakeWoW()
         defer { base.cleanUp() }

@@ -16,7 +16,7 @@ Code: `Sources/AddonKit/Store/` (`AppDirectories`, `InstallStore`, `MetadataData
 | Downloaded zips | `~/Library/Caches/io.github.miotke.Reload/downloads/<source>/<owner+repo>/<releaseID>-<asset>` |
 | Downloaded `release.json` files | `~/Library/Caches/io.github.miotke.Reload/github/release-json/` |
 | Screenshot cache (app) | `~/Library/Caches/io.github.miotke.Reload/screenshots/` (`AppDirectories.screenshotsDirectory`) |
-| Add-ons | `<WoW>/_classic_beta_/Interface/AddOns/` |
+| Add-ons | `<WoW>/_forever_/Interface/AddOns/` |
 
 Data stored under an earlier bundle ID (`LegacyDataMigration.legacyBundleIDs`) is moved here once at startup ([decision 0024](../decisions/0024-rename-to-reload.md), [decision 0026](../decisions/0026-bundle-id-without-personal-name.md)).
 

@@ -6,12 +6,12 @@ Code: `Sources/AddonKit/Model/Flavor.swift`, `Sources/AddonKit/Parsing/`. Why on
 
 ## Flavors
 
-`Flavor` is `mainline, forever, vanilla, tbc, wrath, titan, cata, mists`. Every game-version-specific constant lives in `Flavor.rules`. Adding a game version means adding an entry; when Forever launches with a final folder and product code, only its entry changes.
+`Flavor` is `mainline, forever, vanilla, tbc, wrath, titan, cata, mists`. Every game-version-specific constant lives in `Flavor.rules`. Adding a game version means adding an entry; a new folder or product code changes only its entry.
 
 | Flavor | Display name | Interface / game versions | Own TOC suffixes | Shared TOC suffixes | `release.json` | Folder → product |
 |---|---|---|---|---|---|---|
 | `mainline` | Retail | 10000–11299, 20000–20499, 30000–30399, 40000–40399, 50000–50499, 60000–999999 | Mainline | — | mainline, retail | `_retail_`→wow, `_ptr_`→wowt, `_beta_`→wow_beta |
-| `forever` | Forever | 16000–19999 | Camelot, Forever | Mainline | forever, camelot | `_classic_beta_`→wow_classic_beta |
+| `forever` | Forever | 16000–19999 | Camelot, Forever | Mainline | forever, camelot | `_forever_`→wowf, `_classic_beta_`→wow_classic_beta (pre-launch beta) |
 | `vanilla` | Classic Era | 11300–15999 | Vanilla | Classic | classic, vanilla | `_classic_era_`→wow_classic_era |
 | `tbc` | TBC Anniversary | 20500–29999 | TBC, BCC | Classic | bcc, tbc | `_anniversary_`→wow_anniversary |
 | `wrath` | Wrath Classic | 30400–37999 | Wrath, WOTLKC | Classic | wrath | — |

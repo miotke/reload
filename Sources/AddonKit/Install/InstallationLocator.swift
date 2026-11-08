@@ -49,7 +49,7 @@ public struct InstallationLocator: Sendable {
     }
 
     /// An installation from a folder the user picked: the flavor folder itself
-    /// (`…/_classic_beta_`), its `Interface/AddOns`, or the `World of Warcraft` folder
+    /// (`…/_forever_`), its `Interface/AddOns`, or the `World of Warcraft` folder
     /// when it holds exactly one flavor folder.
     /// - Throws: `AddonError.installationNotFound` if no single installation matches.
     public func installation(at url: URL) throws -> Installation {
@@ -62,10 +62,12 @@ public struct InstallationLocator: Sendable {
            parts[parts.count - 2].caseInsensitiveCompare("Interface") == .orderedSame {
             return try makeInstallation(root: url.deletingLastPathComponent().deletingLastPathComponent())
         }
-        if Self.isFlavorFolderName(url.lastPathComponent) || Self.looksLikeInstallationRoot(url) {
+        // The `World of Warcraft` folder holds `World of Warcraft Launcher.app`, so it looks
+        // like a root by the `.app` test alone; its flavor folders win.
+        let flavorFolders = Self.flavorFolders(in: url)
+        if Self.isFlavorFolderName(url.lastPathComponent) || (flavorFolders.isEmpty && Self.looksLikeInstallationRoot(url)) {
             return try makeInstallation(root: url)
         }
-        let flavorFolders = Self.flavorFolders(in: url)
         guard flavorFolders.count == 1 else { throw AddonError.installationNotFound(url.path) }
         return try makeInstallation(root: flavorFolders[0])
     }
