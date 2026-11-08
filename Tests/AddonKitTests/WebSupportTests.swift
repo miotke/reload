@@ -321,7 +321,7 @@ private func source(_ http: RedirectingHTTPClient, cache: URL? = nil) async -> G
         let sources = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appending(path: "Sources")
         let files = FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)!
-            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" && $0.lastPathComponent != "LatestReleaseStore.swift" }
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" && !$0.lastPathComponent.hasPrefix("LatestReleaseStore") }
         let definedIn: [String: String] = [
             "fetchLatestTag(": "GitHubWebClient.swift", "fetchReleaseJSON(": "GitHubWebClient.swift",
             "webReleaseJSON(": "LatestReleaseStore.swift", "isFresh(": "SupportCache.swift", "storedSupport(": "SupportCache.swift",

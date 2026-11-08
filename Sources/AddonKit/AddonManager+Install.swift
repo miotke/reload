@@ -5,20 +5,22 @@ extension AddonManager {
     /// Stable channel: tries the quota-free route first (latest tag + release.json), and
     /// uses the API only when that can't decide.
     public func resolve(_ ref: AddonRef, for installation: Installation, channel: Channel) async throws -> ResolvedRelease {
-        try await resolve(ref, flavor: installation.flavor, channel: channel)
+        try await resolve(ref, for: installation, channel: channel, allowFamilyFallback: false)
     }
 
     /// Like `resolve(_:for:channel:)`. With `allowFamilyFallback`, an add-on with no build for
     /// the installation's flavor resolves to its `fallbackFlavor` build (the Retail build on
     /// Forever), marked in `flavorBuild`. Without it, or with no fallback build either, that's
     /// `noCompatibleRelease` for the installation's flavor (docs/features/release-selection.md#retail-build-on-forever).
+    /// An installed add-on keeps to its tag stream (docs/features/optional-parts.md#the-whole-repo).
     public func resolve(_ ref: AddonRef, for installation: Installation, channel: Channel, allowFamilyFallback: Bool) async throws -> ResolvedRelease {
         let own = installation.flavor
+        let installed = ref.source == .github ? try? await store.addons(in: installation).first(where: { $0.id == ref }) : nil
         do {
-            return try await resolve(ref, flavor: own, channel: channel)
+            return try await resolve(ref, flavor: own, channel: channel, following: installed)
         } catch AddonError.noCompatibleRelease {
             guard allowFamilyFallback, let fallback = own.fallbackFlavor,
-                  var release = try? await resolve(ref, flavor: fallback, channel: channel) else {
+                  var release = try? await resolve(ref, flavor: fallback, channel: channel, following: installed) else {
                 throw AddonError.noCompatibleRelease(ref, own)
             }
             release.flavorBuild = fallback
@@ -28,10 +30,14 @@ extension AddonManager {
     }
 
     /// Stable channel: tries the quota-free route first (latest tag + release.json), and
-    /// uses the API only when that can't decide.
-    func resolve(_ ref: AddonRef, flavor: Flavor, channel: Channel) async throws -> ResolvedRelease {
+    /// uses the API only when that can't decide. A tag stream (a ref's `tagPrefix`, or the
+    /// stream `installed` follows) resolves over the stored listing instead.
+    func resolve(_ ref: AddonRef, flavor: Flavor, channel: Channel, following installed: InstalledAddon? = nil) async throws -> ResolvedRelease {
         // Hosts have no prereleases: both channels get the latest file.
         guard ref.source == .github else { return try await resolveHosted(ref, flavor: flavor, policy: .forceRevalidate) }
+        if let prefix = ReleaseStreams.followedPrefix(ref: ref, installedTag: installed?.version) {
+            return try await resolveStream(ref, prefix: prefix, flavor: flavor, channel: channel, policy: .forceRevalidate, installed: installed)
+        }
         if channel == .stable, let release = await github.latest.quotaFreeResolve(ref, flavor: flavor, policy: .forceRevalidate) {
             return release
         }
@@ -113,8 +119,14 @@ extension AddonManager {
     }
 
     public func adopt(folder: String, as ref: AddonRef, in installation: Installation) async throws -> InstalledAddon {
+        try await adopt(folder: folder, as: ref, in: installation, progress: { _ in })
+    }
+
+    public func adopt(
+        folder: String, as ref: AddonRef, in installation: Installation, progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> InstalledAddon {
         let release = try await resolve(ref, for: installation, channel: .stable)
-        return try await adopt(release, in: installation)
+        return try await install(release, into: installation, channel: .stable, force: true, pin: nil, progress: progress)
     }
 
     // MARK: - Adoption (docs/features/installing.md#adopting-unmanaged-folders)

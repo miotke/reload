@@ -158,11 +158,57 @@ public actor GitHubAPIClient {
         case releases([GitHubRelease], etag: String?)
     }
 
-    static func releasesURL(owner: String, repo: String) -> URL {
+    /// Releases per page of the stream listing (`fetchReleasePage`), the API's maximum.
+    static let listingPageSize = 100
+
+    static func releasesURL(owner: String, repo: String, perPage: Int = 10, page: Int = 1) -> URL {
         var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
         components.path = "/repos/\(owner)/\(repo)/releases"
-        components.queryItems = [URLQueryItem(name: "per_page", value: "10")]
+        components.queryItems = [URLQueryItem(name: "per_page", value: "\(perPage)")]
+        if page > 1 { components.queryItems?.append(URLQueryItem(name: "page", value: "\(page)")) }
         return components.url!
+    }
+
+    private func releasesRequest(_ url: URL, etag: String?) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
+        if let token = currentToken() { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        if let etag { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
+        // ETags are handled here; don't let URLSession's cache answer for us.
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        return request
+    }
+
+    enum PageResponse {
+        case notModified
+        case page([GitHubRelease], etag: String?, hasNext: Bool)
+    }
+
+    /// One page of `listingPageSize` releases, for the stream listing `LatestReleaseStore`
+    /// stores (docs/features/optional-parts.md#the-release-listing). Not kept in memory here.
+    /// `hasNext` is the `Link: rel="next"` header.
+    func fetchReleasePage(_ ref: AddonRef, owner: String, repo: String, page: Int, etag: String?) async throws -> PageResponse {
+        try await checkQuota()
+        let url = Self.releasesURL(owner: owner, repo: repo, perPage: Self.listingPageSize, page: page)
+        let (data, response) = try await http.data(for: releasesRequest(url, etag: etag))
+        await trackRateLimit(response)
+        if page == 1, response.statusCode != 403, response.statusCode != 429 {
+            await store?.setAPIChecked(at: now(), for: ref.repo)
+        }
+        switch response.statusCode {
+        case 304:
+            return .notModified
+        case 200..<300:
+            guard let releases = try? GitHubRelease.decodeList(from: data) else { throw AddonError.http(status: response.statusCode, url: url) }
+            let link = response.value(forHTTPHeaderField: "Link") ?? ""
+            return .page(releases, etag: response.value(forHTTPHeaderField: "ETag"), hasNext: link.contains(#"rel="next""#))
+        case 404:
+            throw AddonError.notFound(ref.repo)
+        default:
+            throw await apiError(response, data: data, url: url)
+        }
     }
 
     /// The releases list this process last received for `ref`, with its ETag.
@@ -174,16 +220,7 @@ public actor GitHubAPIClient {
     func fetchReleases(_ ref: AddonRef, owner: String, repo: String, etag: String?) async throws -> ReleasesResponse {
         try await checkQuota()
         let url = Self.releasesURL(owner: owner, repo: repo)
-        var request = URLRequest(url: url)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-        request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
-        if let token = currentToken() { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
-        if let etag { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
-        // ETags are handled here; don't let URLSession's cache answer for us.
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-
-        let (data, response) = try await http.data(for: request)
+        let (data, response) = try await http.data(for: releasesRequest(url, etag: etag))
         await trackRateLimit(response)
         if response.statusCode != 403, response.statusCode != 429 {
             await store?.setAPIChecked(at: now(), for: ref)

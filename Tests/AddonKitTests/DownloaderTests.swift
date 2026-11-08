@@ -22,6 +22,8 @@ final class StubDownloadTransport: DownloadTransport, Sendable {
 
     func stub(_ url: URL, _ body: Data) { state.withLock { $0.bodies[url.absoluteString] = body } }
 
+    func reset() { state.withLock { $0.requests = [] } }
+
     func download(from url: URL, to destination: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
         let (body, delay) = state.withLock { state -> (Data?, Duration) in
             state.requests.append(url)

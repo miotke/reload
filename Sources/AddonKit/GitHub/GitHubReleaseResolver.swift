@@ -14,6 +14,8 @@ public actor GitHubReleaseResolver: Source {
     public static let maxInspectedReleases = 3
     /// Zips inspected per release without release.json.
     public static let maxCandidatesPerRelease = 2
+    /// Zips larger than this are never downloaded just to be inspected.
+    public static let maxInspectedBytes = 200 * 1024 * 1024
 
     public nonisolated let api: GitHubAPIClient
     private let web: GitHubWebClient
@@ -43,7 +45,9 @@ public actor GitHubReleaseResolver: Source {
     // MARK: - Parsing
 
     /// Accepts `owner/repo`, `github:owner/repo` and `github.com` URLs (with `.git`, a trailing
-    /// slash, or `/releases…`, `/tags`, `/tree/…`, `/blob/…` after the repo).
+    /// slash, or `/releases…`, `/tags`, `/tree/…`, `/blob/…` after the repo). `owner/repo#prefix`
+    /// and `github:owner/repo#prefix` name one tag stream of the repo (`AddonRef.tagPrefix`);
+    /// a URL's `#fragment` is a page anchor and is ignored.
     public nonisolated func parse(_ input: String) -> AddonRef? {
         Self.parseRef(input)
     }
@@ -51,6 +55,15 @@ public actor GitHubReleaseResolver: Source {
     static func parseRef(_ input: String) -> AddonRef? {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !text.contains(where: \.isWhitespace) else { return nil }
+        let lowered = text.lowercased()
+        var prefix: String?
+        if !text.contains("://"), !lowered.hasPrefix("github.com/"), !lowered.hasPrefix("www.github.com/"),
+           let hash = text.firstIndex(of: "#") {
+            let value = String(text[text.index(after: hash)...])
+            guard isValidPrefix(value) else { return nil }
+            prefix = value
+            text = String(text[..<hash])
+        }
         var parts: [Substring]
         if text.lowercased().hasPrefix("github:") {
             text.removeFirst("github:".count)
@@ -79,7 +92,12 @@ public actor GitHubReleaseResolver: Source {
         var repo = String(parts[1])
         if repo.lowercased().hasSuffix(".git") { repo.removeLast(4) }
         guard Self.isValidOwner(owner), Self.isValidRepo(repo) else { return nil }
-        return AddonRef(source: .github, identifier: "\(owner)/\(repo)")
+        return AddonRef(source: .github, identifier: "\(owner)/\(repo)", tagPrefix: prefix)
+    }
+
+    /// A tag prefix: what comes before a tag's first `/`, so never a `/` or `#`.
+    static func isValidPrefix(_ s: String) -> Bool {
+        s.range(of: #"^[A-Za-z0-9._-]{1,100}$"#, options: .regularExpression) != nil
     }
 
     static func isValidOwner(_ s: String) -> Bool {
@@ -95,7 +113,7 @@ public actor GitHubReleaseResolver: Source {
     public func resolve(_ ref: AddonRef, flavor: Flavor, channel: Channel, etag: String?) async throws -> ResolveResult {
         let (owner, repo) = try Self.split(ref)
         let cached = await api.cachedReleases(for: ref)
-        let releases: [GitHubRelease]
+        var releases: [GitHubRelease]
         let responseETag: String?
         switch try await api.fetchReleases(ref, owner: owner, repo: repo, etag: etag ?? cached?.etag) {
         case .notModified:
@@ -108,28 +126,75 @@ public actor GitHubReleaseResolver: Source {
             releases = list
             responseETag = tag
         }
+        // Callers resolve a stream over the stored listing (`resolve(_:within:…)`); this only
+        // makes sure a prefixed ref never lands on another stream's release.
+        if let prefix = ref.tagPrefix { releases = ReleaseStreams.releases(releases, inStream: prefix) }
 
         switch try await select(ref: ref, releases: releases, flavor: flavor, channel: channel, downloadZips: true) {
         case .selected(let release, let asset, let reasoning):
-            let entryName = release.releaseJSONAsset
-                .flatMap { releaseJSONCache[$0.id] }?
-                .release(for: flavor)?.name
-            let resolved = ResolvedRelease(
-                ref: ref,
-                name: entryName ?? repo,
-                version: release.tagName,
-                releaseID: release.id,
-                publishedAt: release.publishedAt ?? release.createdAt ?? .distantPast,
-                downloadURL: asset.browserDownloadURL,
-                assetName: asset.name,
-                changelog: release.body,
-                isPrerelease: release.prerelease,
-                reasoning: reasoning
-            )
-            return .release(resolved, etag: responseETag)
+            return .release(resolved(ref, repo: repo, release: release, asset: asset, flavor: flavor, reasoning: reasoning), etag: responseETag)
         case .needsDownload, .none:
             throw AddonError.noCompatibleRelease(ref, flavor)
         }
+    }
+
+    /// Resolves within one tag stream, over releases `LatestReleaseStore.listing` stored, so
+    /// no API request (docs/features/optional-parts.md#resolving-a-stream). A release with a
+    /// release.json is chosen as usual. Without one, a zip is taken without being downloaded
+    /// when the stream leaves no doubt: the successor of the installed zip (same name but for
+    /// the version), or the release's only zip. Voice packs are 0.4–1.6 GB, so a check
+    /// mustn't fetch one to look inside. Other zips are inspected only with `downloadZips`.
+    func resolve(
+        _ ref: AddonRef, within releases: [GitHubRelease], prefix: String, flavor: Flavor, channel: Channel,
+        installed: (assetName: String, tag: String)?, downloadZips: Bool
+    ) async throws -> ResolvedRelease {
+        let (_, repo) = try Self.split(ref)
+        let stream = ReleaseStreams.releases(releases, inStream: prefix)
+        let installedStem = installed.map { ReleaseStreams.stem(of: $0.assetName, tag: $0.tag) }
+        let trust: Trust = { release, candidates in
+            if let installedStem, let next = candidates.first(where: { ReleaseStreams.stem(of: $0.name, tag: release.tagName) == installedStem }) {
+                return (next, "same zip as installed (\(installed?.assetName ?? "")); not downloaded to inspect")
+            }
+            if candidates.count == 1 { return (candidates[0], "the stream's only zip; not downloaded to inspect") }
+            return nil
+        }
+        switch try await select(ref: ref, releases: stream, flavor: flavor, channel: channel, downloadZips: downloadZips, trust: trust) {
+        case .selected(let release, let asset, let reasoning):
+            return resolved(ref, repo: repo, release: release, asset: asset, flavor: flavor, reasoning: ["stream \(prefix)/…"] + reasoning)
+        case .needsDownload, .none:
+            throw AddonError.noCompatibleRelease(ref, flavor)
+        }
+    }
+
+    private func resolved(
+        _ ref: AddonRef, repo: String, release: GitHubRelease, asset: GitHubAsset, flavor: Flavor, reasoning: [String]
+    ) -> ResolvedRelease {
+        let entryName = release.releaseJSONAsset
+            .flatMap { releaseJSONCache[$0.id] }?
+            .release(for: flavor)?.name
+        return ResolvedRelease(
+            ref: ref,
+            // A part is named for its zip (`SpokenPlacesAudio`); the whole repo keeps its name.
+            name: entryName ?? (ref.tagPrefix != nil ? Self.displayName(of: asset.name, tag: release.tagName) : repo),
+            version: release.tagName,
+            releaseID: release.id,
+            publishedAt: release.publishedAt ?? release.createdAt ?? .distantPast,
+            downloadURL: asset.browserDownloadURL,
+            assetName: asset.name,
+            changelog: release.body,
+            isPrerelease: release.prerelease,
+            reasoning: reasoning
+        )
+    }
+
+    /// `SpokenPlacesAudio` for `SpokenPlacesAudio-2.1.0.zip` of `places-audio/v2.1.0`.
+    static func displayName(of assetName: String, tag: String) -> String {
+        var name = assetName
+        if name.lowercased().hasSuffix(".zip") { name.removeLast(4) }
+        let version = ReleaseStreams.version(ofTag: tag)
+        if !version.isEmpty { name = name.replacingOccurrences(of: version, with: "") }
+        let trimmed = name.trimmingCharacters(in: CharacterSet(charactersIn: "-_. "))
+        return trimmed.isEmpty ? assetName : trimmed
     }
 
     /// The older support check over the releases API. It looks past the latest release but
@@ -161,9 +226,17 @@ public actor GitHubReleaseResolver: Source {
         case none(reasoning: [String])
     }
 
+    /// Picks a zip of a release without release.json without inspecting it, with the reason,
+    /// or nil to inspect as usual.
+    typealias Trust = @Sendable (GitHubRelease, [GitHubAsset]) -> (GitHubAsset, String)?
+
     /// Drives `ReleaseSelector`: fetches release.json files it asks for and, when `downloadZips`,
     /// downloads and inspects candidate zips for up to `maxInspectedReleases` releases.
-    func select(ref: AddonRef, releases: [GitHubRelease], flavor: Flavor, channel: Channel, downloadZips: Bool) async throws -> Outcome {
+    /// `trust` can take a zip without inspection first. Zips over `maxInspectedBytes` are
+    /// never downloaded to be inspected: inspection holds the whole zip in memory.
+    func select(
+        ref: AddonRef, releases: [GitHubRelease], flavor: Flavor, channel: Channel, downloadZips: Bool, trust: Trust? = nil
+    ) async throws -> Outcome {
         var failedJSON: Set<Int64> = []
         var excluded: Set<Int64> = []
         var notes: [Int64: [String]] = [:]
@@ -202,12 +275,19 @@ public actor GitHubReleaseResolver: Source {
                 }
 
             case .needsInspection(let release, let candidates, let reasoning):
+                if let (asset, why) = trust?(release, candidates) {
+                    return .selected(release, asset, reasoning: annotate(reasoning) + ["\(asset.name): \(why)"])
+                }
                 guard downloadZips else { return .needsDownload }
                 guard inspected < Self.maxInspectedReleases else {
                     return .none(reasoning: annotate(reasoning) + ["stopped after inspecting \(Self.maxInspectedReleases) releases without release.json"])
                 }
                 inspected += 1
                 for candidate in candidates.prefix(Self.maxCandidatesPerRelease) {
+                    guard candidate.size <= Self.maxInspectedBytes else {
+                        notes[release.id, default: []].append("\(candidate.name): too large to inspect (\(ByteCountFormatter.string(fromByteCount: Int64(candidate.size), countStyle: .file)))")
+                        continue
+                    }
                     let result: FlavorSupport
                     do {
                         result = try await inspect(candidate, of: release, ref: ref, flavor: flavor)

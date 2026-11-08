@@ -85,6 +85,12 @@ public enum ReleaseSelector {
                 }
             }
 
+            // A desktop app published from the same repo (`manager/v0.1.12` beside `spoken/v3.8.4`):
+            // its zips are app builds, and downloading one to look inside wastes 100+ MB.
+            if ReleaseStreams.shipsDesktopApp(release) {
+                reasoning.append("ships a desktop app, not an add-on; trying older release")
+                continue
+            }
             let candidates = zipCandidates(release, flavor: flavor)
             if candidates.isEmpty {
                 reasoning.append("no zip assets; trying older release")
@@ -107,11 +113,12 @@ public enum ReleaseSelector {
         }, excluding: excluding)
     }
 
-    /// Uploaded `.zip` assets without `-nolib`, with names mentioning the flavor first.
+    /// Uploaded `.zip` assets without `-nolib` or a platform in the name (`-mac-arm64`), with
+    /// names mentioning the flavor first.
     public static func zipCandidates(_ release: GitHubRelease, flavor: Flavor) -> [GitHubAsset] {
         let zips = release.uploadedAssets.filter {
             let name = $0.name.lowercased()
-            return name.hasSuffix(".zip") && !name.contains("-nolib")
+            return name.hasSuffix(".zip") && !name.contains("-nolib") && !ReleaseStreams.isPlatformBuild(name)
         }
         let hints = (flavor.rules.tocSuffixes + flavor.rules.releaseJSONFlavors).map { $0.lowercased() }
         let preferred = zips.filter { asset in hints.contains { asset.name.lowercased().contains($0) } }
