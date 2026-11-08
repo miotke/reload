@@ -91,20 +91,20 @@ enum AdoptionPreviewState: Equatable {
 }
 
 /// The Adopt sheet's form state, given what's typed and what the preview found. Parsing
-/// (`AddonRef(parsing:)`), repo identity (`isSameRepo`) and conflicts (`canAdopt`) are the core's.
+/// (`AddonRef(parsing:)`), add-on identity (`isSameAddon`) and conflicts (`canAdopt`) are the core's.
 enum AdoptForm {
     /// Why the field holds this repo: a candidate's reason, the search, or the user.
     static func reason(for text: String, candidates: [AdoptionCandidate], searched: Set<AddonRef>) -> String? {
         guard let ref = AddonRef(parsing: text) else { return nil }
-        if let candidate = candidates.first(where: { $0.ref.isSameRepo(as: ref) }) { return candidate.reason }
-        if searched.contains(where: { $0.isSameRepo(as: ref) }) { return "Picked from a GitHub search" }
+        if let candidate = candidates.first(where: { $0.ref.isSameAddon(as: ref) }) { return candidate.reason }
+        if searched.contains(where: { $0.isSameAddon(as: ref) }) { return "Picked from a GitHub search" }
         return "Entered by hand"
     }
 
     /// Adopt needs a valid ref; a finished preview of that ref can still rule it out.
     static func canAdopt(text: String, previewed: AddonRef?, preview: AdoptionPreviewState?, isBusy: Bool) -> Bool {
         guard let ref = AddonRef(parsing: text), !isBusy else { return false }
-        guard let previewed, previewed.isSameRepo(as: ref), let preview else { return true }
+        guard let previewed, previewed.isSameAddon(as: ref), let preview else { return true }
         switch preview {
         case .noBuild: return false
         case .ready(let found): return found.canAdopt

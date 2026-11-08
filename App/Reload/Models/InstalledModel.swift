@@ -34,7 +34,7 @@ final class InstalledModel {
     }
     @ObservationIgnored private var addonIndex: [AddonStatus.ID: Int] = [:]
     /// Managed add-ons by lower-cased `AddonRef.description`: the hashable form of
-    /// `AddonRef.isSameRepo(as:)`, so lookups per row stay O(1).
+    /// `AddonRef.isSameAddon(as:)` (it includes `#prefix`), so lookups per row stay O(1).
     @ObservationIgnored private var managedIndex: [String: InstalledAddon] = [:]
     /// Required add-ons missing for the managed add-ons, from the core, reloaded with them.
     private(set) var missingDependencies: [MissingDependency] = [] {
