@@ -200,4 +200,9 @@ private struct FakeWoW {
         #expect(output.isEmpty)
         #expect(ContinuousClock.now - start < .seconds(5))
     }
+
+    @Test func runProcessReturnsOutput() async {
+        let output = await InstallationLocator.runProcess(URL(filePath: "/bin/echo"), arguments: ["/a/World of Warcraft.app"], timeout: 5)
+        #expect(output == "/a/World of Warcraft.app\n")
+    }
 }

@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Synchronization
 
 /// Finds WoW installations and works out their flavor (docs/features/finding-wow.md).
 /// Only reads the file system; never writes.
@@ -180,27 +181,47 @@ public struct InstallationLocator: Sendable {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-        } catch {
-            return ""
+
+        // Read while it runs, so a full pipe can't stall it.
+        let reader = pipe.fileHandleForReading
+        let output = Mutex(Data())
+        reader.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            output.withLock { $0.append(chunk) }
         }
 
-        // Terminating the process closes the pipe, which ends the read loop below. A
-        // Dispatch timer rather than a Task, so a busy cooperative pool can't delay the kill.
-        let pid = process.processIdentifier
-        let watchdog = DispatchWorkItem { kill(pid, SIGTERM) }
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: watchdog)
-        defer { watchdog.cancel() }
-
-        var output = Data()
-        do {
-            for try await byte in pipe.fileHandleForReading.bytes {
-                output.append(byte)
+        // Finish when the process exits, not at the pipe's EOF: a process spawned elsewhere at
+        // the same moment can inherit the pipe's write end and hold it open long after this
+        // one is gone. The kill is a Dispatch timer so a busy cooperative pool can't delay it.
+        let exited = Mutex(false)
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            process.terminationHandler = { _ in
+                exited.withLock { $0 = true }
+                continuation.resume()
             }
-        } catch {
-            // Keep whatever arrived before the read failed.
+            do {
+                try process.run()
+            } catch {
+                process.terminationHandler = nil
+                continuation.resume()
+                return
+            }
+            let pid = process.processIdentifier
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
+                if !exited.withLock({ $0 }) { kill(pid, SIGTERM) }
+            }
         }
-        return String(decoding: output, as: UTF8.self)
+        reader.readabilityHandler = nil
+
+        // Whatever is still buffered, without waiting for an EOF that may not come.
+        let fd = reader.fileDescriptor
+        _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while true {
+            let count = read(fd, &buffer, buffer.count)
+            guard count > 0 else { break }
+            output.withLock { $0.append(contentsOf: buffer[..<count]) }
+        }
+        return String(decoding: output.withLock { $0 }, as: UTF8.self)
     }
 }
