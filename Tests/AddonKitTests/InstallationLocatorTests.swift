@@ -198,7 +198,9 @@ private struct FakeWoW {
         let start = ContinuousClock.now
         let output = await InstallationLocator.runProcess(URL(filePath: "/bin/sleep"), arguments: ["10"], timeout: 0.2)
         #expect(output.isEmpty)
-        #expect(ContinuousClock.now - start < .seconds(5))
+        // `sleep 10` would take 10 s if the timeout failed. A tighter bound measures how busy
+        // the machine is: on CI the test can wait seconds for a thread to resume on.
+        #expect(ContinuousClock.now - start < .seconds(9))
     }
 
     @Test func runProcessReturnsOutput() async {
