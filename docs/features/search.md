@@ -81,7 +81,7 @@ The in-memory `SearchIndex` is built from one `SELECT` of the catalogue table, a
   - Case and accents are ignored.
   - Words are split on punctuation and camelCase, so "boss" matches DeadlyBossMods.
   - Every query word must match a word in the name, owner, repo or description. The last word may match as a prefix.
-  - **Aliases:** `dbm`, `bw`, `lw`, `wa`/`wa2`, `tsm`, `bt4`, `rcl`, `mrt`, `ert`, `elv`, `bossmods`. They're defined in `SearchAliases.swift`.
+  - **Aliases:** `dbm`, `bw`, `lw`, `wa`/`wa2`, `tsm`, `bt4`, `rcl`, `mrt`, `ert`, `elv`, `bossmods`, `craft`. They're defined in `SearchAliases.swift`. Each alias lists alternative words for one query word; the query matches if the literal words or any combination of alternatives match. `craft` also tries `profession`, `tradeskill`, `tradeskillmaster`, `recipe` and `reagent`, because most profession add-ons never say "craft".
 - **Ranking**, highest first:
   1. Exact name match
   2. Name starts with the query
@@ -107,7 +107,7 @@ Known quirk: "bag" ranks the Bagnon plugins above BetterBags, because a name sta
 - Both lists carry `availableFlavors`. **Recently updated** always drops what the hide-incompatible rule hides; the app filters both lists again by its toggle.
 - **Recently updated:** catalogue entries with the newest update dates.
 - Each list holds up to `SearchCoordinator.browseLimit` (200) rows, and a search keeps its best `catalogueLimit` (100) catalogue matches. The table builds only visible rows, but accessibility clients (VoiceOver, window managers, UI tests) make it build every row, at about 0.7 MB each, so the caps keep that bounded; the lists are ranked, so the cut is the long tail. (Browse was 500 rows a list and searches 200 matches until 0.1.6.)
-- **Categories:** Boss mods, Bags, UI, Quests, Maps, Auction and Combat. Each is a saved keyword query from `SearchAliases.categories`; clicking one runs that search.
+- **Categories:** Boss mods, Bags, UI, Quests, Maps, Auction, Combat and Crafting. Each is a saved keyword query from `SearchAliases.categories`; clicking one runs that search. Crafting's query is `craft`, so its alias widens it to profession, recipe and reagent add-ons (77 catalogue matches instead of 27 in November 2026), all from the local database.
 
 Results that are already installed are marked.
 

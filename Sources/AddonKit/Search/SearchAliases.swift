@@ -19,7 +19,7 @@ public struct SearchCategory: Sendable, Hashable, Identifiable {
 
 /// Static search vocabulary: query aliases and Browse categories.
 public enum SearchAliases {
-    /// Lower-case query word → the words it stands for. Expanded as an alternative,
+    /// Lower-case query word → other words that also match in its place. Each is an alternative,
     /// so `dbm` still matches `DBM-…` repos literally as well as `DeadlyBossMods`.
     public static let aliases: [String: [String]] = [
         "dbm": ["deadlybossmods"],
@@ -34,6 +34,8 @@ public enum SearchAliases {
         "ert": ["exorsusraidtools"],
         "elv": ["elvui"],
         "bossmods": ["boss"],
+        // Profession add-ons rarely say "craft": TSM, recipe and reagent trackers, trade skill UIs.
+        "craft": ["profession", "tradeskill", "tradeskillmaster", "recipe", "reagent"],
     ]
 
     public static let categories: [SearchCategory] = [
@@ -44,5 +46,6 @@ public enum SearchAliases {
         SearchCategory(id: "maps", title: "Maps", symbol: "map", query: "map"),
         SearchCategory(id: "auction", title: "Auction", symbol: "dollarsign.circle", query: "auction"),
         SearchCategory(id: "combat", title: "Combat", symbol: "bolt", query: "combat"),
+        SearchCategory(id: "crafting", title: "Crafting", symbol: "hammer", query: "craft"),
     ]
 }

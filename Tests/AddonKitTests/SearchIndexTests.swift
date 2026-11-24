@@ -134,6 +134,45 @@ func catalogueEntry(_ fullName: String, name: String? = nil, description: String
     }
 }
 
+/// The Crafting category's query and its alternatives, over profession add-ons that never say "craft".
+@Suite struct CraftingCategoryTests {
+    let index = SearchIndex(entries: [
+        catalogueEntry("a/CraftSim", description: "Simulates crafting results", updated: 9),
+        catalogueEntry("a/ProfessionShoppingList", updated: 8),
+        catalogueEntry("a/TradeSkillMaster", description: "Auction house and gold making", updated: 7),
+        catalogueEntry("a/RecipeLinkFix", updated: 6),
+        catalogueEntry("a/ReagentCount", description: "Counts reagents in your bank", updated: 5),
+        catalogueEntry("a/TradeSkillInfo", updated: 4),
+        catalogueEntry("a/Aircraft", updated: 3),
+        catalogueEntry("a/BossWarnings", description: "Raid timers", updated: 2),
+    ])
+
+    @Test func categoryQueryFindsProfessionAddons() throws {
+        let crafting = try #require(SearchAliases.categories.first { $0.id == "crafting" })
+        #expect(crafting.title == "Crafting")
+        let names = Set(index.search(crafting.query).map(\.fullName))
+        #expect(names == [
+            "a/CraftSim", "a/ProfessionShoppingList", "a/TradeSkillMaster",
+            "a/RecipeLinkFix", "a/ReagentCount", "a/TradeSkillInfo",
+        ])
+    }
+
+    @Test func alternativesApplyInsideLongerQueries() {
+        // A category plus typed text: "craft" is no longer the last word, so it matches whole words.
+        #expect(index.search("craft reagents").map(\.fullName) == ["a/ReagentCount"])
+        #expect(index.search("craft auction").map(\.fullName) == ["a/TradeSkillMaster"])
+    }
+
+    @Test func everyCombinationOfAlternativesIsTried() {
+        let plan = SearchPlan("dbm craft", aliases: ["dbm": ["deadlybossmods"], "craft": ["recipe", "reagent"]])
+        #expect(plan?.variants.map(\.words) == [
+            ["dbm", "craft"], ["dbm", "recipe"], ["dbm", "reagent"],
+            ["deadlybossmods", "craft"], ["deadlybossmods", "recipe"], ["deadlybossmods", "reagent"],
+        ])
+        #expect(SearchPlan("bag")?.variants.count == 1)
+    }
+}
+
 @Suite struct SearchRankingTests {
     @Test func tiersOrderResults() {
         let index = SearchIndex(entries: [

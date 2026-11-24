@@ -123,12 +123,14 @@ struct SearchPlan: Sendable {
     init?(_ text: String, aliases: [String: [String]] = SearchAliases.aliases) {
         let words = SearchText.words(text).map(SearchText.fold)
         guard !words.isEmpty else { return nil }
-        var variants = [Variant(words: words, key: words.joined())]
-        if words.contains(where: { aliases[$0] != nil }) {
-            let expanded = words.flatMap { aliases[$0] ?? [$0] }
-            variants.append(Variant(words: expanded, key: expanded.joined()))
+        // One variant per combination of alternatives, the literal query first. Only aliased
+        // words branch, so a typical query stays a single variant.
+        var combinations: [[String]] = [[]]
+        for word in words {
+            let options = [word] + (aliases[word] ?? [])
+            combinations = combinations.flatMap { prefix in options.map { prefix + [$0] } }
         }
-        self.variants = variants
+        variants = combinations.map { Variant(words: $0, key: $0.joined()) }
     }
 }
 
