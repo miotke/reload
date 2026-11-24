@@ -366,7 +366,7 @@ private let errorSackLive: [(fullName: String, stars: Int, archived: Bool, fork:
         #expect(!ids(browse.recent).contains("example-bags/TidyBags"))
         #expect(h.githubRequests.isEmpty)
 
-        #expect(browse.categories.map(\.title) == ["Boss mods", "Bags", "UI", "Quests", "Maps", "Auction", "Combat"])
+        #expect(browse.categories.map(\.title) == ["Boss mods", "Bags", "UI", "Quests", "Maps", "Auction", "Combat", "Crafting"])
     }
 
     @Test func browseSortsPopularByStarsOnceKnown() async throws {
